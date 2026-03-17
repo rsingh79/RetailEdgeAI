@@ -2,12 +2,15 @@ import { useLocation } from 'react-router-dom';
 
 const titles = {
   '/': 'Dashboard',
+  '/ai': 'AI Command Center',
   '/invoices': 'Upload Invoices',
   '/review': 'Invoice Review',
   '/products': 'Product Catalog',
   '/pricing': 'Pricing Rules',
   '/reports': 'Reports & Analytics',
   '/settings': 'Settings',
+  '/competitor': 'Competitor Intelligence',
+  '/export': 'Export',
 };
 
 export default function TopBar() {

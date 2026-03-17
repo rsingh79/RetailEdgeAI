@@ -11,6 +11,7 @@ import Pricing from './pages/Pricing';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import CompetitorIntelligence from './pages/CompetitorIntelligence';
+import AICommandCenter from './pages/AICommandCenter';
 import Login from './pages/Login';
 import AdminOverview from './pages/admin/Overview';
 import AdminTenants from './pages/admin/Tenants';
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Dashboard />} />
+          <Route path="ai" element={<AICommandCenter />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="invoices/:invoiceId" element={<InvoiceDetail />} />
           <Route path="review" element={<Review />} />

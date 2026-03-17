@@ -203,4 +203,13 @@ export const api = {
     getSettings: () => request('/admin/settings'),
     updateSettings: (data) => request('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
   },
+
+  // AI Agents
+  agents: {
+    getStatus: () => request('/agents/status'),
+    getPendingDecisions: () => request('/agents/pending-decisions'),
+    getActivity: (limit) => request(`/agents/activity${limit ? `?limit=${limit}` : ''}`),
+    getUsage: () => request('/agents/usage'),
+    run: () => request('/agents/run', { method: 'POST' }),
+  },
 };

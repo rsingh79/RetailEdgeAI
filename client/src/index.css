@@ -16,3 +16,13 @@
   --color-sidebar-hover: #1e293b;
   --color-sidebar-active: #334155;
 }
+
+/* AI Command Center animations */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}

@@ -20,6 +20,7 @@ import { handleOAuthCallback } from './services/gmail.js';
 import { startGmailScheduler } from './services/gmailScheduler.js';
 import { startFolderScheduler } from './services/folderScheduler.js';
 import competitorRoutes from './routes/competitor.js';
+import agentRoutes from './routes/agents.js';
 import adminOverviewRoutes from './routes/admin/overview.js';
 import adminTenantRoutes from './routes/admin/tenants.js';
 import adminApiUsageRoutes from './routes/admin/apiUsage.js';
@@ -63,6 +64,9 @@ app.use('/api/invoices', authenticate, tenantAccess, tenantScope, invoiceRoutes)
 app.use('/api/products', authenticate, tenantAccess, tenantScope, productRoutes);
 app.use('/api/pricing-rules', authenticate, tenantAccess, tenantScope, pricingRoutes);
 app.use('/api/stores', authenticate, tenantAccess, tenantScope, storeRoutes);
+
+// AI Agents — aggregates data from existing services
+app.use('/api/agents', authenticate, tenantAccess, tenantScope, agentRoutes);
 
 // Plan-gated routes — Professional+ plans
 app.use('/api/gmail', authenticate, tenantAccess, tenantScope, requirePlan('gmail_integration'), gmailRoutes);

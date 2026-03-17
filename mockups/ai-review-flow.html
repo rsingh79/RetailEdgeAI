@@ -321,33 +321,40 @@ tailwind.config = {
                   <span class="w-3 h-3 bg-blue-500 rounded-full"></span>
                   <span class="text-sm font-semibold text-blue-800">Main Street Store</span>
                   <span class="text-xs text-gray-400">POS · Square</span>
-                  <button class="ml-auto text-xs text-brand-600 hover:text-brand-700 font-medium">Change Match</button>
+                  <span class="ml-auto flex items-center gap-3">
+                    <label class="flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer"><input type="checkbox" class="rounded border-gray-300 text-brand-600 w-3 h-3" checked onchange="toggleSelectAllStore(this, 'pos1')"> Select all</label>
+                    <button class="text-xs text-brand-600 hover:text-brand-700 font-medium">Change Match</button>
+                  </span>
                 </div>
                 <table class="w-full text-xs">
                   <thead><tr class="bg-white text-gray-500 uppercase">
+                    <th class="text-center px-2 py-2 font-medium w-8"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3 h-3"></th>
                     <th class="text-left px-3 py-2 font-medium">SKU</th>
                     <th class="text-left px-3 py-2 font-medium">Product</th>
                     <th class="text-left px-3 py-2 font-medium">Size</th>
                     <th class="text-right px-3 py-2 font-medium">Prev Cost</th>
-                    <th class="text-center px-3 py-2 font-medium"></th>
+                    <th class="text-center px-2 py-2 font-medium"></th>
                     <th class="text-right px-3 py-2 font-medium">New Cost</th>
                     <th class="text-right px-3 py-2 font-medium">Curr Price</th>
-                    <th class="text-right px-3 py-2 font-medium">Sugg Price</th>
+                    <th class="text-right px-3 py-2 font-medium">New Price</th>
                     <th class="text-right px-3 py-2 font-medium">Margin %</th>
+                    <th class="text-right px-3 py-2 font-medium">Margin $</th>
                     <th class="text-center px-3 py-2 font-medium">Competitors</th>
                     <th class="text-center px-3 py-2 font-medium">Demand</th>
                   </tr></thead>
                   <tbody>
-                    <tr class="border-t border-gray-100 hover:bg-white">
+                    <tr class="border-t border-gray-100 hover:bg-white" data-store="pos1">
+                      <td class="px-2 py-2 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5 row-select"></td>
                       <td class="px-3 py-2 font-mono">EGG-FR-700</td>
-                      <td class="px-3 py-2 font-medium">Free Range Eggs 700g</td>
+                      <td class="px-3 py-2 font-medium">Free Range Eggs</td>
                       <td class="px-3 py-2">700g</td>
                       <td class="px-3 py-2 text-right font-mono">$5.20</td>
-                      <td class="px-3 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td>
+                      <td class="px-2 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td>
                       <td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$5.97</td>
                       <td class="px-3 py-2 text-right font-mono">$6.50</td>
-                      <td class="px-3 py-2 text-right"><input type="text" value="6.99" class="w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white"></td>
-                      <td class="px-3 py-2 text-right"><span class="font-semibold text-green-600">17.1%</span></td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="6.99" data-cost="5.97" class="price-input w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onPriceChange(this)"></td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="17.1" data-cost="5.97" class="margin-pct-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                      <td class="px-3 py-2 text-right"><span class="text-gray-400">$</span><input type="text" value="1.02" data-cost="5.97" class="margin-dollar-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginDollarChange(this)"></td>
                       <td class="px-3 py-2 text-center">
                         <div class="inline-flex items-center gap-1" title="W:$7.00 C:$6.80 A:$5.99">
                           <span class="w-4 h-4 bg-green-600 rounded text-white text-[8px] flex items-center justify-center font-bold">W</span>
@@ -356,6 +363,46 @@ tailwind.config = {
                         </div>
                       </td>
                       <td class="px-3 py-2 text-center"><span class="text-green-600 font-medium">↑ High</span></td>
+                    </tr>
+                    <tr class="border-t border-gray-100 hover:bg-white" data-store="pos1">
+                      <td class="px-2 py-2 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5 row-select"></td>
+                      <td class="px-3 py-2 font-mono">EGG-FR-DZ</td>
+                      <td class="px-3 py-2 font-medium">Free Range Eggs</td>
+                      <td class="px-3 py-2">Dozen</td>
+                      <td class="px-3 py-2 text-right font-mono">$4.46</td>
+                      <td class="px-2 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td>
+                      <td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$5.12</td>
+                      <td class="px-3 py-2 text-right font-mono">$8.99</td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="9.49" data-cost="5.12" class="price-input w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onPriceChange(this)"></td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="46.0" data-cost="5.12" class="margin-pct-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                      <td class="px-3 py-2 text-right"><span class="text-gray-400">$</span><input type="text" value="4.37" data-cost="5.12" class="margin-dollar-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginDollarChange(this)"></td>
+                      <td class="px-3 py-2 text-center">
+                        <div class="inline-flex items-center gap-1" title="W:$9.50 C:$9.00">
+                          <span class="w-4 h-4 bg-green-600 rounded text-white text-[8px] flex items-center justify-center font-bold">W</span>
+                          <span class="w-4 h-4 bg-red-600 rounded text-white text-[8px] flex items-center justify-center font-bold">C</span>
+                        </div>
+                      </td>
+                      <td class="px-3 py-2 text-center"><span class="text-green-600 font-medium">↑ High</span></td>
+                    </tr>
+                    <tr class="border-t border-gray-100 hover:bg-white" data-store="pos1">
+                      <td class="px-2 py-2 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5 row-select"></td>
+                      <td class="px-3 py-2 font-mono">EGG-FR-6PK</td>
+                      <td class="px-3 py-2 font-medium">Free Range Eggs</td>
+                      <td class="px-3 py-2">Half Dozen</td>
+                      <td class="px-3 py-2 text-right font-mono">$2.23</td>
+                      <td class="px-2 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td>
+                      <td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$2.56</td>
+                      <td class="px-3 py-2 text-right font-mono">$4.99</td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="5.29" data-cost="2.56" class="price-input w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onPriceChange(this)"></td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="51.6" data-cost="2.56" class="margin-pct-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                      <td class="px-3 py-2 text-right"><span class="text-gray-400">$</span><input type="text" value="2.73" data-cost="2.56" class="margin-dollar-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginDollarChange(this)"></td>
+                      <td class="px-3 py-2 text-center">
+                        <div class="inline-flex items-center gap-1" title="W:$5.50 C:$5.00">
+                          <span class="w-4 h-4 bg-green-600 rounded text-white text-[8px] flex items-center justify-center font-bold">W</span>
+                          <span class="w-4 h-4 bg-red-600 rounded text-white text-[8px] flex items-center justify-center font-bold">C</span>
+                        </div>
+                      </td>
+                      <td class="px-3 py-2 text-center"><span class="text-amber-600 font-medium">→ Med</span></td>
                     </tr>
                   </tbody>
                 </table>
@@ -367,19 +414,43 @@ tailwind.config = {
                   <span class="w-3 h-3 bg-emerald-500 rounded-full"></span>
                   <span class="text-sm font-semibold text-emerald-800">Online Store</span>
                   <span class="text-xs text-gray-400">Ecommerce · Shopify</span>
-                  <button class="ml-auto text-xs text-brand-600 hover:text-brand-700 font-medium">Change Match</button>
+                  <span class="ml-auto flex items-center gap-3">
+                    <label class="flex items-center gap-1.5 text-[10px] text-gray-500 cursor-pointer"><input type="checkbox" class="rounded border-gray-300 text-brand-600 w-3 h-3" checked onchange="toggleSelectAllStore(this, 'ecom1')"> Select all</label>
+                    <button class="text-xs text-brand-600 hover:text-brand-700 font-medium">Change Match</button>
+                  </span>
                 </div>
                 <table class="w-full text-xs">
                   <thead><tr class="bg-white text-gray-500 uppercase">
-                    <th class="text-left px-3 py-2 font-medium">SKU</th><th class="text-left px-3 py-2 font-medium">Product</th><th class="text-left px-3 py-2 font-medium">Size</th><th class="text-right px-3 py-2 font-medium">Prev Cost</th><th class="text-center px-3 py-2 font-medium"></th><th class="text-right px-3 py-2 font-medium">New Cost</th><th class="text-right px-3 py-2 font-medium">Curr Price</th><th class="text-right px-3 py-2 font-medium">Sugg Price</th><th class="text-right px-3 py-2 font-medium">Margin %</th><th class="text-center px-3 py-2 font-medium">Competitors</th><th class="text-center px-3 py-2 font-medium">Demand</th>
+                    <th class="text-center px-2 py-2 font-medium w-8"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3 h-3"></th>
+                    <th class="text-left px-3 py-2 font-medium">SKU</th><th class="text-left px-3 py-2 font-medium">Product</th><th class="text-left px-3 py-2 font-medium">Size</th><th class="text-right px-3 py-2 font-medium">Prev Cost</th><th class="text-center px-2 py-2 font-medium"></th><th class="text-right px-3 py-2 font-medium">New Cost</th><th class="text-right px-3 py-2 font-medium">Curr Price</th><th class="text-right px-3 py-2 font-medium">New Price</th><th class="text-right px-3 py-2 font-medium">Margin %</th><th class="text-right px-3 py-2 font-medium">Margin $</th><th class="text-center px-3 py-2 font-medium">Competitors</th><th class="text-center px-3 py-2 font-medium">Demand</th>
                   </tr></thead>
                   <tbody>
-                    <tr class="border-t border-gray-100 hover:bg-white">
-                      <td class="px-3 py-2 font-mono">SHP-EGG-FR</td><td class="px-3 py-2 font-medium">Free Range Eggs 700g</td><td class="px-3 py-2">700g</td><td class="px-3 py-2 text-right font-mono">$5.20</td><td class="px-3 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td><td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$5.97</td><td class="px-3 py-2 text-right font-mono">$7.49</td>
-                      <td class="px-3 py-2 text-right"><input type="text" value="7.99" class="w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white"></td>
-                      <td class="px-3 py-2 text-right"><span class="font-semibold text-green-600">25.3%</span></td>
+                    <tr class="border-t border-gray-100 hover:bg-white" data-store="ecom1">
+                      <td class="px-2 py-2 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5 row-select"></td>
+                      <td class="px-3 py-2 font-mono">SHP-EGG-700</td><td class="px-3 py-2 font-medium">Free Range Eggs</td><td class="px-3 py-2">700g</td><td class="px-3 py-2 text-right font-mono">$5.20</td><td class="px-2 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td><td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$5.97</td><td class="px-3 py-2 text-right font-mono">$7.49</td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="7.99" data-cost="5.97" class="price-input w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onPriceChange(this)"></td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="25.3" data-cost="5.97" class="margin-pct-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                      <td class="px-3 py-2 text-right"><span class="text-gray-400">$</span><input type="text" value="2.02" data-cost="5.97" class="margin-dollar-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginDollarChange(this)"></td>
                       <td class="px-3 py-2 text-center"><span class="text-xs text-gray-400">Online</span></td>
                       <td class="px-3 py-2 text-center"><span class="text-green-600 font-medium">↑ High</span></td>
+                    </tr>
+                    <tr class="border-t border-gray-100 hover:bg-white" data-store="ecom1">
+                      <td class="px-2 py-2 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5 row-select"></td>
+                      <td class="px-3 py-2 font-mono">SHP-EGG-DZ</td><td class="px-3 py-2 font-medium">Free Range Eggs</td><td class="px-3 py-2">Dozen</td><td class="px-3 py-2 text-right font-mono">$4.46</td><td class="px-2 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td><td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$5.12</td><td class="px-3 py-2 text-right font-mono">$9.99</td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="10.49" data-cost="5.12" class="price-input w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onPriceChange(this)"></td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="51.2" data-cost="5.12" class="margin-pct-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                      <td class="px-3 py-2 text-right"><span class="text-gray-400">$</span><input type="text" value="5.37" data-cost="5.12" class="margin-dollar-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginDollarChange(this)"></td>
+                      <td class="px-3 py-2 text-center"><span class="text-xs text-gray-400">Online</span></td>
+                      <td class="px-3 py-2 text-center"><span class="text-green-600 font-medium">↑ High</span></td>
+                    </tr>
+                    <tr class="border-t border-gray-100 hover:bg-white" data-store="ecom1">
+                      <td class="px-2 py-2 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5 row-select"></td>
+                      <td class="px-3 py-2 font-mono">SHP-EGG-6</td><td class="px-3 py-2 font-medium">Free Range Eggs</td><td class="px-3 py-2">Half Dozen</td><td class="px-3 py-2 text-right font-mono">$2.23</td><td class="px-2 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td><td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$2.56</td><td class="px-3 py-2 text-right font-mono">$5.49</td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="5.79" data-cost="2.56" class="price-input w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onPriceChange(this)"></td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="55.8" data-cost="2.56" class="margin-pct-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                      <td class="px-3 py-2 text-right"><span class="text-gray-400">$</span><input type="text" value="3.23" data-cost="2.56" class="margin-dollar-input w-14 px-1.5 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white" oninput="onMarginDollarChange(this)"></td>
+                      <td class="px-3 py-2 text-center"><span class="text-xs text-gray-400">Online</span></td>
+                      <td class="px-3 py-2 text-center"><span class="text-amber-600 font-medium">→ Med</span></td>
                     </tr>
                   </tbody>
                 </table>
@@ -596,27 +667,63 @@ tailwind.config = {
                   <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Pricing Preview — If matched to "Soy Milk 1L"</h4>
                   <table class="w-full text-xs">
                     <thead><tr class="text-gray-500 uppercase">
-                      <th class="text-left px-2 py-1.5 font-medium">Store</th><th class="text-right px-2 py-1.5 font-medium">Prev Cost</th><th class="text-center px-2 py-1.5"></th><th class="text-right px-2 py-1.5 font-medium">New Cost</th><th class="text-right px-2 py-1.5 font-medium">Curr Price</th><th class="text-right px-2 py-1.5 font-medium">Sugg Price</th><th class="text-right px-2 py-1.5 font-medium">Margin</th><th class="text-center px-2 py-1.5 font-medium">Competitors</th>
+                      <th class="text-center px-1 py-1.5 font-medium w-6"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3 h-3"></th><th class="text-left px-2 py-1.5 font-medium">Store</th><th class="text-left px-2 py-1.5 font-medium">SKU</th><th class="text-left px-2 py-1.5 font-medium">Size</th><th class="text-right px-2 py-1.5 font-medium">Prev Cost</th><th class="text-center px-2 py-1.5"></th><th class="text-right px-2 py-1.5 font-medium">New Cost</th><th class="text-right px-2 py-1.5 font-medium">Curr Price</th><th class="text-right px-2 py-1.5 font-medium">New Price</th><th class="text-right px-2 py-1.5 font-medium">Margin %</th><th class="text-right px-2 py-1.5 font-medium">Margin $</th><th class="text-center px-2 py-1.5 font-medium">Competitors</th>
                     </tr></thead>
                     <tbody class="divide-y divide-gray-100">
                       <tr>
+                        <td class="px-1 py-1.5 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3 h-3"></td>
                         <td class="px-2 py-1.5"><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> Main St POS</span></td>
+                        <td class="px-2 py-1.5 font-mono">SM-1L</td>
+                        <td class="px-2 py-1.5">1L</td>
                         <td class="px-2 py-1.5 text-right font-mono">$3.80</td>
                         <td class="px-2 py-1.5 text-center text-red-500">→</td>
                         <td class="px-2 py-1.5 text-right font-mono text-red-600 font-semibold">$4.06</td>
                         <td class="px-2 py-1.5 text-right font-mono">$4.29</td>
-                        <td class="px-2 py-1.5 text-right"><input type="text" value="4.79" class="w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs"></td>
-                        <td class="px-2 py-1.5 text-right text-green-600 font-semibold">15.2%</td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="4.79" data-cost="4.06" class="price-input w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onPriceChange(this)"></td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="15.2" data-cost="4.06" class="margin-pct-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                        <td class="px-2 py-1.5 text-right"><span class="text-gray-400">$</span><input type="text" value="0.73" data-cost="4.06" class="margin-dollar-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginDollarChange(this)"></td>
                         <td class="px-2 py-1.5 text-center"><span class="text-gray-400 text-[10px]">W:$4.99 C:$4.50</span></td>
                       </tr>
                       <tr>
+                        <td class="px-1 py-1.5 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3 h-3"></td>
+                        <td class="px-2 py-1.5"><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> Main St POS</span></td>
+                        <td class="px-2 py-1.5 font-mono">SM-500</td>
+                        <td class="px-2 py-1.5">500ml</td>
+                        <td class="px-2 py-1.5 text-right font-mono">$1.90</td>
+                        <td class="px-2 py-1.5 text-center text-red-500">→</td>
+                        <td class="px-2 py-1.5 text-right font-mono text-red-600 font-semibold">$2.03</td>
+                        <td class="px-2 py-1.5 text-right font-mono">$2.99</td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="3.29" data-cost="2.03" class="price-input w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onPriceChange(this)"></td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="38.3" data-cost="2.03" class="margin-pct-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                        <td class="px-2 py-1.5 text-right"><span class="text-gray-400">$</span><input type="text" value="1.26" data-cost="2.03" class="margin-dollar-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginDollarChange(this)"></td>
+                        <td class="px-2 py-1.5 text-center"><span class="text-gray-400 text-[10px]">W:$3.50</span></td>
+                      </tr>
+                      <tr>
+                        <td class="px-1 py-1.5 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3 h-3"></td>
                         <td class="px-2 py-1.5"><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Online Store</span></td>
+                        <td class="px-2 py-1.5 font-mono">SHP-SM-1L</td>
+                        <td class="px-2 py-1.5">1L</td>
                         <td class="px-2 py-1.5 text-right font-mono">$3.80</td>
                         <td class="px-2 py-1.5 text-center text-red-500">→</td>
                         <td class="px-2 py-1.5 text-right font-mono text-red-600 font-semibold">$4.06</td>
                         <td class="px-2 py-1.5 text-right font-mono">$4.99</td>
-                        <td class="px-2 py-1.5 text-right"><input type="text" value="5.49" class="w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs"></td>
-                        <td class="px-2 py-1.5 text-right text-green-600 font-semibold">26.0%</td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="5.49" data-cost="4.06" class="price-input w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onPriceChange(this)"></td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="26.0" data-cost="4.06" class="margin-pct-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                        <td class="px-2 py-1.5 text-right"><span class="text-gray-400">$</span><input type="text" value="1.43" data-cost="4.06" class="margin-dollar-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginDollarChange(this)"></td>
+                        <td class="px-2 py-1.5 text-center"><span class="text-gray-400 text-[10px]">Online only</span></td>
+                      </tr>
+                      <tr>
+                        <td class="px-1 py-1.5 text-center"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3 h-3"></td>
+                        <td class="px-2 py-1.5"><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Online Store</span></td>
+                        <td class="px-2 py-1.5 font-mono">SHP-SM-500</td>
+                        <td class="px-2 py-1.5">500ml</td>
+                        <td class="px-2 py-1.5 text-right font-mono">$1.90</td>
+                        <td class="px-2 py-1.5 text-center text-red-500">→</td>
+                        <td class="px-2 py-1.5 text-right font-mono text-red-600 font-semibold">$2.03</td>
+                        <td class="px-2 py-1.5 text-right font-mono">$3.49</td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="3.79" data-cost="2.03" class="price-input w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onPriceChange(this)"></td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="46.4" data-cost="2.03" class="margin-pct-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginPctChange(this)"><span class="text-gray-400 ml-0.5">%</span></td>
+                        <td class="px-2 py-1.5 text-right"><span class="text-gray-400">$</span><input type="text" value="1.76" data-cost="2.03" class="margin-dollar-input w-12 px-1 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs" oninput="onMarginDollarChange(this)"></td>
                         <td class="px-2 py-1.5 text-center"><span class="text-gray-400 text-[10px]">Online only</span></td>
                       </tr>
                     </tbody>
@@ -893,7 +1000,6 @@ tailwind.config = {
 function showStep(n) {
   document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('step-' + n).classList.add('active');
-  // Update step indicators visually
   document.querySelectorAll('.step-indicator').forEach((el, i) => {
     if (i + 1 < n) { el.className = 'step-indicator w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm'; el.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>'; }
     else if (i + 1 === n) { el.className = 'step-indicator w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold'; el.textContent = n; }
@@ -911,6 +1017,76 @@ function toggleLine(id) {
 function expandAll() {
   document.querySelectorAll('.expand-detail').forEach(d => d.classList.add('open'));
   document.querySelectorAll('.chevron').forEach(c => c.classList.add('rotated'));
+}
+
+/* ========== MARGIN / PRICE AUTO-CALCULATION ========== */
+/* When user changes Price → recalculate Margin % and Margin $ */
+function onPriceChange(el) {
+  const row = el.closest('tr');
+  const cost = parseFloat(el.dataset.cost);
+  const price = parseFloat(el.value);
+  if (isNaN(price) || isNaN(cost) || price <= 0) return;
+  const marginDollar = price - cost;
+  const marginPct = (marginDollar / price) * 100;
+  const pctInput = row.querySelector('.margin-pct-input');
+  const dollarInput = row.querySelector('.margin-dollar-input');
+  if (pctInput) pctInput.value = marginPct.toFixed(1);
+  if (dollarInput) dollarInput.value = marginDollar.toFixed(2);
+  colorizeMargin(pctInput, marginPct);
+  colorizeMargin(dollarInput, marginPct);
+  colorizeMargin(el, marginPct);
+}
+
+/* When user changes Margin % → recalculate Price and Margin $ */
+function onMarginPctChange(el) {
+  const row = el.closest('tr');
+  const cost = parseFloat(el.dataset.cost);
+  const pct = parseFloat(el.value);
+  if (isNaN(pct) || isNaN(cost) || pct >= 100) return;
+  const price = cost / (1 - pct / 100);
+  const marginDollar = price - cost;
+  const priceInput = row.querySelector('.price-input');
+  const dollarInput = row.querySelector('.margin-dollar-input');
+  if (priceInput) priceInput.value = price.toFixed(2);
+  if (dollarInput) dollarInput.value = marginDollar.toFixed(2);
+  colorizeMargin(el, pct);
+  colorizeMargin(priceInput, pct);
+  colorizeMargin(dollarInput, pct);
+}
+
+/* When user changes Margin $ → recalculate Price and Margin % */
+function onMarginDollarChange(el) {
+  const row = el.closest('tr');
+  const cost = parseFloat(el.dataset.cost);
+  const dollar = parseFloat(el.value);
+  if (isNaN(dollar) || isNaN(cost)) return;
+  const price = cost + dollar;
+  const marginPct = price > 0 ? (dollar / price) * 100 : 0;
+  const priceInput = row.querySelector('.price-input');
+  const pctInput = row.querySelector('.margin-pct-input');
+  if (priceInput) priceInput.value = price.toFixed(2);
+  if (pctInput) pctInput.value = marginPct.toFixed(1);
+  colorizeMargin(el, marginPct);
+  colorizeMargin(priceInput, marginPct);
+  colorizeMargin(pctInput, marginPct);
+}
+
+/* Color inputs based on margin health: green=good, amber=warning, red=danger */
+function colorizeMargin(el, pct) {
+  if (!el) return;
+  el.classList.remove('text-green-700','text-amber-700','text-red-700','bg-green-50','bg-amber-50','bg-red-50','border-green-200','border-amber-200','border-red-200');
+  if (pct >= 15) { el.classList.add('text-green-700','bg-green-50','border-green-200'); }
+  else if (pct >= 5) { el.classList.add('text-amber-700','bg-amber-50','border-amber-200'); }
+  else { el.classList.add('text-red-700','bg-red-50','border-red-200'); }
+}
+
+/* Select / deselect all product variants within a store section */
+function toggleSelectAllStore(masterCheckbox, storeId) {
+  const rows = document.querySelectorAll('tr[data-store="' + storeId + '"]');
+  rows.forEach(row => {
+    const cb = row.querySelector('.row-select');
+    if (cb) cb.checked = masterCheckbox.checked;
+  });
 }
 </script>
 </body>

@@ -1,0 +1,22 @@
+{
+  "name": "retail-store-management",
+  "private": true,
+  "version": "0.1.0",
+  "description": "RetailEdge - Invoice, pricing & margin management for small retailers",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build": "cd client && npm run build",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "cd server && npx prisma migrate dev",
+    "db:seed": "cd server && npx prisma db seed",
+    "db:studio": "cd server && npx prisma studio",
+    "test": "cd server && npm test",
+    "test:watch": "cd server && npm run test:watch"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

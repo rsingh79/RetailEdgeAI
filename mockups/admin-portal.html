@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RetailEdge — Admin Portal Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwindcss.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#f0fdfa', 100:'#ccfbf1', 200:'#99f6e4', 300:'#5eead4', 400:'#2dd4bf', 500:'#14b8a6', 600:'#0d9488', 700:'#0f766e', 800:'#115e59', 900:'#134e4a' },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    * { font-family: 'Inter', system-ui, sans-serif; }
+    .sidebar-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer; }
+    .sidebar-link.active { @apply bg-slate-700/60 text-white; }
+    .sidebar-link:not(.active) { @apply text-slate-400 hover:text-white hover:bg-slate-700/40; }
+    .stat-card { @apply bg-white rounded-xl border border-gray-200 p-5; }
+    .tab-btn { @apply px-4 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer; }
+    .tab-btn.active { @apply bg-brand-500 text-white; }
+    .tab-btn:not(.active) { @apply text-gray-600 hover:bg-gray-100; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .detail-panel { display: none; }
+    .detail-panel.active { display: block; }
+    .sub-tab { @apply px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer border; }
+    .sub-tab.active { @apply bg-brand-50 text-brand-700 border-brand-200; }
+    .sub-tab:not(.active) { @apply text-gray-500 hover:text-gray-700 border-gray-200 hover:border-gray-300 bg-white; }
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!--  ADMIN SIDEBAR (dark, same pattern as tenant sidebar)      -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <aside class="fixed top-0 left-0 w-64 h-screen bg-slate-900 flex flex-col z-40">
+    <!-- Brand -->
+    <div class="px-5 py-5 border-b border-slate-700/50">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <div>
+          <span class="text-white font-bold text-lg">RetailEdge</span>
+          <span class="ml-1 px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[10px] font-bold rounded uppercase">Admin</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <div class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Platform</div>
+      <div class="sidebar-link active" onclick="showPage('overview')">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+        Overview
+      </div>
+      <div class="sidebar-link" onclick="showPage('tenants')">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3H21m-3.75 3H21"/></svg>
+        Tenants
+        <span class="ml-auto px-2 py-0.5 bg-brand-500/20 text-brand-400 text-[11px] font-semibold rounded-full">14</span>
+      </div>
+      <div class="sidebar-link" onclick="showPage('api-usage')">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+        API Usage & Costs
+      </div>
+
+      <div class="px-3 mt-6 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Billing</div>
+      <div class="sidebar-link" onclick="showPage('subscriptions')">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/></svg>
+        Subscriptions
+      </div>
+    </nav>
+
+    <!-- Admin User -->
+    <div class="px-4 py-3 border-t border-slate-700/50">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-red-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">SA</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-white truncate">System Admin</div>
+          <div class="text-xs text-slate-400">SYSTEM_ADMIN</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!--  MAIN CONTENT AREA                                         -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <main class="ml-64 min-h-screen">
+
+    <!-- Top Bar -->
+    <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+      <h1 id="pageTitle" class="text-lg font-semibold text-gray-900">Platform Overview</h1>
+      <div class="flex items-center gap-4">
+        <div class="relative">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+          <div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></div>
+        </div>
+        <div class="h-5 w-px bg-gray-200"></div>
+        <div class="text-sm text-gray-500">Admin Portal</div>
+      </div>
+    </header>
+
+    <div class="p-6">
+
+      <!-- ══════════════════════════════════════════════════════ -->
+      <!--  PAGE 1: OVERVIEW DASHBOARD                           -->
+      <!-- ══════════════════════════════════════════════════════ -->
+      <div id="page-overview" class="page active">
+
+        <!-- Stats Row -->
+        <div class="grid grid-cols-4 gap-5 mb-6">
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Active Tenants</div>
+            <div class="text-3xl font-bold text-gray-900">14</div>
+            <div class="text-xs text-emerald-600 mt-1">+2 this month</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Total API Calls (MTD)</div>
+            <div class="text-3xl font-bold text-gray-900">8,423</div>
+            <div class="text-xs text-gray-500 mt-1">Avg 601/day</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Total API Cost (MTD)</div>
+            <div class="text-3xl font-bold text-gray-900">$342.18</div>
+            <div class="text-xs text-amber-600 mt-1">↑ 12% vs last month</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Trial Tenants</div>
+            <div class="text-3xl font-bold text-gray-900">3</div>
+            <div class="text-xs text-red-500 mt-1">1 expiring in 2 days</div>
+          </div>
+        </div>
+
+        <!-- Two-column layout -->
+        <div class="grid grid-cols-2 gap-5">
+          <!-- Top Tenants by API Cost -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold text-gray-900">Top Tenants by API Cost (This Month)</h3>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 text-xs font-bold">FM</div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-900">Fresh Mart Groceries</span>
+                    <span class="text-sm font-semibold text-gray-900">$87.42</span>
+                  </div>
+                  <div class="w-full bg-gray-100 rounded-full h-1.5 mt-1"><div class="bg-blue-500 h-1.5 rounded-full" style="width:75%"></div></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center text-violet-600 text-xs font-bold">CP</div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-900">Corner Pantry</span>
+                    <span class="text-sm font-semibold text-gray-900">$62.15</span>
+                  </div>
+                  <div class="w-full bg-gray-100 rounded-full h-1.5 mt-1"><div class="bg-violet-500 h-1.5 rounded-full" style="width:55%"></div></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 text-xs font-bold">HF</div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-900">Harvest Foods</span>
+                    <span class="text-sm font-semibold text-gray-900">$54.30</span>
+                  </div>
+                  <div class="w-full bg-gray-100 rounded-full h-1.5 mt-1"><div class="bg-emerald-500 h-1.5 rounded-full" style="width:46%"></div></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center text-rose-600 text-xs font-bold">VG</div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-900">Village Grocer</span>
+                    <span class="text-sm font-semibold text-gray-900">$41.88</span>
+                  </div>
+                  <div class="w-full bg-gray-100 rounded-full h-1.5 mt-1"><div class="bg-rose-500 h-1.5 rounded-full" style="width:36%"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="font-semibold text-gray-900 mb-4">Recent Activity</h3>
+            <div class="space-y-3">
+              <div class="flex gap-3">
+                <div class="w-2 h-2 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
+                <div>
+                  <div class="text-sm text-gray-900"><span class="font-medium">Green Valley Organics</span> registered</div>
+                  <div class="text-xs text-gray-500">14-day free trial started · 2 hours ago</div>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <div class="w-2 h-2 bg-brand-400 rounded-full mt-2 shrink-0"></div>
+                <div>
+                  <div class="text-sm text-gray-900"><span class="font-medium">Fresh Mart Groceries</span> processed 23 invoices</div>
+                  <div class="text-xs text-gray-500">847 API calls · $12.40 · 5 hours ago</div>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <div class="w-2 h-2 bg-amber-400 rounded-full mt-2 shrink-0"></div>
+                <div>
+                  <div class="text-sm text-gray-900"><span class="font-medium">Bayside Deli</span> trial expiring</div>
+                  <div class="text-xs text-gray-500">2 days remaining · No card on file · 1 day ago</div>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <div class="w-2 h-2 bg-red-400 rounded-full mt-2 shrink-0"></div>
+                <div>
+                  <div class="text-sm text-gray-900"><span class="font-medium">Metro Mini Mart</span> access locked</div>
+                  <div class="text-xs text-gray-500">Trial expired, no payment method · 3 days ago</div>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <div class="w-2 h-2 bg-blue-400 rounded-full mt-2 shrink-0"></div>
+                <div>
+                  <div class="text-sm text-gray-900"><span class="font-medium">Corner Pantry</span> upgraded to Pro plan</div>
+                  <div class="text-xs text-gray-500">Subscription active · 4 days ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ══════════════════════════════════════════════════════ -->
+      <!--  PAGE 2: TENANT MANAGEMENT                            -->
+      <!-- ══════════════════════════════════════════════════════ -->
+      <div id="page-tenants" class="page">
+
+        <!-- Toolbar -->
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <!-- Search -->
+            <div class="relative">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+              <input type="text" placeholder="Search tenants..." class="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+            </div>
+            <!-- Filter -->
+            <select class="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+              <option>All Statuses</option>
+              <option>Active</option>
+              <option>Trial</option>
+              <option>Locked</option>
+              <option>Suspended</option>
+            </select>
+          </div>
+          <button onclick="showTenantDetail('new')" class="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            Add Tenant
+          </button>
+        </div>
+
+        <!-- Tenant List (default view) -->
+        <div id="tenant-list" class="detail-panel active">
+          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-gray-100 bg-gray-50/80">
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Tenant</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Status</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Plan</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Users</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Stores</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">API Calls (MTD)</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">API Cost (MTD)</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Created</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr class="hover:bg-gray-50 cursor-pointer" onclick="showTenantDetail('fresh-mart')">
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 text-xs font-bold">FM</div>
+                      <div>
+                        <div class="text-sm font-medium text-gray-900">Fresh Mart Groceries</div>
+                        <div class="text-xs text-gray-500">ABN 51 824 753 166</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5"><span class="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">Active</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-900">Pro</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">4</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">3</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">2,341</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm font-medium text-gray-900">$87.42</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500">12 Jan 2026</span></td>
+                  <td class="px-5 py-3.5">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                  </td>
+                </tr>
+                <tr class="hover:bg-gray-50 cursor-pointer" onclick="showTenantDetail('corner-pantry')">
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center text-violet-600 text-xs font-bold">CP</div>
+                      <div>
+                        <div class="text-sm font-medium text-gray-900">Corner Pantry</div>
+                        <div class="text-xs text-gray-500">ABN 23 456 789 012</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5"><span class="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">Active</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-900">Pro</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">2</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">2</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">1,580</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm font-medium text-gray-900">$62.15</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500">28 Feb 2026</span></td>
+                  <td class="px-5 py-3.5">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                  </td>
+                </tr>
+                <tr class="hover:bg-gray-50 cursor-pointer">
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600 text-xs font-bold">BD</div>
+                      <div>
+                        <div class="text-sm font-medium text-gray-900">Bayside Deli</div>
+                        <div class="text-xs text-gray-500">ABN 67 890 123 456</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5"><span class="px-2 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">Trial · 2d left</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500 italic">Trial (14 days)</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">1</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">1</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">312</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm font-medium text-gray-900">$18.40</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500">25 Feb 2026</span></td>
+                  <td class="px-5 py-3.5">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                  </td>
+                </tr>
+                <tr class="hover:bg-gray-50 cursor-pointer">
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center text-red-600 text-xs font-bold">MM</div>
+                      <div>
+                        <div class="text-sm font-medium text-gray-900">Metro Mini Mart</div>
+                        <div class="text-xs text-gray-500">ABN 34 567 890 123</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5"><span class="px-2 py-1 bg-red-50 text-red-700 text-xs font-medium rounded-full">Locked</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500 italic">Trial expired</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">1</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">1</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">89</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm font-medium text-gray-900">$4.22</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500">1 Mar 2026</span></td>
+                  <td class="px-5 py-3.5">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                  </td>
+                </tr>
+                <tr class="hover:bg-gray-50 cursor-pointer">
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 text-xs font-bold">GV</div>
+                      <div>
+                        <div class="text-sm font-medium text-gray-900">Green Valley Organics</div>
+                        <div class="text-xs text-gray-500">ABN 78 901 234 567</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5"><span class="px-2 py-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-full">Trial · 12d left</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500 italic">Trial (14 days)</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">1</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">1</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-700">45</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm font-medium text-gray-900">$2.10</span></td>
+                  <td class="px-5 py-3.5"><span class="text-sm text-gray-500">7 Mar 2026</span></td>
+                  <td class="px-5 py-3.5">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════ -->
+        <!--  TENANT DETAIL VIEW                                  -->
+        <!-- ════════════════════════════════════════════════════ -->
+        <div id="tenant-detail" class="detail-panel">
+
+          <!-- Back button + title -->
+          <div class="flex items-center gap-3 mb-5">
+            <button onclick="showTenantDetail('list')" class="p-1.5 hover:bg-gray-100 rounded-lg transition">
+              <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+            </button>
+            <div>
+              <h2 id="tenant-detail-title" class="text-lg font-semibold text-gray-900">Fresh Mart Groceries</h2>
+              <div class="text-sm text-gray-500">Tenant Details</div>
+            </div>
+            <div class="ml-auto flex items-center gap-2">
+              <span id="tenant-status-badge" class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">Active</span>
+            </div>
+          </div>
+
+          <!-- Tenant Detail Tabs -->
+          <div class="flex gap-2 mb-5">
+            <div class="sub-tab active" onclick="showTenantTab('details')">Details</div>
+            <div class="sub-tab" onclick="showTenantTab('users')">Users</div>
+            <div class="sub-tab" onclick="showTenantTab('subscription')">Subscription</div>
+            <div class="sub-tab" onclick="showTenantTab('access')">Access Control</div>
+          </div>
+
+          <!-- Tab: Details -->
+          <div id="tenant-tab-details" class="detail-panel active">
+            <div class="grid grid-cols-2 gap-5">
+              <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="font-semibold text-gray-900 mb-4">Business Information</h3>
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Business Name</label>
+                    <input type="text" value="Fresh Mart Groceries" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">ABN</label>
+                    <input type="text" value="51 824 753 166" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600 mb-1">Timezone</label>
+                      <select class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                        <option selected>Australia/Sydney</option>
+                        <option>Australia/Melbourne</option>
+                        <option>Australia/Brisbane</option>
+                        <option>Australia/Perth</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-600 mb-1">Currency</label>
+                      <select class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                        <option selected>AUD</option>
+                        <option>NZD</option>
+                        <option>USD</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Contact Email</label>
+                    <input type="email" value="admin@freshmart.com.au" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Contact Phone</label>
+                    <input type="text" value="02 9123 4567" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  </div>
+                </div>
+                <div class="mt-5 flex justify-end">
+                  <button class="px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition">Save Changes</button>
+                </div>
+              </div>
+
+              <div class="space-y-5">
+                <!-- Quick Stats -->
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                  <h3 class="font-semibold text-gray-900 mb-3">Usage Summary</h3>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-50 rounded-lg p-3">
+                      <div class="text-xs text-gray-500">Users</div>
+                      <div class="text-xl font-bold text-gray-900">4</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                      <div class="text-xs text-gray-500">Stores</div>
+                      <div class="text-xl font-bold text-gray-900">3</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                      <div class="text-xs text-gray-500">Products</div>
+                      <div class="text-xl font-bold text-gray-900">842</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                      <div class="text-xs text-gray-500">Invoices (total)</div>
+                      <div class="text-xl font-bold text-gray-900">156</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Key Dates -->
+                <div class="bg-white rounded-xl border border-gray-200 p-5">
+                  <h3 class="font-semibold text-gray-900 mb-3">Key Dates</h3>
+                  <div class="space-y-2.5">
+                    <div class="flex justify-between text-sm">
+                      <span class="text-gray-500">Registered</span>
+                      <span class="font-medium text-gray-900">12 Jan 2026</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                      <span class="text-gray-500">Trial Started</span>
+                      <span class="font-medium text-gray-900">12 Jan 2026</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                      <span class="text-gray-500">Trial Ended</span>
+                      <span class="font-medium text-gray-900">26 Jan 2026</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                      <span class="text-gray-500">Subscription Started</span>
+                      <span class="font-medium text-gray-900">27 Jan 2026</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                      <span class="text-gray-500">Last Active</span>
+                      <span class="font-medium text-gray-900">Today, 2:34 PM</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Users -->
+          <div id="tenant-tab-users" class="detail-panel">
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="font-semibold text-gray-900">Users (4)</h3>
+              </div>
+              <table class="w-full">
+                <thead>
+                  <tr class="border-b border-gray-100 bg-gray-50/80">
+                    <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">User</th>
+                    <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Role</th>
+                    <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Last Login</th>
+                    <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">API Calls (MTD)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  <tr>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 text-xs font-bold">JL</div>
+                        <div>
+                          <div class="text-sm font-medium text-gray-900">Jane Liu</div>
+                          <div class="text-xs text-gray-500">jane@freshmart.com.au</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3"><span class="px-2 py-0.5 bg-brand-50 text-brand-700 text-xs font-medium rounded-full">OWNER</span></td>
+                    <td class="px-5 py-3 text-sm text-gray-700">Today, 2:34 PM</td>
+                    <td class="px-5 py-3 text-sm text-gray-700">1,204</td>
+                  </tr>
+                  <tr>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-bold">TN</div>
+                        <div>
+                          <div class="text-sm font-medium text-gray-900">Tom Nguyen</div>
+                          <div class="text-xs text-gray-500">tom@freshmart.com.au</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3"><span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">OPS_MANAGER</span></td>
+                    <td class="px-5 py-3 text-sm text-gray-700">Yesterday, 5:12 PM</td>
+                    <td class="px-5 py-3 text-sm text-gray-700">820</td>
+                  </tr>
+                  <tr>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 bg-violet-100 rounded-full flex items-center justify-center text-violet-600 text-xs font-bold">SK</div>
+                        <div>
+                          <div class="text-sm font-medium text-gray-900">Sarah Kim</div>
+                          <div class="text-xs text-gray-500">sarah@freshmart.com.au</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3"><span class="px-2 py-0.5 bg-violet-50 text-violet-700 text-xs font-medium rounded-full">MERCHANDISER</span></td>
+                    <td class="px-5 py-3 text-sm text-gray-700">Today, 11:08 AM</td>
+                    <td class="px-5 py-3 text-sm text-gray-700">245</td>
+                  </tr>
+                  <tr>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 text-xs font-bold">DP</div>
+                        <div>
+                          <div class="text-sm font-medium text-gray-900">David Park</div>
+                          <div class="text-xs text-gray-500">david@freshmart.com.au</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3"><span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">STORE_MANAGER</span></td>
+                    <td class="px-5 py-3 text-sm text-gray-700">3 Mar 2026</td>
+                    <td class="px-5 py-3 text-sm text-gray-700">72</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab: Subscription -->
+          <div id="tenant-tab-subscription" class="detail-panel">
+            <div class="grid grid-cols-2 gap-5">
+              <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="font-semibold text-gray-900 mb-4">Current Plan</h3>
+                <div class="flex items-center gap-3 mb-4">
+                  <div class="px-3 py-1.5 bg-brand-50 text-brand-700 text-sm font-semibold rounded-lg border border-brand-200">Pro Plan</div>
+                  <span class="text-sm text-gray-500">$49/month</span>
+                </div>
+                <div class="space-y-2.5 text-sm">
+                  <div class="flex justify-between"><span class="text-gray-500">Subscription ID</span><span class="font-mono text-xs text-gray-600">sub_1MZR5KLkdIwHu7ixaF...</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Provider</span><span class="text-gray-900">Stripe</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Billing Cycle</span><span class="text-gray-900">Monthly</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Next Invoice</span><span class="text-gray-900">12 Apr 2026</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Payment Method</span><span class="text-gray-900">Visa ****4242</span></div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                  <a href="#" class="text-sm text-brand-600 hover:text-brand-700 font-medium">Open in Stripe Dashboard →</a>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="font-semibold text-gray-900 mb-4">Billing History</h3>
+                <div class="space-y-2.5">
+                  <div class="flex items-center justify-between py-2">
+                    <div>
+                      <div class="text-sm font-medium text-gray-900">Pro Plan — March 2026</div>
+                      <div class="text-xs text-gray-500">12 Mar 2026</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-sm font-medium text-gray-900">$49.00</span>
+                      <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full">Paid</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between py-2">
+                    <div>
+                      <div class="text-sm font-medium text-gray-900">Pro Plan — February 2026</div>
+                      <div class="text-xs text-gray-500">12 Feb 2026</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-sm font-medium text-gray-900">$49.00</span>
+                      <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full">Paid</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between py-2">
+                    <div>
+                      <div class="text-sm font-medium text-gray-900">Pro Plan — January 2026</div>
+                      <div class="text-xs text-gray-500">27 Jan 2026</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-sm font-medium text-gray-900">$25.00</span>
+                      <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full">Paid (prorated)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Access Control -->
+          <div id="tenant-tab-access" class="detail-panel">
+            <div class="grid grid-cols-2 gap-5">
+              <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="font-semibold text-gray-900 mb-4">Access Status</h3>
+                <div class="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg mb-4">
+                  <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                  <div>
+                    <div class="text-sm font-semibold text-emerald-800">Access Unlocked</div>
+                    <div class="text-xs text-emerald-600">Tenant can access all features</div>
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <button onclick="toggleLockState()" id="lock-btn" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 text-sm font-medium rounded-lg hover:bg-red-100 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                    Lock Tenant Access
+                  </button>
+                </div>
+
+                <div class="mt-5">
+                  <label class="block text-sm font-medium text-gray-600 mb-1">Lock Reason (shown to tenant)</label>
+                  <textarea rows="2" placeholder="e.g., Subscription expired, pending payment review..." class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 class="font-semibold text-gray-900 mb-4">Access History</h3>
+                <div class="space-y-3">
+                  <div class="flex gap-3 py-2 border-b border-gray-100">
+                    <div class="w-2 h-2 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
+                    <div>
+                      <div class="text-sm text-gray-900">Access <span class="font-medium text-emerald-600">unlocked</span></div>
+                      <div class="text-xs text-gray-500">By System Admin · 27 Jan 2026 · Subscription activated</div>
+                    </div>
+                  </div>
+                  <div class="flex gap-3 py-2 border-b border-gray-100">
+                    <div class="w-2 h-2 bg-red-400 rounded-full mt-2 shrink-0"></div>
+                    <div>
+                      <div class="text-sm text-gray-900">Access <span class="font-medium text-red-600">locked</span></div>
+                      <div class="text-xs text-gray-500">Auto · 26 Jan 2026 · Trial expired, no payment method</div>
+                    </div>
+                  </div>
+                  <div class="flex gap-3 py-2">
+                    <div class="w-2 h-2 bg-brand-400 rounded-full mt-2 shrink-0"></div>
+                    <div>
+                      <div class="text-sm text-gray-900">Tenant <span class="font-medium text-brand-600">registered</span></div>
+                      <div class="text-xs text-gray-500">12 Jan 2026 · 14-day trial started</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ════════════════════════════════════════════════════ -->
+        <!--  NEW TENANT FORM                                     -->
+        <!-- ════════════════════════════════════════════════════ -->
+        <div id="tenant-new" class="detail-panel">
+          <div class="flex items-center gap-3 mb-5">
+            <button onclick="showTenantDetail('list')" class="p-1.5 hover:bg-gray-100 rounded-lg transition">
+              <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+            </button>
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900">Add New Tenant</h2>
+              <div class="text-sm text-gray-500">Set up a new business on the platform</div>
+            </div>
+          </div>
+
+          <div class="max-w-2xl">
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+              <div class="space-y-5">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
+                  <input type="text" placeholder="e.g., Fresh Mart Groceries" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">ABN</label>
+                  <input type="text" placeholder="e.g., 51 824 753 166" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+                    <select class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                      <option selected>Australia/Sydney</option>
+                      <option>Australia/Melbourne</option>
+                      <option>Australia/Brisbane</option>
+                      <option>Australia/Perth</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                    <select class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white">
+                      <option selected>AUD</option>
+                      <option>NZD</option>
+                      <option>USD</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-5">
+                  <h4 class="text-sm font-semibold text-gray-900 mb-3">Owner Account</h4>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                      <input type="text" placeholder="Jane Liu" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                      <input type="email" placeholder="jane@business.com.au" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-5">
+                  <h4 class="text-sm font-semibold text-gray-900 mb-3">Trial Settings</h4>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Free Trial Period</label>
+                      <div class="flex items-center gap-2">
+                        <input type="number" value="14" min="0" max="90" class="w-20 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 text-center" />
+                        <span class="text-sm text-gray-500">days</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Auto-lock after trial?</label>
+                      <div class="flex items-center gap-3 mt-1">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" name="autolock" checked class="text-brand-500 focus:ring-brand-500" />
+                          <span class="text-sm text-gray-700">Yes (if no card)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" name="autolock" class="text-brand-500 focus:ring-brand-500" />
+                          <span class="text-sm text-gray-700">No</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-6 flex items-center justify-end gap-3">
+                <button onclick="showTenantDetail('list')" class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition">Cancel</button>
+                <button class="px-5 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition">Create Tenant</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+
+      <!-- ══════════════════════════════════════════════════════ -->
+      <!--  PAGE 3: API USAGE & COSTS                            -->
+      <!-- ══════════════════════════════════════════════════════ -->
+      <div id="page-api-usage" class="page">
+
+        <!-- Controls Row -->
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <!-- Tenant Filter -->
+            <select id="api-tenant-filter" class="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white" onchange="filterApiByTenant()">
+              <option value="all">All Tenants</option>
+              <option value="fresh-mart">Fresh Mart Groceries</option>
+              <option value="corner-pantry">Corner Pantry</option>
+              <option value="harvest-foods">Harvest Foods</option>
+              <option value="village-grocer">Village Grocer</option>
+              <option value="bayside-deli">Bayside Deli</option>
+            </select>
+            <!-- Grouping -->
+            <div class="flex bg-gray-100 rounded-lg p-0.5">
+              <button class="tab-btn active" onclick="setGrouping(this, 'day')">Day</button>
+              <button class="tab-btn" onclick="setGrouping(this, 'week')">Week</button>
+              <button class="tab-btn" onclick="setGrouping(this, 'month')">Month</button>
+              <button class="tab-btn" onclick="setGrouping(this, 'year')">Year</button>
+            </div>
+          </div>
+          <!-- Date Range -->
+          <div class="flex items-center gap-2">
+            <input type="date" value="2026-03-01" class="px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+            <span class="text-gray-400">to</span>
+            <input type="date" value="2026-03-09" class="px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+            <button class="px-3 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition">Apply</button>
+          </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-4 gap-5 mb-6">
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Total API Calls</div>
+            <div class="text-3xl font-bold text-gray-900">4,218</div>
+            <div class="text-xs text-gray-500 mt-1">1–9 Mar 2026</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Total Cost</div>
+            <div class="text-3xl font-bold text-gray-900">$156.82</div>
+            <div class="text-xs text-gray-500 mt-1">Avg $0.037/call</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Input Tokens</div>
+            <div class="text-3xl font-bold text-gray-900">2.4M</div>
+            <div class="text-xs text-gray-500 mt-1">Avg 569/call</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-sm text-gray-500 mb-1">Output Tokens</div>
+            <div class="text-3xl font-bold text-gray-900">1.1M</div>
+            <div class="text-xs text-gray-500 mt-1">Avg 261/call</div>
+          </div>
+        </div>
+
+        <!-- Cost Chart (simplified bar chart) -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-900">Daily API Cost</h3>
+            <div class="text-sm text-gray-500">Showing: All Tenants · 1–9 Mar 2026</div>
+          </div>
+          <div class="flex items-end gap-2 h-40">
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-400 rounded-t" style="height: 65%"></div>
+              <div class="text-[10px] text-gray-500">1 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$18.20</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-400 rounded-t" style="height: 72%"></div>
+              <div class="text-[10px] text-gray-500">2 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$20.10</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-400 rounded-t" style="height: 58%"></div>
+              <div class="text-[10px] text-gray-500">3 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$16.40</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-400 rounded-t" style="height: 80%"></div>
+              <div class="text-[10px] text-gray-500">4 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$22.50</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-400 rounded-t" style="height: 90%"></div>
+              <div class="text-[10px] text-gray-500">5 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$25.30</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-400 rounded-t" style="height: 42%"></div>
+              <div class="text-[10px] text-gray-500">6 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$11.80</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-400 rounded-t" style="height: 30%"></div>
+              <div class="text-[10px] text-gray-500">7 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$8.42</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-500 rounded-t" style="height: 100%"></div>
+              <div class="text-[10px] text-gray-500">8 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$28.10</div>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-brand-300 rounded-t" style="height: 22%"></div>
+              <div class="text-[10px] text-gray-500">9 Mar</div>
+              <div class="text-[10px] font-medium text-gray-700">$6.00</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tenant Summary Table -->
+        <div id="api-tenant-summary" class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+          <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="font-semibold text-gray-900">Cost Breakdown by Tenant</h3>
+          </div>
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-gray-100 bg-gray-50/80">
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Tenant</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">API Calls</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Input Tokens</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Output Tokens</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Cost</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">% of Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr class="hover:bg-gray-50 cursor-pointer" onclick="showApiDetail('fresh-mart')">
+                <td class="px-5 py-3 text-sm font-medium text-gray-900">Fresh Mart Groceries</td>
+                <td class="px-5 py-3 text-sm text-gray-700">1,580</td>
+                <td class="px-5 py-3 text-sm text-gray-700">890K</td>
+                <td class="px-5 py-3 text-sm text-gray-700">412K</td>
+                <td class="px-5 py-3 text-sm font-semibold text-gray-900">$58.20</td>
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 bg-gray-100 rounded-full h-1.5"><div class="bg-brand-500 h-1.5 rounded-full" style="width:37%"></div></div>
+                    <span class="text-xs text-gray-500">37%</span>
+                  </div>
+                </td>
+                <td class="px-5 py-3"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></td>
+              </tr>
+              <tr class="hover:bg-gray-50 cursor-pointer" onclick="showApiDetail('corner-pantry')">
+                <td class="px-5 py-3 text-sm font-medium text-gray-900">Corner Pantry</td>
+                <td class="px-5 py-3 text-sm text-gray-700">980</td>
+                <td class="px-5 py-3 text-sm text-gray-700">560K</td>
+                <td class="px-5 py-3 text-sm text-gray-700">248K</td>
+                <td class="px-5 py-3 text-sm font-semibold text-gray-900">$38.40</td>
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 bg-gray-100 rounded-full h-1.5"><div class="bg-brand-500 h-1.5 rounded-full" style="width:24%"></div></div>
+                    <span class="text-xs text-gray-500">24%</span>
+                  </div>
+                </td>
+                <td class="px-5 py-3"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></td>
+              </tr>
+              <tr class="hover:bg-gray-50 cursor-pointer">
+                <td class="px-5 py-3 text-sm font-medium text-gray-900">Harvest Foods</td>
+                <td class="px-5 py-3 text-sm text-gray-700">720</td>
+                <td class="px-5 py-3 text-sm text-gray-700">410K</td>
+                <td class="px-5 py-3 text-sm text-gray-700">190K</td>
+                <td class="px-5 py-3 text-sm font-semibold text-gray-900">$28.60</td>
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 bg-gray-100 rounded-full h-1.5"><div class="bg-brand-500 h-1.5 rounded-full" style="width:18%"></div></div>
+                    <span class="text-xs text-gray-500">18%</span>
+                  </div>
+                </td>
+                <td class="px-5 py-3"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════ -->
+        <!--  API CALL DETAIL (single tenant drill-down)          -->
+        <!-- ════════════════════════════════════════════════════ -->
+        <div id="api-detail" class="detail-panel">
+          <div class="flex items-center gap-3 mb-5">
+            <button onclick="hideApiDetail()" class="p-1.5 hover:bg-gray-100 rounded-lg transition">
+              <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+            </button>
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900">Fresh Mart Groceries — API Call Log</h2>
+              <div class="text-sm text-gray-500">1,580 calls · $58.20 · 1–9 Mar 2026</div>
+            </div>
+          </div>
+
+          <!-- Call List -->
+          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-gray-100 bg-gray-50/80">
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Timestamp</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Type</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Model</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Input Tokens</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Output Tokens</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Duration</th>
+                  <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Cost</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr class="hover:bg-gray-50 cursor-pointer" onclick="showCallDetail(this)">
+                  <td class="px-5 py-3 text-sm text-gray-700 font-mono text-xs">9 Mar 2:34:12 PM</td>
+                  <td class="px-5 py-3"><span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">OCR</span></td>
+                  <td class="px-5 py-3 text-sm text-gray-700">claude-sonnet-4</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">1,245</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">892</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">3.2s</td>
+                  <td class="px-5 py-3 text-sm font-medium text-gray-900">$0.042</td>
+                  <td class="px-5 py-3"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg></td>
+                </tr>
+
+                <!-- Expanded Call Detail (shown on click) -->
+                <tr class="hidden bg-gray-50/50" id="call-detail-row">
+                  <td colspan="8" class="px-5 py-4">
+                    <div class="grid grid-cols-2 gap-4">
+                      <!-- Request -->
+                      <div>
+                        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Request (Prompt)</div>
+                        <div class="bg-slate-900 rounded-lg p-4 text-sm text-green-400 font-mono max-h-48 overflow-y-auto">
+                          <div class="text-gray-500 text-xs mb-2">// System prompt + user message</div>
+                          <div class="text-green-300">Extract invoice data from the following image.</div>
+                          <div class="text-green-300 mt-2">Return a JSON object with fields:</div>
+                          <div class="text-green-300">- supplier (name, abn)</div>
+                          <div class="text-green-300">- invoiceNumber, invoiceDate</div>
+                          <div class="text-green-300">- lineItems[] (description, qty, unitPrice...)</div>
+                          <div class="text-gray-500 mt-2">+ [image: invoice-scan-001.pdf, 2.4MB]</div>
+                        </div>
+                      </div>
+                      <!-- Response -->
+                      <div>
+                        <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Response</div>
+                        <div class="bg-slate-900 rounded-lg p-4 text-sm text-blue-300 font-mono max-h-48 overflow-y-auto">
+                          <div class="text-gray-500 text-xs mb-2">// Parsed JSON response</div>
+                          <div>{</div>
+                          <div class="pl-4">"supplier": { "name": "Smith & Sons", "abn": "51 824 753 166" },</div>
+                          <div class="pl-4">"invoiceNumber": "INV-2026-0342",</div>
+                          <div class="pl-4">"invoiceDate": "2026-03-08",</div>
+                          <div class="pl-4">"lineItems": [</div>
+                          <div class="pl-8">{ "description": "Plain Flour 10kg", "qty": 5, "unitPrice": 18.50, ... },</div>
+                          <div class="pl-8">{ "description": "Cheddar Block 5kg", "qty": 3, "unitPrice": 48.00, ... }</div>
+                          <div class="pl-4">],</div>
+                          <div class="pl-4">"total": 236.50,</div>
+                          <div class="pl-4">"ocrConfidence": 0.94</div>
+                          <div>}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="mt-3 flex items-center gap-6 text-xs text-gray-500">
+                      <span>Input: 1,245 tokens ($0.018)</span>
+                      <span>Output: 892 tokens ($0.024)</span>
+                      <span>Total: $0.042</span>
+                      <span>Latency: 3.2s</span>
+                      <span>User: jane@freshmart.com.au</span>
+                      <span>Invoice: INV-2026-0342</span>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-gray-50 cursor-pointer">
+                  <td class="px-5 py-3 text-sm text-gray-700 font-mono text-xs">9 Mar 2:34:16 PM</td>
+                  <td class="px-5 py-3"><span class="px-2 py-0.5 bg-violet-50 text-violet-700 text-xs font-medium rounded-full">Matching</span></td>
+                  <td class="px-5 py-3 text-sm text-gray-700">—</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">—</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">—</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">0.4s</td>
+                  <td class="px-5 py-3 text-sm font-medium text-gray-400">$0.00</td>
+                  <td class="px-5 py-3"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg></td>
+                </tr>
+
+                <tr class="hover:bg-gray-50 cursor-pointer">
+                  <td class="px-5 py-3 text-sm text-gray-700 font-mono text-xs">9 Mar 1:12:45 PM</td>
+                  <td class="px-5 py-3"><span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">OCR</span></td>
+                  <td class="px-5 py-3 text-sm text-gray-700">claude-sonnet-4</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">2,102</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">1,340</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">4.8s</td>
+                  <td class="px-5 py-3 text-sm font-medium text-gray-900">$0.068</td>
+                  <td class="px-5 py-3"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg></td>
+                </tr>
+
+                <tr class="hover:bg-gray-50 cursor-pointer">
+                  <td class="px-5 py-3 text-sm text-gray-700 font-mono text-xs">9 Mar 11:08:22 AM</td>
+                  <td class="px-5 py-3"><span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">OCR</span></td>
+                  <td class="px-5 py-3 text-sm text-gray-700">claude-sonnet-4</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">1,830</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">1,105</td>
+                  <td class="px-5 py-3 text-sm text-gray-700">3.9s</td>
+                  <td class="px-5 py-3 text-sm font-medium text-gray-900">$0.058</td>
+                  <td class="px-5 py-3"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+              <span class="text-sm text-gray-500">Showing 1–4 of 1,580 calls</span>
+              <div class="flex gap-1">
+                <button class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">← Previous</button>
+                <button class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Next →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ══════════════════════════════════════════════════════ -->
+      <!--  PAGE 4: SUBSCRIPTIONS                                -->
+      <!-- ══════════════════════════════════════════════════════ -->
+      <div id="page-subscriptions" class="page">
+
+        <!-- Global Settings -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-semibold text-gray-900">Trial & Subscription Settings</h3>
+              <p class="text-sm text-gray-500 mt-1">Configure default trial period and auto-lock behaviour for new tenants</p>
+            </div>
+            <button class="px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition">Save Settings</button>
+          </div>
+          <div class="grid grid-cols-4 gap-5 mt-5">
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Default Free Trial</label>
+              <div class="flex items-center gap-2">
+                <input type="number" value="14" class="w-20 px-3 py-2 text-sm border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                <span class="text-sm text-gray-500">days</span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Auto-Lock on Trial Expiry</label>
+              <div class="flex items-center gap-3 mt-2">
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked class="sr-only peer" />
+                  <div class="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-brand-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                </label>
+                <span class="text-sm text-gray-600">Lock if no card on file</span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Grace Period After Expiry</label>
+              <div class="flex items-center gap-2">
+                <input type="number" value="3" class="w-20 px-3 py-2 text-sm border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                <span class="text-sm text-gray-500">days</span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-600 mb-1">Payment Provider</label>
+              <div class="flex items-center gap-2 mt-1">
+                <div class="px-3 py-1.5 bg-violet-50 text-violet-700 text-sm font-medium rounded-lg border border-violet-200">Stripe</div>
+                <span class="text-xs text-gray-400">Connected ✓</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subscription Status Overview -->
+        <div class="grid grid-cols-4 gap-5 mb-6">
+          <div class="stat-card border-l-4 border-l-emerald-500">
+            <div class="text-sm text-gray-500 mb-1">Active Subscriptions</div>
+            <div class="text-3xl font-bold text-emerald-600">8</div>
+            <div class="text-xs text-gray-500 mt-1">$392/month MRR</div>
+          </div>
+          <div class="stat-card border-l-4 border-l-brand-500">
+            <div class="text-sm text-gray-500 mb-1">On Trial</div>
+            <div class="text-3xl font-bold text-brand-600">3</div>
+            <div class="text-xs text-gray-500 mt-1">1 expiring soon</div>
+          </div>
+          <div class="stat-card border-l-4 border-l-red-500">
+            <div class="text-sm text-gray-500 mb-1">Locked / Expired</div>
+            <div class="text-3xl font-bold text-red-600">2</div>
+            <div class="text-xs text-gray-500 mt-1">No payment method</div>
+          </div>
+          <div class="stat-card border-l-4 border-l-gray-400">
+            <div class="text-sm text-gray-500 mb-1">Cancelled</div>
+            <div class="text-3xl font-bold text-gray-500">1</div>
+            <div class="text-xs text-gray-500 mt-1">Last month</div>
+          </div>
+        </div>
+
+        <!-- Tenant Subscription List -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="font-semibold text-gray-900">All Tenants — Subscription Status</h3>
+          </div>
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-gray-100 bg-gray-50/80">
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Tenant</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Status</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Plan</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Trial Ends</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Card on File</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Next Invoice</th>
+                <th class="text-left text-xs font-medium text-gray-500 uppercase px-5 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr class="hover:bg-gray-50">
+                <td class="px-5 py-3 text-sm font-medium text-gray-900">Fresh Mart Groceries</td>
+                <td class="px-5 py-3"><span class="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">Active</span></td>
+                <td class="px-5 py-3 text-sm text-gray-700">Pro ($49/mo)</td>
+                <td class="px-5 py-3 text-sm text-gray-400">—</td>
+                <td class="px-5 py-3"><span class="text-sm text-emerald-600">✓ Visa ****4242</span></td>
+                <td class="px-5 py-3 text-sm text-gray-700">12 Apr 2026</td>
+                <td class="px-5 py-3"><a href="#" class="text-sm text-brand-600 hover:text-brand-700 font-medium">Manage →</a></td>
+              </tr>
+              <tr class="hover:bg-gray-50">
+                <td class="px-5 py-3 text-sm font-medium text-gray-900">Bayside Deli</td>
+                <td class="px-5 py-3"><span class="px-2 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">Trial · 2d left</span></td>
+                <td class="px-5 py-3 text-sm text-gray-500 italic">Trial</td>
+                <td class="px-5 py-3 text-sm text-amber-600 font-medium">11 Mar 2026</td>
+                <td class="px-5 py-3"><span class="text-sm text-red-500">✗ None</span></td>
+                <td class="px-5 py-3 text-sm text-gray-400">—</td>
+                <td class="px-5 py-3">
+                  <div class="flex gap-2">
+                    <button class="text-xs px-2 py-1 bg-brand-50 text-brand-700 rounded hover:bg-brand-100 font-medium">Extend Trial</button>
+                    <button class="text-xs px-2 py-1 bg-gray-50 text-gray-700 rounded hover:bg-gray-100 font-medium">Notify</button>
+                  </div>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50 bg-red-50/30">
+                <td class="px-5 py-3 text-sm font-medium text-gray-900">Metro Mini Mart</td>
+                <td class="px-5 py-3"><span class="px-2 py-1 bg-red-50 text-red-700 text-xs font-medium rounded-full">Locked</span></td>
+                <td class="px-5 py-3 text-sm text-gray-500 italic">Trial expired</td>
+                <td class="px-5 py-3 text-sm text-red-500">5 Mar 2026 (expired)</td>
+                <td class="px-5 py-3"><span class="text-sm text-red-500">✗ None</span></td>
+                <td class="px-5 py-3 text-sm text-gray-400">—</td>
+                <td class="px-5 py-3">
+                  <div class="flex gap-2">
+                    <button class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 font-medium">Unlock</button>
+                    <button class="text-xs px-2 py-1 bg-brand-50 text-brand-700 rounded hover:bg-brand-100 font-medium">Extend Trial</button>
+                  </div>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50">
+                <td class="px-5 py-3 text-sm font-medium text-gray-900">Green Valley Organics</td>
+                <td class="px-5 py-3"><span class="px-2 py-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-full">Trial · 12d left</span></td>
+                <td class="px-5 py-3 text-sm text-gray-500 italic">Trial</td>
+                <td class="px-5 py-3 text-sm text-gray-700">21 Mar 2026</td>
+                <td class="px-5 py-3"><span class="text-sm text-red-500">✗ None</span></td>
+                <td class="px-5 py-3 text-sm text-gray-400">—</td>
+                <td class="px-5 py-3">
+                  <button class="text-xs px-2 py-1 bg-gray-50 text-gray-700 rounded hover:bg-gray-100 font-medium">Notify</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Extend Trial Modal (inline for mockup) -->
+        <div class="mt-6 max-w-md">
+          <div class="bg-white rounded-xl border-2 border-amber-200 p-5 shadow-lg">
+            <h3 class="font-semibold text-gray-900 mb-1">Extend Trial — Bayside Deli</h3>
+            <p class="text-sm text-gray-500 mb-4">Current trial ends: 11 Mar 2026</p>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Extend by</label>
+              <div class="flex items-center gap-2">
+                <input type="number" value="7" class="w-20 px-3 py-2 text-sm border border-gray-300 rounded-lg text-center" />
+                <span class="text-sm text-gray-500">days</span>
+                <span class="text-xs text-gray-400 ml-2">→ New end date: 18 Mar 2026</span>
+              </div>
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
+              <input type="text" placeholder="e.g., Customer requested more time to evaluate" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg" />
+            </div>
+            <div class="flex gap-2">
+              <button class="flex-1 px-4 py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600">Extend Trial</button>
+              <button class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!--  JAVASCRIPT — page switching & interactions                 -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <script>
+    const pageTitles = {
+      'overview': 'Platform Overview',
+      'tenants': 'Tenant Management',
+      'api-usage': 'API Usage & Costs',
+      'subscriptions': 'Subscriptions & Billing',
+    };
+
+    function showPage(pageId) {
+      // Hide all pages
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      // Show target
+      document.getElementById('page-' + pageId).classList.add('active');
+      // Update title
+      document.getElementById('pageTitle').textContent = pageTitles[pageId] || 'Admin';
+      // Update sidebar
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      // Reset sub-views
+      if (pageId === 'tenants') {
+        showTenantDetail('list');
+      }
+      if (pageId === 'api-usage') {
+        hideApiDetail();
+      }
+    }
+
+    function showTenantDetail(view) {
+      document.getElementById('tenant-list').classList.remove('active');
+      document.getElementById('tenant-detail').classList.remove('active');
+      document.getElementById('tenant-new').classList.remove('active');
+
+      if (view === 'list') {
+        document.getElementById('tenant-list').classList.add('active');
+      } else if (view === 'new') {
+        document.getElementById('tenant-new').classList.add('active');
+      } else {
+        document.getElementById('tenant-detail').classList.add('active');
+        // Reset tabs
+        showTenantTab('details');
+      }
+    }
+
+    function showTenantTab(tabId) {
+      const tabs = ['details', 'users', 'subscription', 'access'];
+      tabs.forEach(t => {
+        const el = document.getElementById('tenant-tab-' + t);
+        if (el) el.classList.remove('active');
+      });
+      document.getElementById('tenant-tab-' + tabId).classList.add('active');
+      // Update sub-tab styling
+      document.querySelectorAll('#tenant-detail .sub-tab').forEach((tab, i) => {
+        tab.classList.toggle('active', tabs[i] === tabId);
+      });
+    }
+
+    function showApiDetail(tenantSlug) {
+      document.getElementById('api-tenant-summary').style.display = 'none';
+      document.getElementById('api-detail').classList.add('active');
+    }
+
+    function hideApiDetail() {
+      document.getElementById('api-tenant-summary').style.display = '';
+      document.getElementById('api-detail').classList.remove('active');
+    }
+
+    function setGrouping(btn, period) {
+      btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function showCallDetail(row) {
+      const detailRow = document.getElementById('call-detail-row');
+      detailRow.classList.toggle('hidden');
+    }
+
+    function toggleLockState() {
+      // Simple visual toggle for mockup
+      const btn = document.getElementById('lock-btn');
+      if (btn.textContent.includes('Lock')) {
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg> Unlock Tenant Access';
+        btn.className = 'w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-medium rounded-lg hover:bg-emerald-100 transition';
+      } else {
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg> Lock Tenant Access';
+        btn.className = 'w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 text-sm font-medium rounded-lg hover:bg-red-100 transition';
+      }
+    }
+
+    function filterApiByTenant() {
+      // Mockup only — would filter the table
+    }
+  </script>
+
+</body>
+</html>

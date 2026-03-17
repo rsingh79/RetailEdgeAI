@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RetailEdge — Product Tiers & Competitor Analysis Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' },
+            sidebar: { bg:'#0f172a', hover:'#1e293b', active:'#334155' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .screen { display: none; }
+    .screen.active { display: block; }
+  </style>
+</head>
+<body class="font-sans bg-gray-50 min-h-screen">
+
+  <!-- Navigation Bar -->
+  <div class="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <span class="font-bold text-gray-900">RetailEdge</span>
+        <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-medium">Product Tiers Mockup</span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="showScreen('pricing')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="pricing">1. Pricing Page</button>
+        <button onclick="showScreen('features')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="features">2. Feature Matrix</button>
+        <button onclick="showScreen('upgrade')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="upgrade">3. Upgrade Prompt</button>
+        <button onclick="showScreen('competitor-dash')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="competitor-dash">4. Competitor Dashboard</button>
+        <button onclick="showScreen('supplier-compare')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="supplier-compare">5. Supplier Compare</button>
+        <button onclick="showScreen('price-intel')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="price-intel">6. Price Intelligence</button>
+        <button onclick="showScreen('alerts')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="alerts">7. Alerts & AI</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 1: Pricing Page                                      -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-pricing" class="screen active">
+    <div class="max-w-6xl mx-auto p-8">
+      <div class="text-center mb-12">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-3">Simple, transparent pricing</h1>
+        <p class="text-lg text-gray-500 max-w-2xl mx-auto">From invoice management to competitive intelligence. Choose the plan that fits your business.</p>
+        <div class="mt-4 inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-1.5">
+          <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span class="text-sm text-green-700 font-medium">14-day free trial on all plans — no credit card required</span>
+        </div>
+      </div>
+
+      <!-- Pricing Cards -->
+      <div class="grid grid-cols-3 gap-6 mb-12">
+        <!-- Starter -->
+        <div class="bg-white rounded-2xl border border-gray-200 p-6 relative">
+          <div class="mb-6">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Starter</h3>
+            </div>
+            <p class="text-sm text-gray-500">Essential invoice management for small retailers</p>
+          </div>
+
+          <div class="mb-6">
+            <div class="flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-gray-900">$29</span>
+              <span class="text-gray-500">/month</span>
+            </div>
+          </div>
+
+          <button class="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition mb-6 cursor-pointer">
+            Start Free Trial
+          </button>
+
+          <div class="space-y-3">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Includes</div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span><strong>Manual</strong> invoice upload (PDF, image)</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>AI-powered OCR extraction</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Product catalog &amp; matching</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Basic pricing rules &amp; margins</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Up to <strong>5 users</strong>, <strong>2 stores</strong></span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>100 AI extractions/month</span>
+            </div>
+
+            <div class="pt-3 border-t border-gray-100">
+              <div class="flex items-start gap-2 text-sm text-gray-400">
+                <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                <span>No email integration</span>
+              </div>
+              <div class="flex items-start gap-2 text-sm text-gray-400 mt-1">
+                <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                <span>No competitor analysis</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Professional (Recommended) -->
+        <div class="bg-white rounded-2xl border-2 border-brand-500 p-6 relative shadow-lg shadow-brand-100">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-600 text-white text-xs font-bold px-4 py-1 rounded-full">
+            MOST POPULAR
+          </div>
+
+          <div class="mb-6">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-brand-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Professional</h3>
+            </div>
+            <p class="text-sm text-gray-500">Automated workflows for growing businesses</p>
+          </div>
+
+          <div class="mb-6">
+            <div class="flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-gray-900">$79</span>
+              <span class="text-gray-500">/month</span>
+            </div>
+          </div>
+
+          <button class="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition mb-6 cursor-pointer">
+            Start Free Trial
+          </button>
+
+          <div class="space-y-3">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Everything in Starter, plus</div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span><strong>Gmail auto-import</strong> — invoices from email</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Automated OCR &amp; product matching</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Duplicate invoice detection</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Advanced pricing rules (category, supplier)</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Supplier cost tracking &amp; trends</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Up to <strong>15 users</strong>, <strong>10 stores</strong></span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>500 AI extractions/month</span>
+            </div>
+
+            <div class="pt-3 border-t border-gray-100">
+              <div class="flex items-start gap-2 text-sm text-gray-400">
+                <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                <span>No competitor analysis</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="bg-white rounded-2xl border border-gray-200 p-6 relative bg-gradient-to-b from-white to-purple-50/30">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs font-bold px-4 py-1 rounded-full">
+            COMPETITIVE EDGE
+          </div>
+
+          <div class="mb-6">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-purple-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900">Enterprise</h3>
+            </div>
+            <p class="text-sm text-gray-500">Full competitive intelligence &amp; market insights</p>
+          </div>
+
+          <div class="mb-6">
+            <div class="flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-gray-900">$199</span>
+              <span class="text-gray-500">/month</span>
+            </div>
+          </div>
+
+          <button class="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition mb-6 cursor-pointer">
+            Start Free Trial
+          </button>
+
+          <div class="space-y-3">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Everything in Professional, plus</div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span><strong>Competitor price monitoring</strong> — automated web scraping</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span><strong>Supplier cost comparison</strong> — cross-supplier pricing</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span><strong>AI pricing recommendations</strong></span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Margin waterfall analysis</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Price alerts &amp; trend reports</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>Competitive position dashboard</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span><strong>Unlimited</strong> users &amp; stores</span>
+            </div>
+            <div class="flex items-start gap-2 text-sm text-gray-700">
+              <svg class="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span>2,000 AI extractions/month</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-center text-sm text-gray-400">All plans include: SSL encryption, daily backups, email support. Enterprise includes priority support + dedicated onboarding.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 2: Feature Matrix                                     -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-features" class="screen">
+    <div class="max-w-5xl mx-auto p-8">
+      <h1 class="text-2xl font-bold text-gray-900 mb-2">Feature Comparison</h1>
+      <p class="text-gray-500 mb-8">Detailed breakdown of what's included in each plan</p>
+
+      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-200">
+              <th class="text-left px-6 py-4 font-semibold text-gray-700 w-[40%]">Feature</th>
+              <th class="text-center px-4 py-4 font-semibold text-gray-700">Starter<br><span class="font-normal text-gray-400 text-xs">$29/mo</span></th>
+              <th class="text-center px-4 py-4 font-semibold text-brand-700 bg-brand-50/50">Professional<br><span class="font-normal text-brand-500 text-xs">$79/mo</span></th>
+              <th class="text-center px-4 py-4 font-semibold text-purple-700">Enterprise<br><span class="font-normal text-purple-400 text-xs">$199/mo</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Section: Invoice Management -->
+            <tr class="bg-gray-50/50">
+              <td colspan="4" class="px-6 py-2 font-semibold text-xs text-gray-500 uppercase tracking-wider">Invoice Management</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Manual upload (PDF, image)</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">AI-powered OCR extraction</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Gmail auto-import</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Automated OCR on import</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Duplicate detection (3-layer)</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+
+            <!-- Section: Product & Pricing -->
+            <tr class="bg-gray-50/50">
+              <td colspan="4" class="px-6 py-2 font-semibold text-xs text-gray-500 uppercase tracking-wider">Product & Pricing</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Product catalog &amp; matching</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Basic pricing rules (global margin)</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Advanced pricing rules (category, supplier, product)</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Supplier cost tracking &amp; history</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+
+            <!-- Section: Competitive Intelligence -->
+            <tr class="bg-purple-50/50">
+              <td colspan="4" class="px-6 py-2 font-semibold text-xs text-purple-600 uppercase tracking-wider">Competitive Intelligence (Enterprise)</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Competitor price monitoring (web scraping)</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Cross-supplier cost comparison</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">AI-powered pricing recommendations</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Margin waterfall analysis</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Price change alerts &amp; notifications</td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center bg-brand-50/20"><svg class="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></td>
+              <td class="px-4 py-3 text-center"><svg class="w-5 h-5 text-green-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></td>
+            </tr>
+
+            <!-- Section: Limits -->
+            <tr class="bg-gray-50/50">
+              <td colspan="4" class="px-6 py-2 font-semibold text-xs text-gray-500 uppercase tracking-wider">Limits & Support</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Users</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium">5</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium bg-brand-50/20">15</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium">Unlimited</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Stores</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium">2</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium bg-brand-50/20">10</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium">Unlimited</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">AI extractions / month</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium">100</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium bg-brand-50/20">500</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium">2,000</td>
+            </tr>
+            <tr class="border-b border-gray-100">
+              <td class="px-6 py-3 text-gray-700">Competitor monitors</td>
+              <td class="px-4 py-3 text-center text-gray-400">—</td>
+              <td class="px-4 py-3 text-center text-gray-400 bg-brand-50/20">—</td>
+              <td class="px-4 py-3 text-center text-gray-900 font-medium">10 competitors</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-3 text-gray-700">Support</td>
+              <td class="px-4 py-3 text-center text-gray-600 text-xs">Email</td>
+              <td class="px-4 py-3 text-center text-gray-600 text-xs bg-brand-50/20">Email + Chat</td>
+              <td class="px-4 py-3 text-center text-gray-600 text-xs">Priority + Onboarding</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 3: Upgrade Prompt (What Starter users see)           -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-upgrade" class="screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Dashboard</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Invoices</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Review</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Products</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Pricing Rules</a>
+          <div class="pt-3 mt-3 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 cursor-not-allowed">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+              Competitor Intel
+              <span class="ml-auto text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded">PRO</span>
+            </a>
+          </div>
+          <div class="pt-3 mt-3 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">Settings</a>
+          </div>
+        </nav>
+      </aside>
+
+      <div class="flex-1 ml-64">
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3">
+          <h1 class="text-lg font-semibold text-gray-900">Settings</h1>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Tab Navigation -->
+          <div class="flex gap-1 border-b border-gray-200">
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500">Business Profile</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-brand-600 border-b-2 border-brand-600">Integrations</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500">Notifications</button>
+          </div>
+
+          <!-- Gmail Integration - Locked for Starter -->
+          <div class="bg-white rounded-xl border border-gray-200 p-6 relative overflow-hidden">
+            <!-- Upgrade Banner -->
+            <div class="absolute inset-0 bg-white/80 backdrop-blur-[2px] z-10 flex items-center justify-center">
+              <div class="text-center max-w-md">
+                <div class="w-16 h-16 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Upgrade to Professional</h3>
+                <p class="text-sm text-gray-600 mb-4">Gmail auto-import is available on the Professional plan and above. Automatically pull invoices from your email — no more manual uploads.</p>
+                <div class="flex items-center justify-center gap-3">
+                  <button class="px-5 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition cursor-pointer">
+                    Upgrade to Professional — $79/mo
+                  </button>
+                  <button class="px-4 py-2.5 text-brand-600 text-sm font-medium hover:underline cursor-pointer">
+                    Compare Plans
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Blurred content behind -->
+            <div class="flex items-start justify-between mb-6 opacity-30">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                  <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none">
+                    <path d="M22 6L12 13L2 6" stroke="#EA4335" stroke-width="2" stroke-linecap="round"/>
+                    <rect x="2" y="4" width="20" height="16" rx="2" stroke="#EA4335" stroke-width="2"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-gray-900">Gmail — Invoice Auto-Import</h3>
+                  <p class="text-sm text-gray-500 mt-0.5">Automatically import supplier invoices from your Gmail inbox</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Competitor Intel - Locked for Starter & Pro -->
+          <div class="bg-white rounded-xl border border-gray-200 p-6 relative overflow-hidden">
+            <div class="absolute inset-0 bg-white/80 backdrop-blur-[2px] z-10 flex items-center justify-center">
+              <div class="text-center max-w-md">
+                <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Upgrade to Enterprise</h3>
+                <p class="text-sm text-gray-600 mb-4">Competitor price monitoring and AI-powered pricing recommendations are exclusive to the Enterprise plan.</p>
+                <button class="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition cursor-pointer">
+                  Upgrade to Enterprise — $199/mo
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4 opacity-30">
+              <div class="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
+                <svg class="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/></svg>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900">Competitor Intelligence</h3>
+                <p class="text-sm text-gray-500">Monitor competitor prices, compare supplier costs, AI pricing recommendations</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 4: Competitor Dashboard (Enterprise)                  -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-competitor-dash" class="screen">
+    <div class="flex min-h-screen">
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Dashboard</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Invoices</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Products</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Pricing Rules</a>
+          <div class="pt-3 mt-3 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">
+              <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Competitor Intel
+              <span class="ml-auto text-[10px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded">ENT</span>
+            </a>
+          </div>
+          <div class="pt-3 mt-3 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Settings</a>
+          </div>
+        </nav>
+      </aside>
+
+      <div class="flex-1 ml-64">
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+          <div>
+            <h1 class="text-lg font-semibold text-gray-900">Competitor Intelligence</h1>
+            <p class="text-xs text-gray-500">Last scan: 2 hours ago &middot; Next scan: 4 hours</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">Manage Competitors</button>
+            <button class="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer">Scan Now</button>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <!-- Summary Cards -->
+          <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">Products Tracked</div>
+              <div class="text-2xl font-bold text-gray-900">247</div>
+              <div class="text-xs text-gray-400 mt-1">across 4 competitors</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">You're Cheaper</div>
+              <div class="text-2xl font-bold text-green-600">142</div>
+              <div class="text-xs text-green-500 mt-1">57% of tracked products</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">You're More Expensive</div>
+              <div class="text-2xl font-bold text-red-600">68</div>
+              <div class="text-xs text-red-500 mt-1">28% — review recommended</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">Price Changes (7d)</div>
+              <div class="text-2xl font-bold text-amber-600">23</div>
+              <div class="text-xs text-amber-500 mt-1">12 competitor, 11 supplier</div>
+            </div>
+          </div>
+
+          <!-- Competitive Position Chart -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold">Your Price vs Competitors — Top Categories</h3>
+              <select class="text-sm border border-gray-300 rounded-lg px-2 py-1">
+                <option>All Categories</option>
+                <option>Fresh Produce</option>
+                <option>Dairy</option>
+                <option>Beverages</option>
+                <option>Bakery</option>
+              </select>
+            </div>
+            <!-- CSS Bar Chart -->
+            <div class="space-y-3">
+              <div>
+                <div class="flex items-center justify-between text-sm mb-1">
+                  <span class="text-gray-700 font-medium w-32">Fresh Produce</span>
+                  <span class="text-xs text-green-600 font-medium">You: avg 4.2% cheaper</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div class="absolute inset-y-0 left-0 bg-green-400 rounded-full" style="width: 68%"></div>
+                    <div class="absolute inset-y-0 left-0 bg-green-600 rounded-full" style="width: 62%"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white z-10">Your Price $3.42 &middot; Avg Competitor $3.57</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between text-sm mb-1">
+                  <span class="text-gray-700 font-medium w-32">Dairy & Eggs</span>
+                  <span class="text-xs text-red-600 font-medium">You: avg 2.1% more expensive</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div class="absolute inset-y-0 left-0 bg-red-300 rounded-full" style="width: 72%"></div>
+                    <div class="absolute inset-y-0 left-0 bg-red-500 rounded-full" style="width: 68%"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white z-10">Your Price $5.89 &middot; Avg Competitor $5.77</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between text-sm mb-1">
+                  <span class="text-gray-700 font-medium w-32">Beverages</span>
+                  <span class="text-xs text-green-600 font-medium">You: avg 1.8% cheaper</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div class="absolute inset-y-0 left-0 bg-green-400 rounded-full" style="width: 55%"></div>
+                    <div class="absolute inset-y-0 left-0 bg-green-600 rounded-full" style="width: 52%"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white z-10">Your Price $4.15 &middot; Avg Competitor $4.23</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between text-sm mb-1">
+                  <span class="text-gray-700 font-medium w-32">Bakery</span>
+                  <span class="text-xs text-amber-600 font-medium">You: roughly equal</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div class="absolute inset-y-0 left-0 bg-amber-300 rounded-full" style="width: 48%"></div>
+                    <div class="absolute inset-y-0 left-0 bg-amber-500 rounded-full" style="width: 47%"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white z-10">Your Price $6.20 &middot; Avg Competitor $6.18</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Monitored Competitors List -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="font-semibold mb-4">Monitored Competitors</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-700 font-bold text-lg">W</div>
+                <div class="flex-1">
+                  <div class="font-medium text-gray-900">Woolworths</div>
+                  <div class="text-xs text-gray-500">142 products matched &middot; Scraped daily</div>
+                </div>
+                <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Active</span>
+              </div>
+              <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-red-700 font-bold text-lg">C</div>
+                <div class="flex-1">
+                  <div class="font-medium text-gray-900">Coles</div>
+                  <div class="text-xs text-gray-500">138 products matched &middot; Scraped daily</div>
+                </div>
+                <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Active</span>
+              </div>
+              <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-700 font-bold text-lg">A</div>
+                <div class="flex-1">
+                  <div class="font-medium text-gray-900">ALDI</div>
+                  <div class="text-xs text-gray-500">89 products matched &middot; Scraped weekly</div>
+                </div>
+                <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Active</span>
+              </div>
+              <div class="border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-700 font-bold text-lg">I</div>
+                <div class="flex-1">
+                  <div class="font-medium text-gray-900">IGA Local</div>
+                  <div class="text-xs text-gray-500">67 products matched &middot; Scraped weekly</div>
+                </div>
+                <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 5: Supplier Cost Comparison                           -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-supplier-compare" class="screen">
+    <div class="flex min-h-screen">
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Dashboard</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Invoices</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Products</a>
+          <div class="pt-3 mt-3 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">
+              <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/></svg>
+              Competitor Intel
+            </a>
+          </div>
+        </nav>
+      </aside>
+
+      <div class="flex-1 ml-64">
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3">
+          <div class="flex gap-1">
+            <button class="px-4 py-2 text-sm font-medium text-gray-500">Competitor Prices</button>
+            <button class="px-4 py-2 text-sm font-medium text-purple-600 border-b-2 border-purple-600">Supplier Comparison</button>
+            <button class="px-4 py-2 text-sm font-medium text-gray-500">AI Recommendations</button>
+            <button class="px-4 py-2 text-sm font-medium text-gray-500">Alerts</button>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900">Supplier Cost Comparison</h2>
+              <p class="text-sm text-gray-500">Compare prices from different suppliers for the same products</p>
+            </div>
+            <select class="text-sm border border-gray-300 rounded-lg px-3 py-2">
+              <option>All Products</option>
+              <option>Fresh Produce</option>
+              <option>Dairy</option>
+              <option>Beverages</option>
+            </select>
+          </div>
+
+          <!-- Supplier Comparison Table -->
+          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th class="text-left px-4 py-3 font-medium text-gray-500">Product</th>
+                  <th class="text-right px-4 py-3 font-medium text-gray-500">Fresh Produce Co.</th>
+                  <th class="text-right px-4 py-3 font-medium text-gray-500">Metcash Trading</th>
+                  <th class="text-right px-4 py-3 font-medium text-gray-500">Drakes Supply</th>
+                  <th class="text-center px-4 py-3 font-medium text-gray-500">Best Price</th>
+                  <th class="text-right px-4 py-3 font-medium text-gray-500">Potential Saving</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-b border-gray-100">
+                  <td class="px-4 py-3 font-medium text-gray-900">Bananas Cavendish (kg)</td>
+                  <td class="px-4 py-3 text-right text-green-700 font-semibold bg-green-50">$2.40</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$2.85</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$2.60</td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Fresh Produce</span></td>
+                  <td class="px-4 py-3 text-right text-green-600 font-medium">$0.20/kg</td>
+                </tr>
+                <tr class="border-b border-gray-100">
+                  <td class="px-4 py-3 font-medium text-gray-900">Full Cream Milk 2L</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$3.20</td>
+                  <td class="px-4 py-3 text-right text-green-700 font-semibold bg-green-50">$2.95</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$3.10</td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Metcash</span></td>
+                  <td class="px-4 py-3 text-right text-green-600 font-medium">$0.15/unit</td>
+                </tr>
+                <tr class="border-b border-gray-100">
+                  <td class="px-4 py-3 font-medium text-gray-900">Sourdough Loaf 750g</td>
+                  <td class="px-4 py-3 text-right text-gray-400 text-xs">Not available</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$4.50</td>
+                  <td class="px-4 py-3 text-right text-green-700 font-semibold bg-green-50">$4.20</td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Drakes</span></td>
+                  <td class="px-4 py-3 text-right text-green-600 font-medium">$0.30/unit</td>
+                </tr>
+                <tr class="border-b border-gray-100">
+                  <td class="px-4 py-3 font-medium text-gray-900">Free Range Eggs 12pk</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$5.80</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$5.90</td>
+                  <td class="px-4 py-3 text-right text-green-700 font-semibold bg-green-50">$5.40</td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Drakes</span></td>
+                  <td class="px-4 py-3 text-right text-green-600 font-medium">$0.40/pk</td>
+                </tr>
+                <tr class="border-b border-gray-100">
+                  <td class="px-4 py-3 font-medium text-gray-900">Coca-Cola 24x375ml</td>
+                  <td class="px-4 py-3 text-right text-green-700 font-semibold bg-green-50">$18.50</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$19.20</td>
+                  <td class="px-4 py-3 text-right text-gray-600">$19.00</td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Fresh Produce</span></td>
+                  <td class="px-4 py-3 text-right text-green-600 font-medium">$0.50/case</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Savings Summary -->
+          <div class="mt-6 bg-green-50 border border-green-200 rounded-xl p-5 flex items-center gap-4">
+            <div class="w-12 h-12 bg-green-200 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <div class="font-semibold text-green-900">Estimated Monthly Savings: $342.80</div>
+              <div class="text-sm text-green-700">By switching to the cheapest supplier for each product, you could save an estimated $342.80/month based on your current order volumes.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 6: Price Intelligence (Margin Waterfall)              -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-price-intel" class="screen">
+    <div class="max-w-6xl mx-auto p-8">
+      <h1 class="text-2xl font-bold text-gray-900 mb-2">Price Intelligence — Margin Waterfall</h1>
+      <p class="text-gray-500 mb-8">Full cost-to-shelf breakdown for a single product</p>
+
+      <!-- Product Selector -->
+      <div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+        <div class="flex items-center gap-4">
+          <div class="w-16 h-16 bg-yellow-50 rounded-xl flex items-center justify-center text-3xl">🍌</div>
+          <div class="flex-1">
+            <h3 class="font-semibold text-gray-900">Bananas Cavendish (per kg)</h3>
+            <p class="text-sm text-gray-500">SKU: BAN-CAV-001 &middot; Category: Fresh Produce &middot; Supplier: Fresh Produce Co.</p>
+          </div>
+          <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Change Product</button>
+        </div>
+      </div>
+
+      <!-- Margin Waterfall -->
+      <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <h3 class="font-semibold mb-6">Margin Waterfall</h3>
+        <div class="flex items-end gap-2 h-64 mb-4">
+          <!-- Supplier Cost -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-gray-900 mb-1">$2.40</div>
+            <div class="w-full bg-blue-500 rounded-t" style="height: 48%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">Supplier<br>Cost</div>
+          </div>
+          <!-- Freight -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-gray-900 mb-1">$0.15</div>
+            <div class="w-full bg-blue-300 rounded-t" style="height: 3%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">Freight</div>
+          </div>
+          <!-- Landed Cost -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-gray-900 mb-1">$2.55</div>
+            <div class="w-full bg-blue-600 rounded-t" style="height: 51%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">Landed<br>Cost</div>
+          </div>
+          <!-- Arrow spacer -->
+          <div class="flex items-center px-2 pb-10">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          </div>
+          <!-- Your Retail -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-brand-700 mb-1">$4.99</div>
+            <div class="w-full bg-brand-500 rounded-t" style="height: 100%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">Your<br>Retail</div>
+          </div>
+          <!-- Margin -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-green-700 mb-1">$2.44</div>
+            <div class="w-full bg-green-400 rounded-t" style="height: 49%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">Your<br>Margin</div>
+          </div>
+          <!-- Arrow spacer -->
+          <div class="flex items-center px-2 pb-10">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          </div>
+          <!-- Woolworths -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-red-600 mb-1">$5.50</div>
+            <div class="w-full bg-red-300 rounded-t border-2 border-red-400 border-dashed" style="height: 110%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">Woolworths</div>
+          </div>
+          <!-- Coles -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-red-600 mb-1">$5.20</div>
+            <div class="w-full bg-red-200 rounded-t border-2 border-red-300 border-dashed" style="height: 104%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">Coles</div>
+          </div>
+          <!-- ALDI -->
+          <div class="flex-1 flex flex-col items-center">
+            <div class="text-sm font-bold text-amber-600 mb-1">$4.89</div>
+            <div class="w-full bg-amber-200 rounded-t border-2 border-amber-300 border-dashed" style="height: 98%"></div>
+            <div class="text-xs text-gray-500 mt-2 text-center">ALDI</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Key Metrics Grid -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">Your Margin</div>
+          <div class="text-2xl font-bold text-green-600">48.9%</div>
+          <div class="text-xs text-gray-400">Target: 45%</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">vs Cheapest Competitor</div>
+          <div class="text-2xl font-bold text-green-600">+$0.10</div>
+          <div class="text-xs text-green-500">You're 2% cheaper than ALDI</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">Supplier Cost Trend (90d)</div>
+          <div class="text-2xl font-bold text-red-600">+8.1%</div>
+          <div class="text-xs text-red-500">Was $2.22 three months ago</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">AI Recommended Price</div>
+          <div class="text-2xl font-bold text-purple-600">$5.19</div>
+          <div class="text-xs text-purple-500">+4% increase for optimal margin</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 7: Alerts & AI Recommendations                       -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-alerts" class="screen">
+    <div class="flex min-h-screen">
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Dashboard</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Invoices</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Products</a>
+          <div class="pt-3 mt-3 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">
+              <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/></svg>
+              Competitor Intel
+              <span class="ml-auto bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">3</span>
+            </a>
+          </div>
+        </nav>
+      </aside>
+
+      <div class="flex-1 ml-64">
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3">
+          <div class="flex gap-1">
+            <button class="px-4 py-2 text-sm font-medium text-gray-500">Competitor Prices</button>
+            <button class="px-4 py-2 text-sm font-medium text-gray-500">Supplier Comparison</button>
+            <button class="px-4 py-2 text-sm font-medium text-gray-500">Price Intelligence</button>
+            <button class="px-4 py-2 text-sm font-medium text-purple-600 border-b-2 border-purple-600">Alerts & AI</button>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <!-- AI Recommendations -->
+          <div class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+              AI Pricing Recommendations
+            </h2>
+            <div class="space-y-3">
+              <!-- Recommendation 1 -->
+              <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                <div class="flex items-start gap-4">
+                  <div class="w-8 h-8 bg-purple-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-purple-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>
+                  </div>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-semibold text-purple-900">Increase price on Dairy & Eggs</span>
+                      <span class="px-2 py-0.5 bg-purple-200 text-purple-700 rounded text-xs font-medium">High confidence</span>
+                    </div>
+                    <p class="text-sm text-purple-800 mb-2">Your dairy prices are 2.1% below competitors. A 3% increase on 23 products would add an estimated <strong>$890/month</strong> in margin while remaining competitive.</p>
+                    <div class="flex gap-2">
+                      <button class="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium cursor-pointer">Review Suggestions</button>
+                      <button class="px-3 py-1.5 bg-white text-purple-700 border border-purple-300 rounded-lg text-xs font-medium cursor-pointer">Dismiss</button>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-lg font-bold text-green-600">+$890</div>
+                    <div class="text-xs text-gray-500">/month</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recommendation 2 -->
+              <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+                <div class="flex items-start gap-4">
+                  <div class="w-8 h-8 bg-green-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-green-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+                  </div>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-semibold text-green-900">Switch supplier for 8 products</span>
+                      <span class="px-2 py-0.5 bg-green-200 text-green-700 rounded text-xs font-medium">Cost reduction</span>
+                    </div>
+                    <p class="text-sm text-green-800 mb-2">Drakes Supply is consistently cheaper for bakery items. Switching 8 products would save <strong>$156/month</strong> on cost of goods.</p>
+                    <div class="flex gap-2">
+                      <button class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium cursor-pointer">View Products</button>
+                      <button class="px-3 py-1.5 bg-white text-green-700 border border-green-300 rounded-lg text-xs font-medium cursor-pointer">Dismiss</button>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-lg font-bold text-green-600">-$156</div>
+                    <div class="text-xs text-gray-500">cost/month</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Alerts -->
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+              Recent Price Alerts
+            </h2>
+            <div class="space-y-2">
+              <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22"/></svg>
+                </div>
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-gray-900">Woolworths dropped price on Full Cream Milk 2L</div>
+                  <div class="text-xs text-gray-500">$3.50 → $3.10 (-11.4%) &middot; 2 hours ago</div>
+                </div>
+                <span class="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">Competitor Drop</span>
+              </div>
+
+              <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22"/></svg>
+                </div>
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-gray-900">Fresh Produce Co. increased Avocado Hass by 15%</div>
+                  <div class="text-xs text-gray-500">$1.80 → $2.07/unit &middot; From latest invoice &middot; 5 hours ago</div>
+                </div>
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">Supplier Increase</span>
+              </div>
+
+              <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898"/></svg>
+                </div>
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-gray-900">Coles raised Sourdough Loaf to $7.00</div>
+                  <div class="text-xs text-gray-500">$6.50 → $7.00 (+7.7%) &middot; You now have a price advantage &middot; 1 day ago</div>
+                </div>
+                <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Opportunity</span>
+              </div>
+
+              <div class="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4">
+                <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                </div>
+                <div class="flex-1">
+                  <div class="text-sm font-medium text-gray-900">Your margin on Bananas Cavendish dropped below 45% target</div>
+                  <div class="text-xs text-gray-500">Current margin: 42.3% (supplier cost increase) &middot; 2 days ago</div>
+                </div>
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">Margin Alert</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showScreen(name) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + name).classList.add('active');
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.remove('bg-purple-600', 'text-white');
+        b.classList.add('text-gray-600', 'hover:bg-gray-100');
+      });
+      const activeBtn = document.querySelector(`[data-screen="${name}"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-purple-600', 'text-white');
+        activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+      }
+      window.scrollTo(0, 0);
+    }
+    showScreen('pricing');
+  </script>
+</body>
+</html>

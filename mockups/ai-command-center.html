@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RetailEdge AI — Command Center & Connections Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'sans-serif'] },
+      colors: {
+        brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' },
+        sidebar: { bg:'#0f172a', hover:'#1e293b', active:'#334155' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .nav-item.active { background: #334155; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .slide-up { animation: slide-up 0.3s ease-out; }
+  @keyframes progress { from { width: 0%; } to { width: 100%; } }
+  .progress-bar { animation: progress 3s ease-out forwards; }
+  .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900 antialiased">
+
+<!-- APP SHELL -->
+<div class="min-h-screen flex">
+
+  <!-- SIDEBAR -->
+  <aside class="w-64 bg-sidebar-bg text-white flex flex-col flex-shrink-0 fixed h-full z-30">
+    <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+      <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-sm">RetailEdge <span class="text-brand-400 text-xs font-bold">AI</span></div>
+        <div class="text-xs text-slate-400">Green Grocer Co.</div>
+      </div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <a onclick="showScreen('command-center')" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/></svg>
+        <span>AI Command Center</span>
+        <span class="ml-auto flex h-2 w-2"><span class="pulse-dot absolute inline-flex h-2 w-2 rounded-full bg-green-400"></span></span>
+      </a>
+      <a onclick="showScreen('dashboard')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25z"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+        Invoices
+        <span class="ml-auto bg-brand-600 text-white text-xs px-2 py-0.5 rounded-full">3</span>
+      </a>
+      <a onclick="showScreen('smart-pricing')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Smart Pricing
+        <span class="ml-auto bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">7</span>
+      </a>
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+        Products
+      </a>
+      <a onclick="showScreen('competitor')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Competitors
+      </a>
+      <a onclick="showScreen('demand')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+        Demand & Sales
+      </a>
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15m0-3l-3-3m0 0l-3 3m3-3V15"/></svg>
+        Export
+      </a>
+
+      <div class="pt-4 mt-4 border-t border-slate-700/50">
+        <a onclick="showScreen('connections')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+          <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
+          Connections
+          <span class="ml-auto flex items-center gap-1">
+            <span class="h-2 w-2 rounded-full bg-green-400"></span>
+            <span class="text-xs text-slate-400">3/5</span>
+          </span>
+        </a>
+        <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+          <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Settings
+        </a>
+      </div>
+    </nav>
+    <div class="p-3 border-t border-slate-700/50">
+      <div class="flex items-center gap-3 px-3 py-2">
+        <div class="w-8 h-8 bg-brand-600 rounded-full flex items-center justify-center text-sm font-medium">SS</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate">Sarah Singh</div>
+          <div class="text-xs text-slate-400 truncate">Owner</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 ml-64">
+    <!-- TOP BAR -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+      <div class="flex items-center gap-3">
+        <h1 class="text-lg font-semibold" id="page-title">AI Command Center</h1>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+          <span class="h-1.5 w-1.5 rounded-full bg-green-500 pulse-dot"></span>
+          All Agents Active
+        </span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button class="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+          <span class="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ==================== SCREEN: AI COMMAND CENTER ==================== -->
+    <div id="screen-command-center" class="screen active p-6 space-y-6">
+
+      <!-- AGENT STATUS CARDS -->
+      <div class="grid grid-cols-3 gap-4">
+        <!-- Ingestion Agent -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                <span class="text-xl">📥</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-sm">Ingestion Agent</h3>
+                <p class="text-xs text-gray-500">Email & folder scanning</p>
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+              <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Active
+            </span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-gray-600"><span>Last scan</span><span class="font-medium text-gray-900">2 min ago</span></div>
+            <div class="flex justify-between text-gray-600"><span>Today</span><span class="font-medium text-gray-900">4 invoices processed</span></div>
+            <div class="flex justify-between text-gray-600"><span>Sources</span><span class="font-medium text-gray-900">Gmail ✓ Folder ✓</span></div>
+          </div>
+        </div>
+
+        <!-- Matching Agent -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
+                <span class="text-xl">🔍</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-sm">Matching Agent</h3>
+                <p class="text-xs text-gray-500">Product identification</p>
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-medium">
+              <span class="h-1.5 w-1.5 rounded-full bg-amber-500 pulse-dot"></span> Running
+            </span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-gray-600"><span>Processing</span><span class="font-medium text-gray-900">Invoice #4523</span></div>
+            <div class="flex justify-between text-gray-600"><span>Progress</span><span class="font-medium text-gray-900">8 / 12 lines</span></div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-brand-500 h-1.5 rounded-full" style="width:67%"></div></div>
+            <div class="flex justify-between text-gray-600"><span>Auto-match rate</span><span class="font-medium text-green-600">91%</span></div>
+          </div>
+        </div>
+
+        <!-- Pricing Agent -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+                <span class="text-xl">💰</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-sm">Pricing Agent</h3>
+                <p class="text-xs text-gray-500">Margin optimization</p>
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+              <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Ready
+            </span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-gray-600"><span>Recommendations</span><span class="font-medium text-amber-600">7 pending</span></div>
+            <div class="flex justify-between text-gray-600"><span>Potential gain</span><span class="font-medium text-green-600">+$142/wk</span></div>
+            <div class="flex justify-between text-gray-600"><span>Avg margin</span><span class="font-medium text-gray-900">28.4%</span></div>
+          </div>
+        </div>
+
+        <!-- Competitor Agent -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
+                <span class="text-xl">🕵️</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-sm">Competitor Agent</h3>
+                <p class="text-xs text-gray-500">Price monitoring</p>
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Next: 2h
+            </span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-gray-600"><span>Last scan</span><span class="font-medium text-gray-900">6:00 AM</span></div>
+            <div class="flex justify-between text-gray-600"><span>Tracked products</span><span class="font-medium text-gray-900">48 across 4 competitors</span></div>
+            <div class="flex justify-between text-gray-600"><span>Alerts</span><span class="font-medium text-red-600">2 undercuts detected</span></div>
+          </div>
+        </div>
+
+        <!-- Demand Agent -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+                <span class="text-xl">📊</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-sm">Demand Agent</h3>
+                <p class="text-xs text-gray-500">Sales intelligence</p>
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+              <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Analyzed
+            </span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-gray-600"><span>Period</span><span class="font-medium text-gray-900">Week 11, 2026</span></div>
+            <div class="flex justify-between text-gray-600"><span>Trending up</span><span class="font-medium text-green-600">Eggs, Yogurt, Bread</span></div>
+            <div class="flex justify-between text-gray-600"><span>Dead stock</span><span class="font-medium text-red-600">3 items flagged</span></div>
+          </div>
+        </div>
+
+        <!-- Export Agent -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
+                <span class="text-xl">📤</span>
+              </div>
+              <div>
+                <h3 class="font-semibold text-sm">Export Agent</h3>
+                <p class="text-xs text-gray-500">POS & ecommerce sync</p>
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+              <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Synced
+            </span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-gray-600"><span>Last push</span><span class="font-medium text-gray-900">10:31 AM</span></div>
+            <div class="flex justify-between text-gray-600"><span>Stores</span><span class="font-medium text-gray-900">Shopify ✓ Square ✓</span></div>
+            <div class="flex justify-between text-gray-600"><span>Queued</span><span class="font-medium text-amber-600">4 price updates</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="flex gap-3">
+        <button class="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+          Run All Agents
+        </button>
+        <button class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+          Upload Invoice
+        </button>
+        <button class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+          Refresh Competitors
+        </button>
+        <button class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+          Import Sales Data
+        </button>
+      </div>
+
+      <!-- PENDING DECISIONS -->
+      <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🔔</span>
+            <h2 class="font-semibold">Pending Decisions</h2>
+            <span class="bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded-full">7 items</span>
+          </div>
+          <button class="text-sm text-brand-600 hover:text-brand-700 font-medium">Review All →</button>
+        </div>
+        <div class="divide-y divide-gray-100">
+          <!-- Decision 1 -->
+          <div class="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition">
+            <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span class="text-lg">💰</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm">Price increase recommended</span>
+                <span class="px-1.5 py-0.5 bg-green-50 text-green-700 text-xs rounded font-medium">+$18.72/wk</span>
+              </div>
+              <p class="text-sm text-gray-500 mt-0.5">Free Range Eggs 700g — Cost ↑11.5%, competitors higher, demand strong</p>
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <div class="text-right">
+                <div class="text-sm font-medium">$6.50 → <span class="text-green-600">$6.99</span></div>
+                <div class="text-xs text-gray-500">Margin: 10.8% → 17.1%</div>
+              </div>
+              <div class="flex gap-1.5">
+                <button class="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition" title="Accept">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+                </button>
+                <button class="p-2 bg-gray-50 text-gray-400 rounded-lg hover:bg-gray-100 transition" title="Edit">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+                </button>
+                <button class="p-2 bg-gray-50 text-gray-400 rounded-lg hover:bg-gray-100 transition" title="Dismiss">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Decision 2 -->
+          <div class="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition">
+            <div class="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span class="text-lg">🔍</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm">New product match needs confirmation</span>
+                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-700 text-xs rounded font-medium">87% confidence</span>
+              </div>
+              <p class="text-sm text-gray-500 mt-0.5">"Bonsoy Organic Soy Milk 1L" → Soy Milk 1L (existing product)</p>
+            </div>
+            <div class="flex gap-1.5 flex-shrink-0">
+              <button class="px-3 py-1.5 bg-brand-50 text-brand-700 rounded-lg text-sm font-medium hover:bg-brand-100 transition">Confirm Match</button>
+              <button class="px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition">Choose Different</button>
+            </div>
+          </div>
+
+          <!-- Decision 3 -->
+          <div class="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition">
+            <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span class="text-lg">📦</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm">Reorder alert</span>
+                <span class="px-1.5 py-0.5 bg-red-50 text-red-700 text-xs rounded font-medium">Critical</span>
+              </div>
+              <p class="text-sm text-gray-500 mt-0.5">Barista Oat Milk 1L — 2 days of stock remaining (selling 8 units/day)</p>
+            </div>
+            <div class="flex gap-1.5 flex-shrink-0">
+              <button class="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-100 transition">Remind Me</button>
+              <button class="px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition">Dismiss</button>
+            </div>
+          </div>
+
+          <!-- Decision 4 -->
+          <div class="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 transition">
+            <div class="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span class="text-lg">🕵️</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-sm">Competitor price alert</span>
+                <span class="px-1.5 py-0.5 bg-orange-50 text-orange-700 text-xs rounded font-medium">Opportunity</span>
+              </div>
+              <p class="text-sm text-gray-500 mt-0.5">Coles raised Organic Milk 2L to $6.89 (+12%) — you're at $5.99, room to increase</p>
+            </div>
+            <div class="flex gap-1.5 flex-shrink-0">
+              <button class="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 transition">View Pricing</button>
+              <button class="px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 transition">Dismiss</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECENT AGENT ACTIVITY -->
+      <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100">
+          <h2 class="font-semibold">Recent Agent Activity</h2>
+        </div>
+        <div class="divide-y divide-gray-50">
+          <div class="px-5 py-3 flex items-center gap-3 text-sm">
+            <span class="text-xs text-gray-400 w-16">10:34</span>
+            <span class="w-6 h-6 bg-orange-50 rounded flex items-center justify-center text-xs">🕵️</span>
+            <span class="font-medium text-gray-700">Competitor Agent</span>
+            <span class="text-gray-500">Coles raised Organic Milk 2L price by 12%</span>
+            <span class="ml-auto px-2 py-0.5 bg-orange-50 text-orange-700 text-xs rounded">Alert</span>
+          </div>
+          <div class="px-5 py-3 flex items-center gap-3 text-sm">
+            <span class="text-xs text-gray-400 w-16">10:33</span>
+            <span class="w-6 h-6 bg-green-50 rounded flex items-center justify-center text-xs">💰</span>
+            <span class="font-medium text-gray-700">Pricing Agent</span>
+            <span class="text-gray-500">3 price increase recommendations generated for Invoice #4521</span>
+            <span class="ml-auto px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded">Review</span>
+          </div>
+          <div class="px-5 py-3 flex items-center gap-3 text-sm">
+            <span class="text-xs text-gray-400 w-16">10:33</span>
+            <span class="w-6 h-6 bg-purple-50 rounded flex items-center justify-center text-xs">🔍</span>
+            <span class="font-medium text-gray-700">Matching Agent</span>
+            <span class="text-gray-500">11/12 lines matched (92% auto-match rate) for Invoice #4521</span>
+            <span class="ml-auto px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded">Done</span>
+          </div>
+          <div class="px-5 py-3 flex items-center gap-3 text-sm">
+            <span class="text-xs text-gray-400 w-16">10:32</span>
+            <span class="w-6 h-6 bg-blue-50 rounded flex items-center justify-center text-xs">📥</span>
+            <span class="font-medium text-gray-700">Ingestion Agent</span>
+            <span class="text-gray-500">Processed invoice #4521 from Gmail (Farm Fresh Supplies)</span>
+            <span class="ml-auto px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded">Done</span>
+          </div>
+          <div class="px-5 py-3 flex items-center gap-3 text-sm">
+            <span class="text-xs text-gray-400 w-16">10:31</span>
+            <span class="w-6 h-6 bg-teal-50 rounded flex items-center justify-center text-xs">📤</span>
+            <span class="font-medium text-gray-700">Export Agent</span>
+            <span class="text-gray-500">Pushed 6 price updates to Shopify & Square POS</span>
+            <span class="ml-auto px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded">Done</span>
+          </div>
+          <div class="px-5 py-3 flex items-center gap-3 text-sm">
+            <span class="text-xs text-gray-400 w-16">09:00</span>
+            <span class="w-6 h-6 bg-indigo-50 rounded flex items-center justify-center text-xs">📊</span>
+            <span class="font-medium text-gray-700">Demand Agent</span>
+            <span class="text-gray-500">Weekly analysis complete: Eggs ↑15%, Yogurt ↑8%, Rice ↓12%</span>
+            <span class="ml-auto px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded">Done</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI COST TRACKER -->
+      <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-semibold">AI Usage This Month</h2>
+          <span class="text-sm text-gray-500">Billing period: Mar 1–31, 2026</span>
+        </div>
+        <div class="grid grid-cols-4 gap-4">
+          <div class="bg-gray-50 rounded-lg p-3 text-center">
+            <div class="text-2xl font-bold text-gray-900">47</div>
+            <div class="text-xs text-gray-500 mt-1">Invoices Processed</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3 text-center">
+            <div class="text-2xl font-bold text-gray-900">412</div>
+            <div class="text-xs text-gray-500 mt-1">Lines Matched</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3 text-center">
+            <div class="text-2xl font-bold text-green-600">$8.40</div>
+            <div class="text-xs text-gray-500 mt-1">AI Cost (of $25 limit)</div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3 text-center">
+            <div class="text-2xl font-bold text-brand-600">93%</div>
+            <div class="text-xs text-gray-500 mt-1">Auto-Match Rate</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: CONNECTIONS ==================== -->
+    <div id="screen-connections" class="screen p-6 space-y-6">
+
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold">Connections</h2>
+          <p class="text-sm text-gray-500 mt-1">Connect your systems — click "Connect", sign in with your account, and you're done.</p>
+        </div>
+      </div>
+
+      <!-- Email Section -->
+      <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">📧 Email & Invoices</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Gmail - Connected -->
+          <div class="bg-white rounded-xl border-2 border-green-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-white rounded-xl border border-gray-200 flex items-center justify-center">
+                  <svg class="w-7 h-7" viewBox="0 0 24 24"><path d="M22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6zm-2 0l-8 5-8-5h16zm0 12H4V8l8 5 8-5v10z" fill="#EA4335"/></svg>
+                </div>
+                <div>
+                  <h4 class="font-semibold">Gmail</h4>
+                  <p class="text-xs text-gray-500">Auto-scan for supplier invoices</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Connected
+              </span>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3 mb-4">
+              <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                <div><div class="font-semibold text-green-800">sarah@greengrocer.com.au</div><div class="text-green-600">Account</div></div>
+                <div><div class="font-semibold text-green-800">2 min ago</div><div class="text-green-600">Last scan</div></div>
+                <div><div class="font-semibold text-green-800">47 invoices</div><div class="text-green-600">This month</div></div>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Configure Filters</button>
+              <button class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition">Disconnect</button>
+            </div>
+          </div>
+
+          <!-- Outlook - Not Connected -->
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-white rounded-xl border border-gray-200 flex items-center justify-center">
+                  <svg class="w-7 h-7" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z" fill="#0078D4"/><text x="8" y="16" fill="white" font-size="8" font-weight="bold">O</text></svg>
+                </div>
+                <div>
+                  <h4 class="font-semibold">Microsoft Outlook</h4>
+                  <p class="text-xs text-gray-500">Office 365 email integration</p>
+                </div>
+              </div>
+              <span class="text-xs text-gray-400">Not connected</span>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Sign in with your Microsoft account to auto-scan for invoices in your Outlook inbox.</p>
+            <button class="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
+              Connect Outlook
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- POS Section -->
+      <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">🏪 POS Systems</h3>
+        <div class="grid grid-cols-3 gap-4">
+          <!-- Square - Connected -->
+          <div class="bg-white rounded-xl border-2 border-green-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-black rounded-xl flex items-center justify-center">
+                  <span class="text-white font-bold text-lg">□</span>
+                </div>
+                <div>
+                  <h4 class="font-semibold">Square POS</h4>
+                  <p class="text-xs text-gray-500">Point of sale</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Synced
+              </span>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3 mb-4 text-xs">
+              <div class="flex justify-between mb-1"><span class="text-green-600">Location</span><span class="font-medium text-green-800">Main Street Store</span></div>
+              <div class="flex justify-between mb-1"><span class="text-green-600">Products</span><span class="font-medium text-green-800">234 synced</span></div>
+              <div class="flex justify-between"><span class="text-green-600">Last sync</span><span class="font-medium text-green-800">5 min ago</span></div>
+            </div>
+            <div class="flex gap-2">
+              <button class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Settings</button>
+              <button class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium">Disconnect</button>
+            </div>
+          </div>
+
+          <!-- Lightspeed -->
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl flex items-center justify-center">
+                  <span class="text-white font-bold text-lg">L</span>
+                </div>
+                <div>
+                  <h4 class="font-semibold">Lightspeed</h4>
+                  <p class="text-xs text-gray-500">Retail POS</p>
+                </div>
+              </div>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Connect your Lightspeed POS for automatic product & sales sync.</p>
+            <button class="w-full px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">Connect Lightspeed</button>
+          </div>
+
+          <!-- Hike / Other -->
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                  <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-gray-700">Other POS</h4>
+                  <p class="text-xs text-gray-500">CSV import/export</p>
+                </div>
+              </div>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Don't see your POS? Use CSV import — works with any system.</p>
+            <button class="w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Setup CSV Import</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ecommerce Section -->
+      <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">🛒 Online Stores</h3>
+        <div class="grid grid-cols-3 gap-4">
+          <!-- Shopify - Connected -->
+          <div class="bg-white rounded-xl border-2 border-green-200 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center">
+                  <span class="text-white font-bold text-lg">S</span>
+                </div>
+                <div>
+                  <h4 class="font-semibold">Shopify</h4>
+                  <p class="text-xs text-gray-500">greengrocer.myshopify.com</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Synced
+              </span>
+            </div>
+            <div class="bg-green-50 rounded-lg p-3 mb-4 text-xs">
+              <div class="flex justify-between mb-1"><span class="text-green-600">Products</span><span class="font-medium text-green-800">189 synced</span></div>
+              <div class="flex justify-between mb-1"><span class="text-green-600">Orders today</span><span class="font-medium text-green-800">23 imported</span></div>
+              <div class="flex justify-between"><span class="text-green-600">Price pushes</span><span class="font-medium text-green-800">6 today</span></div>
+            </div>
+            <div class="flex gap-2">
+              <button class="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Settings</button>
+              <button class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium">Disconnect</button>
+            </div>
+          </div>
+
+          <!-- WooCommerce -->
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center">
+                  <span class="text-white font-bold text-lg">W</span>
+                </div>
+                <div>
+                  <h4 class="font-semibold">WooCommerce</h4>
+                  <p class="text-xs text-gray-500">WordPress store</p>
+                </div>
+              </div>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Connect your WooCommerce store for product & order sync.</p>
+            <button class="w-full px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">Connect WooCommerce</button>
+          </div>
+
+          <!-- BigCommerce -->
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5 opacity-60">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center">
+                  <span class="text-white font-bold text-lg">B</span>
+                </div>
+                <div>
+                  <h4 class="font-semibold">BigCommerce</h4>
+                  <p class="text-xs text-gray-500">Enterprise ecommerce</p>
+                </div>
+              </div>
+              <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Coming Soon</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">BigCommerce integration is coming in Q2 2026.</p>
+            <button disabled class="w-full px-4 py-2.5 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed">Notify Me</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Accounting Section -->
+      <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">📒 Accounting</h3>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center"><span class="text-white font-bold">X</span></div>
+              <div><h4 class="font-semibold">Xero</h4><p class="text-xs text-gray-500">Cloud accounting</p></div>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Sync invoices and cost data with Xero automatically.</p>
+            <button class="w-full px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">Connect Xero</button>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-12 h-12 bg-violet-600 rounded-xl flex items-center justify-center"><span class="text-white font-bold">M</span></div>
+              <div><h4 class="font-semibold">MYOB</h4><p class="text-xs text-gray-500">Business management</p></div>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Push invoice data to MYOB for reconciliation.</p>
+            <button class="w-full px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">Connect MYOB</button>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 border-dashed p-5">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-12 h-12 bg-green-700 rounded-xl flex items-center justify-center"><span class="text-white font-bold">Q</span></div>
+              <div><h4 class="font-semibold">QuickBooks</h4><p class="text-xs text-gray-500">Small business accounting</p></div>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Connect QuickBooks for invoice and cost tracking.</p>
+            <button class="w-full px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">Connect QuickBooks</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="bg-gradient-to-r from-brand-50 to-teal-50 rounded-xl border border-brand-200 p-6">
+        <h3 class="font-semibold text-brand-900 mb-3">🔒 How connections work</h3>
+        <div class="grid grid-cols-3 gap-6 text-sm">
+          <div class="flex gap-3">
+            <div class="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
+            <div>
+              <div class="font-medium text-brand-900">Click "Connect"</div>
+              <div class="text-brand-700 mt-0.5">You'll be redirected to sign in with your existing account (Shopify, Square, Gmail, etc.)</div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
+            <div>
+              <div class="font-medium text-brand-900">Click "Allow"</div>
+              <div class="text-brand-700 mt-0.5">Review what RetailEdge can access (read products, update prices) and approve.</div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
+            <div>
+              <div class="font-medium text-brand-900">That's it!</div>
+              <div class="text-brand-700 mt-0.5">Data syncs automatically. Your credentials are encrypted with AES-256. You can disconnect anytime.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: SMART PRICING ==================== -->
+    <div id="screen-smart-pricing" class="screen p-6 space-y-6">
+
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold">Smart Pricing</h2>
+          <p class="text-sm text-gray-500 mt-1">AI-powered price recommendations based on cost changes, competitors & demand signals</p>
+        </div>
+        <div class="flex gap-2">
+          <button class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Accept All (7)</button>
+          <button class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition">Export Decisions</button>
+        </div>
+      </div>
+
+      <!-- Featured Price Decision -->
+      <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="bg-gradient-to-r from-brand-600 to-brand-700 px-6 py-4 text-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-semibold text-lg">Free Range Eggs 700g</h3>
+              <p class="text-brand-100 text-sm">Farm Fresh Supplies · Invoice #4521 · Received today</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">🤖 AI Confidence: 94%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <div class="grid grid-cols-3 gap-6 mb-6">
+            <!-- Cost History -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">📈 Cost History (6 months)</h4>
+              <div class="space-y-2">
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Oct 2025</span><span>$4.80</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Nov 2025</span><span>$4.80</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Dec 2025</span><span>$5.00</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Jan 2026</span><span>$5.10</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Feb 2026</span><span>$5.20</span></div>
+                <div class="flex justify-between text-sm font-medium"><span class="text-red-600">Mar 2026 (now)</span><span class="text-red-600">$5.80 ↑11.5%</span></div>
+              </div>
+              <div class="mt-3 h-16 bg-white rounded-lg flex items-end px-2 py-1 gap-1">
+                <div class="flex-1 bg-brand-200 rounded-t" style="height:60%"></div>
+                <div class="flex-1 bg-brand-200 rounded-t" style="height:60%"></div>
+                <div class="flex-1 bg-brand-300 rounded-t" style="height:68%"></div>
+                <div class="flex-1 bg-brand-300 rounded-t" style="height:72%"></div>
+                <div class="flex-1 bg-brand-400 rounded-t" style="height:76%"></div>
+                <div class="flex-1 bg-red-400 rounded-t" style="height:100%"></div>
+              </div>
+            </div>
+
+            <!-- Competitor Map -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">🕵️ Competitor Prices</h4>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2"><div class="w-6 h-6 bg-green-600 rounded text-white text-xs flex items-center justify-center font-bold">W</div><span class="text-sm">Woolworths</span></div>
+                  <span class="font-semibold text-sm">$7.00</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2"><div class="w-6 h-6 bg-red-600 rounded text-white text-xs flex items-center justify-center font-bold">C</div><span class="text-sm">Coles</span></div>
+                  <span class="font-semibold text-sm">$6.80</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2"><div class="w-6 h-6 bg-blue-600 rounded text-white text-xs flex items-center justify-center font-bold">A</div><span class="text-sm">Aldi</span></div>
+                  <span class="font-semibold text-sm">$5.99</span>
+                </div>
+                <div class="flex items-center justify-between border-t border-gray-200 pt-2">
+                  <div class="flex items-center gap-2"><div class="w-6 h-6 bg-brand-600 rounded text-white text-xs flex items-center justify-center font-bold">Y</div><span class="text-sm font-medium">You (current)</span></div>
+                  <span class="font-semibold text-sm text-brand-600">$6.50</span>
+                </div>
+              </div>
+              <div class="mt-3 bg-white rounded-lg p-2 text-center">
+                <span class="text-xs text-gray-500">Your position: </span>
+                <span class="text-xs font-semibold text-green-600">2nd lowest of 4</span>
+              </div>
+            </div>
+
+            <!-- Demand Signal -->
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">📊 Demand Signal</h4>
+              <div class="space-y-3">
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Sales velocity</span><span class="font-medium text-green-600">↑ 24 units/day</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Trend (4 weeks)</span><span class="font-medium text-green-600">Rising (+15%)</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Price elasticity</span><span class="font-medium">Low (-0.3)</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Days of stock</span><span class="font-medium">12 days</span></div>
+                <div class="flex justify-between text-sm"><span class="text-gray-600">Season</span><span class="font-medium">Peak (Easter)</span></div>
+              </div>
+              <div class="mt-3 bg-green-50 border border-green-200 rounded-lg p-2">
+                <p class="text-xs text-green-800 font-medium">✅ Strong demand — price increase unlikely to reduce volume significantly</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Recommendation -->
+          <div class="bg-gradient-to-r from-brand-50 to-emerald-50 border border-brand-200 rounded-xl p-5 mb-6">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                <span class="text-white text-lg">🤖</span>
+              </div>
+              <div>
+                <h4 class="font-semibold text-brand-900 mb-1">AI Recommendation</h4>
+                <p class="text-sm text-brand-800">Increase to <strong>$6.99</strong>. Your cost rose 11.5% but all three competitors are priced higher. Demand is strong and price-inelastic (elasticity -0.3) — a price increase will have minimal volume impact. Estimated weekly margin gain: <strong class="text-green-700">+$18.72</strong> across both stores.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Price Scenarios Table -->
+          <div class="mb-6">
+            <h4 class="text-sm font-semibold text-gray-700 mb-3">Price Scenarios</h4>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50">
+                  <th class="text-left px-4 py-3 font-medium text-gray-600 rounded-l-lg">Selling Price</th>
+                  <th class="text-center px-4 py-3 font-medium text-gray-600">Margin</th>
+                  <th class="text-center px-4 py-3 font-medium text-gray-600">vs Competitors</th>
+                  <th class="text-center px-4 py-3 font-medium text-gray-600">Est. Volume Impact</th>
+                  <th class="text-center px-4 py-3 font-medium text-gray-600">Weekly Margin Change</th>
+                  <th class="text-center px-4 py-3 font-medium text-gray-600 rounded-r-lg">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 font-medium">$6.50 <span class="text-gray-400 text-xs">(current)</span></td>
+                  <td class="px-4 py-3 text-center"><span class="text-red-600 font-medium">10.8%</span></td>
+                  <td class="px-4 py-3 text-center">Lowest</td>
+                  <td class="px-4 py-3 text-center text-green-600">—</td>
+                  <td class="px-4 py-3 text-center text-red-600">-$28.00</td>
+                  <td class="px-4 py-3 text-center"><button class="text-gray-400 hover:text-gray-600 text-xs">Keep</button></td>
+                </tr>
+                <tr class="hover:bg-gray-50 bg-green-50/50 ring-2 ring-green-300 ring-inset rounded">
+                  <td class="px-4 py-3 font-semibold text-green-700">$6.99 ⭐ <span class="text-green-600 text-xs font-normal">Recommended</span></td>
+                  <td class="px-4 py-3 text-center"><span class="text-green-600 font-semibold">17.1%</span></td>
+                  <td class="px-4 py-3 text-center">Mid-range</td>
+                  <td class="px-4 py-3 text-center text-amber-600">-2%</td>
+                  <td class="px-4 py-3 text-center text-green-600 font-semibold">+$18.72</td>
+                  <td class="px-4 py-3 text-center"><button class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700">Accept</button></td>
+                </tr>
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 font-medium">$7.49</td>
+                  <td class="px-4 py-3 text-center"><span class="text-green-600 font-medium">22.6%</span></td>
+                  <td class="px-4 py-3 text-center">Highest</td>
+                  <td class="px-4 py-3 text-center text-red-600">-8%</td>
+                  <td class="px-4 py-3 text-center text-green-600">+$12.10</td>
+                  <td class="px-4 py-3 text-center"><button class="text-brand-600 hover:text-brand-700 text-xs font-medium">Select</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center justify-between border-t border-gray-200 pt-4">
+            <div class="text-sm text-gray-500">
+              Applies to: <span class="font-medium text-gray-700">Main St Store (POS) + Online Store (Shopify)</span>
+            </div>
+            <div class="flex gap-3">
+              <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Set Custom Price</button>
+              <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Keep $6.50</button>
+              <button class="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Accept $6.99 & Push to Stores</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: COMPETITOR INTELLIGENCE ==================== -->
+    <div id="screen-competitor" class="screen p-6 space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold">Competitor Intelligence</h2>
+          <p class="text-sm text-gray-500 mt-1">Automated price monitoring across competitor websites</p>
+        </div>
+        <div class="flex gap-2">
+          <button class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">+ Add Competitor</button>
+          <button class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Scan Now</button>
+        </div>
+      </div>
+
+      <!-- Competitor Overview -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="w-12 h-12 bg-green-600 rounded-xl mx-auto flex items-center justify-center mb-2"><span class="text-white font-bold text-lg">W</span></div>
+          <h4 class="font-semibold text-sm">Woolworths</h4>
+          <p class="text-xs text-gray-500 mt-1">48 products tracked</p>
+          <div class="mt-2 text-xs"><span class="text-green-600 font-medium">Last scan: 6h ago</span></div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="w-12 h-12 bg-red-600 rounded-xl mx-auto flex items-center justify-center mb-2"><span class="text-white font-bold text-lg">C</span></div>
+          <h4 class="font-semibold text-sm">Coles</h4>
+          <p class="text-xs text-gray-500 mt-1">45 products tracked</p>
+          <div class="mt-2 text-xs"><span class="text-green-600 font-medium">Last scan: 6h ago</span></div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="w-12 h-12 bg-blue-600 rounded-xl mx-auto flex items-center justify-center mb-2"><span class="text-white font-bold text-lg">A</span></div>
+          <h4 class="font-semibold text-sm">Aldi</h4>
+          <p class="text-xs text-gray-500 mt-1">32 products tracked</p>
+          <div class="mt-2 text-xs"><span class="text-green-600 font-medium">Last scan: 6h ago</span></div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="w-12 h-12 bg-orange-600 rounded-xl mx-auto flex items-center justify-center mb-2"><span class="text-white font-bold text-lg">I</span></div>
+          <h4 class="font-semibold text-sm">IGA</h4>
+          <p class="text-xs text-gray-500 mt-1">28 products tracked</p>
+          <div class="mt-2 text-xs"><span class="text-green-600 font-medium">Last scan: 6h ago</span></div>
+        </div>
+      </div>
+
+      <!-- Price Comparison Table -->
+      <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 class="font-semibold">Price Comparison Matrix</h3>
+          <div class="flex gap-2">
+            <select class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"><option>All Categories</option><option>Dairy</option><option>Bakery</option></select>
+            <select class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"><option>All Alerts</option><option>Undercuts Only</option><option>Opportunities</option></select>
+          </div>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 text-xs uppercase">
+              <th class="text-left px-4 py-3 font-medium">Product</th>
+              <th class="text-center px-4 py-3 font-medium">Your Price</th>
+              <th class="text-center px-4 py-3 font-medium">Woolworths</th>
+              <th class="text-center px-4 py-3 font-medium">Coles</th>
+              <th class="text-center px-4 py-3 font-medium">Aldi</th>
+              <th class="text-center px-4 py-3 font-medium">IGA</th>
+              <th class="text-center px-4 py-3 font-medium">Position</th>
+              <th class="text-center px-4 py-3 font-medium">Alert</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3"><div class="font-medium">Free Range Eggs 700g</div><div class="text-xs text-gray-500">Dairy</div></td>
+              <td class="px-4 py-3 text-center font-medium text-brand-600">$6.50</td>
+              <td class="px-4 py-3 text-center">$7.00</td>
+              <td class="px-4 py-3 text-center">$6.80</td>
+              <td class="px-4 py-3 text-center">$5.99</td>
+              <td class="px-4 py-3 text-center">$6.75</td>
+              <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">2nd lowest</span></td>
+              <td class="px-4 py-3 text-center">—</td>
+            </tr>
+            <tr class="hover:bg-gray-50 bg-red-50/50">
+              <td class="px-4 py-3"><div class="font-medium">Organic Milk 2L</div><div class="text-xs text-gray-500">Dairy</div></td>
+              <td class="px-4 py-3 text-center font-medium text-brand-600">$5.99</td>
+              <td class="px-4 py-3 text-center">$6.50</td>
+              <td class="px-4 py-3 text-center"><span class="text-green-600 font-medium">$6.89 ↑12%</span></td>
+              <td class="px-4 py-3 text-center">$5.49</td>
+              <td class="px-4 py-3 text-center">$6.29</td>
+              <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">2nd lowest</span></td>
+              <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-medium">Opportunity ↑</span></td>
+            </tr>
+            <tr class="hover:bg-gray-50 bg-amber-50/50">
+              <td class="px-4 py-3"><div class="font-medium">Sourdough Loaf 750g</div><div class="text-xs text-gray-500">Bakery</div></td>
+              <td class="px-4 py-3 text-center font-medium text-brand-600">$6.99</td>
+              <td class="px-4 py-3 text-center">$6.50</td>
+              <td class="px-4 py-3 text-center">$6.20</td>
+              <td class="px-4 py-3 text-center">—</td>
+              <td class="px-4 py-3 text-center">$7.49</td>
+              <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-xs">2nd highest</span></td>
+              <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">Undercut ↓</span></td>
+            </tr>
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3"><div class="font-medium">Greek Yogurt 1kg</div><div class="text-xs text-gray-500">Dairy</div></td>
+              <td class="px-4 py-3 text-center font-medium text-brand-600">$8.49</td>
+              <td class="px-4 py-3 text-center">$9.00</td>
+              <td class="px-4 py-3 text-center">$8.50</td>
+              <td class="px-4 py-3 text-center">$7.99</td>
+              <td class="px-4 py-3 text-center">$8.99</td>
+              <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">2nd lowest</span></td>
+              <td class="px-4 py-3 text-center">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN: DEMAND & SALES ==================== -->
+    <div id="screen-demand" class="screen p-6 space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold">Demand & Sales Intelligence</h2>
+          <p class="text-sm text-gray-500 mt-1">Week 11, 2026 — Sales patterns, inventory alerts, and pricing signals</p>
+        </div>
+        <div class="flex gap-2">
+          <select class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"><option>This Week</option><option>Last Week</option><option>Last 30 Days</option></select>
+          <select class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"><option>All Stores</option><option>Main St Store</option><option>Online Store</option></select>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-5 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">Total Revenue</div>
+          <div class="text-2xl font-bold mt-1">$14,820</div>
+          <div class="text-xs text-green-600 mt-1">↑ 8.3% vs last week</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">Blended Margin</div>
+          <div class="text-2xl font-bold mt-1">28.4%</div>
+          <div class="text-xs text-green-600 mt-1">↑ 1.2% vs last week</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">Items Sold</div>
+          <div class="text-2xl font-bold mt-1">2,847</div>
+          <div class="text-xs text-green-600 mt-1">↑ 5.1% vs last week</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">Avg Basket</div>
+          <div class="text-2xl font-bold mt-1">$32.40</div>
+          <div class="text-xs text-amber-600 mt-1">→ No change</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4">
+          <div class="text-sm text-gray-500">Stock Alerts</div>
+          <div class="text-2xl font-bold text-red-600 mt-1">3</div>
+          <div class="text-xs text-red-600 mt-1">Items below reorder point</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-6">
+        <!-- Top Opportunities -->
+        <div class="bg-white rounded-xl border border-gray-200">
+          <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="font-semibold flex items-center gap-2">🚀 Top Margin Opportunities <span class="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">AI-identified</span></h3>
+          </div>
+          <div class="divide-y divide-gray-50">
+            <div class="px-5 py-3 flex items-center justify-between">
+              <div><div class="font-medium text-sm">Soy Milk 1L</div><div class="text-xs text-gray-500">Competitor gap +15% • Demand stable</div></div>
+              <div class="text-right"><div class="text-sm font-semibold text-green-600">+$32.00/wk</div><div class="text-xs text-gray-500">Raise $4.29→$4.79</div></div>
+            </div>
+            <div class="px-5 py-3 flex items-center justify-between">
+              <div><div class="font-medium text-sm">Greek Yogurt 1kg</div><div class="text-xs text-gray-500">Demand ↑↑ • Low elasticity</div></div>
+              <div class="text-right"><div class="text-sm font-semibold text-green-600">+$24.50/wk</div><div class="text-xs text-gray-500">Raise $8.49→$8.99</div></div>
+            </div>
+            <div class="px-5 py-3 flex items-center justify-between">
+              <div><div class="font-medium text-sm">Bread + Butter Bundle</div><div class="text-xs text-gray-500">Basket analysis: 73% co-purchase rate</div></div>
+              <div class="text-right"><div class="text-sm font-semibold text-green-600">+$18.00/wk</div><div class="text-xs text-gray-500">Bundle discount promo</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Risk Alerts -->
+        <div class="bg-white rounded-xl border border-gray-200">
+          <div class="px-5 py-4 border-b border-gray-100">
+            <h3 class="font-semibold flex items-center gap-2">⚠️ Risk Alerts</h3>
+          </div>
+          <div class="divide-y divide-gray-50">
+            <div class="px-5 py-3 flex items-center justify-between">
+              <div><div class="font-medium text-sm text-red-700">Bananas (per kg)</div><div class="text-xs text-gray-500">Coles dropped 20% — consider matching</div></div>
+              <span class="px-2 py-1 bg-red-50 text-red-700 rounded text-xs font-medium">Undercut</span>
+            </div>
+            <div class="px-5 py-3 flex items-center justify-between">
+              <div><div class="font-medium text-sm text-amber-700">Milk 2L</div><div class="text-xs text-gray-500">Supplier cost +8% • margin now 12% (target 25%)</div></div>
+              <span class="px-2 py-1 bg-amber-50 text-amber-700 rounded text-xs font-medium">Margin Squeeze</span>
+            </div>
+            <div class="px-5 py-3 flex items-center justify-between">
+              <div><div class="font-medium text-sm text-gray-700">Rice 5kg</div><div class="text-xs text-gray-500">90 days no movement • $340 tied up</div></div>
+              <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">Dead Stock</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Category Performance -->
+      <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100">
+          <h3 class="font-semibold">Category Performance — Weekly Margin Report</h3>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 text-xs uppercase">
+              <th class="text-left px-4 py-3 font-medium">Category</th>
+              <th class="text-center px-4 py-3 font-medium">Revenue</th>
+              <th class="text-center px-4 py-3 font-medium">Margin</th>
+              <th class="text-center px-4 py-3 font-medium">Trend</th>
+              <th class="text-center px-4 py-3 font-medium">Units Sold</th>
+              <th class="text-center px-4 py-3 font-medium">Top Seller</th>
+              <th class="text-left px-4 py-3 font-medium">AI Insight</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 font-medium">🥛 Dairy</td>
+              <td class="px-4 py-3 text-center">$4,210</td>
+              <td class="px-4 py-3 text-center"><span class="font-semibold text-green-600">31.2%</span></td>
+              <td class="px-4 py-3 text-center text-green-600">↑ 2.1%</td>
+              <td class="px-4 py-3 text-center">842</td>
+              <td class="px-4 py-3 text-center">Eggs 700g</td>
+              <td class="px-4 py-3 text-brand-600 text-xs">On target — Easter demand boosting sales</td>
+            </tr>
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 font-medium">🍞 Bakery</td>
+              <td class="px-4 py-3 text-center">$2,890</td>
+              <td class="px-4 py-3 text-center"><span class="font-semibold text-green-600">42.1%</span></td>
+              <td class="px-4 py-3 text-center text-gray-500">→</td>
+              <td class="px-4 py-3 text-center">534</td>
+              <td class="px-4 py-3 text-center">Sourdough</td>
+              <td class="px-4 py-3 text-brand-600 text-xs">Strong margin — premium positioning working</td>
+            </tr>
+            <tr class="hover:bg-gray-50 bg-red-50/30">
+              <td class="px-4 py-3 font-medium">🥤 Beverages</td>
+              <td class="px-4 py-3 text-center">$3,120</td>
+              <td class="px-4 py-3 text-center"><span class="font-semibold text-red-600">18.4%</span></td>
+              <td class="px-4 py-3 text-center text-red-600">↓ 3.2%</td>
+              <td class="px-4 py-3 text-center">628</td>
+              <td class="px-4 py-3 text-center">Oat Milk 1L</td>
+              <td class="px-4 py-3 text-red-600 text-xs font-medium">⚠️ Review supplier costs — margin below target</td>
+            </tr>
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3 font-medium">🥬 Produce</td>
+              <td class="px-4 py-3 text-center">$4,600</td>
+              <td class="px-4 py-3 text-center"><span class="font-semibold text-green-600">24.8%</span></td>
+              <td class="px-4 py-3 text-center text-green-600">↑ 1.8%</td>
+              <td class="px-4 py-3 text-center">843</td>
+              <td class="px-4 py-3 text-center">Avocados</td>
+              <td class="px-4 py-3 text-brand-600 text-xs">Seasonal opportunity — autumn produce arriving</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const screen = document.getElementById('screen-' + id);
+  if (screen) screen.classList.add('active');
+  event.target.closest('.nav-item')?.classList.add('active');
+
+  const titles = {
+    'command-center': 'AI Command Center',
+    'connections': 'Connections',
+    'smart-pricing': 'Smart Pricing',
+    'competitor': 'Competitor Intelligence',
+    'demand': 'Demand & Sales Intelligence',
+    'dashboard': 'Dashboard'
+  };
+  document.getElementById('page-title').textContent = titles[id] || 'Dashboard';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RetailEdge — Gmail Integration Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' },
+            sidebar: { bg:'#0f172a', hover:'#1e293b', active:'#334155' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .flow-step { opacity: 0.4; transition: all 0.3s; }
+    .flow-step.active { opacity: 1; }
+    .flow-step.completed { opacity: 0.7; }
+    .pulse { animation: pulse 2s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body class="font-sans bg-gray-50 min-h-screen">
+
+  <!-- Navigation Bar -->
+  <div class="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <span class="font-bold text-gray-900">RetailEdge</span>
+        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">Gmail Integration Mockup</span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="showScreen('flow')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="flow">Flow Diagram</button>
+        <button onclick="showScreen('settings')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="settings">1. Settings</button>
+        <button onclick="showScreen('oauth')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="oauth">2. Google OAuth</button>
+        <button onclick="showScreen('configure')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="configure">3. Configure</button>
+        <button onclick="showScreen('connected')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="connected">4. Connected</button>
+        <button onclick="showScreen('invoices')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="invoices">5. Auto-Import</button>
+        <button onclick="showScreen('notification')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="notification">6. Notification</button>
+        <button onclick="showScreen('duplicates')" class="nav-btn px-3 py-1.5 text-sm rounded-lg font-medium" data-screen="duplicates">7. Duplicates</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Flow Diagram                                        -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-flow" class="screen active">
+    <div class="max-w-6xl mx-auto p-8">
+      <h1 class="text-2xl font-bold text-gray-900 mb-2">Gmail Invoice Auto-Import — Flow</h1>
+      <p class="text-gray-500 mb-8">End-to-end flow from email receipt to invoice processing</p>
+
+      <!-- Flow Diagram -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-8 mb-8">
+        <h3 class="font-semibold text-gray-900 mb-6">Setup Flow (One-time per tenant)</h3>
+        <div class="flex items-center gap-4 mb-10">
+          <div class="flex-1 bg-brand-50 border border-brand-200 rounded-xl p-4 text-center">
+            <div class="w-10 h-10 bg-brand-600 rounded-full flex items-center justify-center text-white font-bold mx-auto mb-2">1</div>
+            <div class="font-medium text-sm text-brand-800">Settings → Integrations</div>
+            <div class="text-xs text-brand-600 mt-1">Tenant clicks "Connect Gmail"</div>
+          </div>
+          <svg class="w-6 h-6 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          <div class="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold mx-auto mb-2">2</div>
+            <div class="font-medium text-sm text-blue-800">Google OAuth Consent</div>
+            <div class="text-xs text-blue-600 mt-1">User authorizes Gmail read access</div>
+          </div>
+          <svg class="w-6 h-6 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          <div class="flex-1 bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
+            <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold mx-auto mb-2">3</div>
+            <div class="font-medium text-sm text-purple-800">Configure Filters</div>
+            <div class="text-xs text-purple-600 mt-1">Set senders, labels, schedule</div>
+          </div>
+          <svg class="w-6 h-6 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          <div class="flex-1 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+            <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-bold mx-auto mb-2">4</div>
+            <div class="font-medium text-sm text-green-800">Connected!</div>
+            <div class="text-xs text-green-600 mt-1">Auto-import begins</div>
+          </div>
+        </div>
+
+        <h3 class="font-semibold text-gray-900 mb-6">Daily Processing Flow (Automated)</h3>
+        <div class="relative">
+          <!-- Timeline -->
+          <div class="flex items-start gap-3">
+            <!-- Step 1: Poll -->
+            <div class="flex-1">
+              <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  </div>
+                  <span class="font-medium text-sm">Scheduled Poll</span>
+                </div>
+                <p class="text-xs text-gray-500">Every 30 min, check Gmail for new emails since last poll</p>
+                <div class="mt-2 text-xs font-mono bg-gray-100 rounded p-2 text-gray-600">
+                  query: "has:attachment newer_than:1d"
+                </div>
+              </div>
+            </div>
+            <svg class="w-5 h-5 text-gray-400 mt-6 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+
+            <!-- Step 2: Filter -->
+            <div class="flex-1">
+              <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z"/></svg>
+                  </div>
+                  <span class="font-medium text-sm">Filter & Match</span>
+                </div>
+                <p class="text-xs text-gray-500">Check sender whitelist, look for PDF/image attachments, skip already-processed, detect duplicates (email ID + file hash + invoice #)</p>
+              </div>
+            </div>
+            <svg class="w-5 h-5 text-gray-400 mt-6 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+
+            <!-- Step 3: Download -->
+            <div class="flex-1">
+              <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                  </div>
+                  <span class="font-medium text-sm">Download Attachments</span>
+                </div>
+                <p class="text-xs text-gray-500">Download PDF/image files, create Invoice record with source=EMAIL</p>
+              </div>
+            </div>
+            <svg class="w-5 h-5 text-gray-400 mt-6 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+
+            <!-- Step 4: OCR -->
+            <div class="flex-1">
+              <div class="bg-brand-50 border border-brand-200 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+                  </div>
+                  <span class="font-medium text-sm">OCR Processing</span>
+                </div>
+                <p class="text-xs text-gray-500">Existing pipeline: Claude Vision extracts invoice data automatically</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Result Row -->
+          <div class="mt-6 bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-4">
+            <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <div class="font-medium text-green-800">Invoice Ready for Review</div>
+              <div class="text-xs text-green-600">User sees new invoices on their dashboard with "Email Import" badge. Proceeds with existing Match & Price workflow.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-center text-sm text-gray-500">Click the tabs above to walk through each screen ↑</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Settings → Integrations Tab                         -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-settings" class="screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-sidebar-hover">
+            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6z"/></svg>
+            Dashboard
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-sidebar-hover">
+            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+            Invoices
+          </a>
+          <div class="mt-4 pt-4 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Settings
+            </a>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="flex-1 ml-64">
+        <!-- TopBar -->
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+          <h1 class="text-lg font-semibold text-gray-900">Settings</h1>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Tab Navigation -->
+          <div class="flex gap-1 border-b border-gray-200">
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700">Business Profile</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700">Users & Roles</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-brand-600 border-b-2 border-brand-600">Integrations</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700">Notifications</button>
+          </div>
+
+          <!-- Integrations Content -->
+          <div class="space-y-6">
+            <!-- Gmail Integration Card -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+              <div class="flex items-start justify-between mb-6">
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
+                    <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none">
+                      <path d="M22 6L12 13L2 6" stroke="#EA4335" stroke-width="2" stroke-linecap="round"/>
+                      <rect x="2" y="4" width="20" height="16" rx="2" stroke="#EA4335" stroke-width="2"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-gray-900">Gmail — Invoice Auto-Import</h3>
+                    <p class="text-sm text-gray-500 mt-0.5">Automatically import supplier invoices from your Gmail inbox</p>
+                  </div>
+                </div>
+                <span class="px-2.5 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">Not Connected</span>
+              </div>
+
+              <div class="bg-gray-50 rounded-lg p-4 mb-5">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">How it works</h4>
+                <div class="grid grid-cols-4 gap-3 text-xs text-gray-600">
+                  <div class="flex items-start gap-2">
+                    <span class="w-5 h-5 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-[10px]">1</span>
+                    <span>Connect your Gmail account where you receive supplier invoices</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="w-5 h-5 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-[10px]">2</span>
+                    <span>Configure which senders and labels to watch</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="w-5 h-5 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-[10px]">3</span>
+                    <span>We automatically extract invoice PDFs and images from emails</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="w-5 h-5 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-[10px]">4</span>
+                    <span>Invoices appear in your inbox, ready for review & matching</span>
+                  </div>
+                </div>
+              </div>
+
+              <button onclick="showScreen('oauth')" class="px-5 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2 cursor-pointer">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                  <path d="M22 6L12 13L2 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                  <rect x="2" y="4" width="20" height="16" rx="2" stroke="white" stroke-width="2"/>
+                </svg>
+                Connect Gmail Account
+              </button>
+            </div>
+
+            <!-- Future Integrations (greyed out) -->
+            <div class="bg-white rounded-xl border border-gray-200 p-6 opacity-60">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+                  <svg class="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+                </div>
+                <div class="flex-1">
+                  <h3 class="font-semibold text-gray-900">Microsoft Outlook / Office 365</h3>
+                  <p class="text-sm text-gray-500 mt-0.5">Import invoices from Outlook mailbox</p>
+                </div>
+                <span class="px-2.5 py-1 bg-gray-100 text-gray-400 rounded-full text-xs font-medium">Coming Soon</span>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-gray-200 p-6 opacity-60">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
+                  <svg class="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"/></svg>
+                </div>
+                <div class="flex-1">
+                  <h3 class="font-semibold text-gray-900">Dropbox / Google Drive</h3>
+                  <p class="text-sm text-gray-500 mt-0.5">Watch a folder for new invoice files</p>
+                </div>
+                <span class="px-2.5 py-1 bg-gray-100 text-gray-400 rounded-full text-xs font-medium">Coming Soon</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Google OAuth Consent                                -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-oauth" class="screen">
+    <div class="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-0 overflow-hidden">
+        <!-- Google Header -->
+        <div class="p-6 pb-4 border-b border-gray-100">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="w-6 h-6" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            <span class="text-lg font-medium text-gray-800">Sign in with Google</span>
+          </div>
+          <div class="bg-blue-50 rounded-lg p-3 flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">S</div>
+            <div>
+              <div class="text-sm font-medium text-gray-900">sarah@greengrocer.com.au</div>
+              <div class="text-xs text-gray-500">Green Grocer Co.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Permissions -->
+        <div class="p-6">
+          <h3 class="text-base font-medium text-gray-900 mb-1">RetailEdge wants to access your Google Account</h3>
+          <p class="text-sm text-gray-500 mb-5">This will allow RetailEdge to:</p>
+
+          <div class="space-y-4 mb-6">
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+              <div>
+                <div class="text-sm font-medium text-gray-900">Read your email messages</div>
+                <div class="text-xs text-gray-500">View email messages and attachments to find supplier invoices</div>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+              <div>
+                <div class="text-sm font-medium text-gray-900">View your email labels</div>
+                <div class="text-xs text-gray-500">Read labels to filter which folders to monitor</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+            <div class="flex items-start gap-2">
+              <svg class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+              <div class="text-xs text-amber-800">
+                <strong>Read-only access.</strong> RetailEdge can only read emails and download attachments. It cannot send, delete, or modify your emails.
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-3">
+            <button onclick="showScreen('settings')" class="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer">
+              Cancel
+            </button>
+            <button onclick="showScreen('configure')" class="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 cursor-pointer">
+              Allow
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Configure Filters                                   -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-configure" class="screen">
+    <div class="min-h-screen bg-gray-50">
+      <!-- Simplified inline header -->
+      <div class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="max-w-2xl mx-auto flex items-center gap-3">
+          <button onclick="showScreen('settings')" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+          </button>
+          <h1 class="text-lg font-semibold text-gray-900">Configure Gmail Import</h1>
+          <div class="ml-auto flex items-center gap-2 text-sm text-green-600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Connected as sarah@greengrocer.com.au
+          </div>
+        </div>
+      </div>
+
+      <div class="max-w-2xl mx-auto p-6 space-y-6">
+        <!-- Connected Account -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 class="font-semibold text-gray-900 mb-4">Connected Account</h3>
+          <div class="flex items-center gap-3 bg-green-50 rounded-lg p-3">
+            <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <div class="text-sm font-medium text-gray-900">sarah@greengrocer.com.au</div>
+              <div class="text-xs text-green-600">Gmail connected successfully</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sender Whitelist -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 class="font-semibold text-gray-900 mb-1">Supplier Sender Filter</h3>
+          <p class="text-sm text-gray-500 mb-4">Only import invoices from these email addresses or domains. Leave empty to import from all senders.</p>
+
+          <div class="space-y-2 mb-3">
+            <div class="flex items-center gap-2 bg-gray-50 rounded-lg p-2.5">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+              <span class="text-sm text-gray-700 flex-1">invoices@freshproduce.com.au</span>
+              <button class="text-gray-400 hover:text-red-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-50 rounded-lg p-2.5">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+              <span class="text-sm text-gray-700 flex-1">@metcash.com</span>
+              <button class="text-gray-400 hover:text-red-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="flex items-center gap-2 bg-gray-50 rounded-lg p-2.5">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+              <span class="text-sm text-gray-700 flex-1">accounts@drakes.com.au</span>
+              <button class="text-gray-400 hover:text-red-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" placeholder="Add email or @domain..." class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+            <button class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Add</button>
+          </div>
+        </div>
+
+        <!-- Gmail Label Filter -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 class="font-semibold text-gray-900 mb-1">Gmail Label Filter</h3>
+          <p class="text-sm text-gray-500 mb-4">Optionally only scan emails with a specific Gmail label. Great if you have a rule that auto-labels supplier emails.</p>
+          <select class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+            <option>All Inbox (no label filter)</option>
+            <option selected>📁 Invoices</option>
+            <option>📁 Suppliers</option>
+            <option>📁 Accounts Payable</option>
+          </select>
+        </div>
+
+        <!-- Polling Schedule -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 class="font-semibold text-gray-900 mb-1">Import Schedule</h3>
+          <p class="text-sm text-gray-500 mb-4">How often should we check for new invoices?</p>
+          <div class="grid grid-cols-4 gap-2">
+            <button class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-brand-500 hover:text-brand-700">Every 15 min</button>
+            <button class="px-3 py-2 border-2 border-brand-500 bg-brand-50 rounded-lg text-sm text-brand-700 font-medium">Every 30 min</button>
+            <button class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-brand-500 hover:text-brand-700">Every hour</button>
+            <button class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-brand-500 hover:text-brand-700">Once daily</button>
+          </div>
+        </div>
+
+        <!-- Auto-Processing -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 class="font-semibold text-gray-900 mb-4">Auto-Processing Options</h3>
+          <div class="space-y-3">
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked class="rounded text-brand-600 focus:ring-brand-500" />
+              <div>
+                <div class="text-sm font-medium text-gray-900">Automatically run OCR on imported invoices</div>
+                <div class="text-xs text-gray-500">Extract line items immediately after download</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked class="rounded text-brand-600 focus:ring-brand-500" />
+              <div>
+                <div class="text-sm font-medium text-gray-900">Auto-match products for known suppliers</div>
+                <div class="text-xs text-gray-500">Use saved supplier-product mappings to pre-match line items</div>
+              </div>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" class="rounded text-brand-600 focus:ring-brand-500" />
+              <div>
+                <div class="text-sm font-medium text-gray-900">Mark original email as read after processing</div>
+                <div class="text-xs text-gray-500">Helps you track which invoices have been imported</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="flex justify-end gap-3">
+          <button onclick="showScreen('settings')" class="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 cursor-pointer">Cancel</button>
+          <button onclick="showScreen('connected')" class="px-6 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 cursor-pointer">Save & Start Importing</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Connected State                                     -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-connected" class="screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar (reused) -->
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Dashboard</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Invoices</a>
+          <div class="mt-4 pt-4 border-t border-slate-700/50">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">Settings</a>
+          </div>
+        </nav>
+      </aside>
+
+      <div class="flex-1 ml-64">
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3">
+          <h1 class="text-lg font-semibold text-gray-900">Settings</h1>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Tabs -->
+          <div class="flex gap-1 border-b border-gray-200">
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500 border-b-2 border-transparent">Business Profile</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500 border-b-2 border-transparent">Users & Roles</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-brand-600 border-b-2 border-brand-600">Integrations</button>
+            <button class="px-4 py-2.5 text-sm font-medium text-gray-500 border-b-2 border-transparent">Notifications</button>
+          </div>
+
+          <!-- Gmail Connected Card -->
+          <div class="bg-white rounded-xl border border-green-200 p-6">
+            <div class="flex items-start justify-between mb-5">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
+                  <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-gray-900">Gmail — Invoice Auto-Import</h3>
+                  <p class="text-sm text-gray-500">Connected as sarah@greengrocer.com.au</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 bg-green-500 rounded-full pulse"></span>
+                  Active
+                </span>
+              </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-4 gap-4 mb-5">
+              <div class="bg-gray-50 rounded-lg p-3">
+                <div class="text-xs text-gray-500">Invoices Imported</div>
+                <div class="text-xl font-bold text-gray-900">47</div>
+                <div class="text-xs text-green-600">+3 today</div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <div class="text-xs text-gray-500">Last Poll</div>
+                <div class="text-sm font-semibold text-gray-900 mt-1">2 min ago</div>
+                <div class="text-xs text-gray-400">Every 30 min</div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <div class="text-xs text-gray-500">Sender Filters</div>
+                <div class="text-xl font-bold text-gray-900">3</div>
+                <div class="text-xs text-gray-400">active senders</div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <div class="text-xs text-gray-500">Label Filter</div>
+                <div class="text-sm font-semibold text-gray-900 mt-1">📁 Invoices</div>
+                <div class="text-xs text-gray-400">Gmail label</div>
+              </div>
+            </div>
+
+            <!-- Recent Imports -->
+            <div class="mb-5">
+              <h4 class="text-sm font-medium text-gray-700 mb-2">Recent Imports</h4>
+              <div class="space-y-1">
+                <div class="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded-lg text-sm">
+                  <span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">OCR Done</span>
+                  <span class="text-gray-900 font-medium">INV-2024-0892</span>
+                  <span class="text-gray-500">Fresh Produce Co.</span>
+                  <span class="text-gray-400 ml-auto text-xs">Today, 9:32 AM</span>
+                </div>
+                <div class="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded-lg text-sm">
+                  <span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">OCR Done</span>
+                  <span class="text-gray-900 font-medium">INV-48291</span>
+                  <span class="text-gray-500">Metcash Trading</span>
+                  <span class="text-gray-400 ml-auto text-xs">Today, 8:15 AM</span>
+                </div>
+                <div class="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded-lg text-sm">
+                  <span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">Processing</span>
+                  <span class="text-gray-900 font-medium">DRK-2024-1150</span>
+                  <span class="text-gray-500">Drakes Supermarkets</span>
+                  <span class="text-gray-400 ml-auto text-xs">Today, 8:02 AM</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-3">
+              <button onclick="showScreen('configure')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 cursor-pointer">
+                Edit Filters
+              </button>
+              <button class="px-4 py-2 bg-brand-50 text-brand-700 rounded-lg text-sm font-medium hover:bg-brand-100 cursor-pointer">
+                Poll Now
+              </button>
+              <button class="px-4 py-2 text-gray-500 text-sm hover:text-red-600 ml-auto cursor-pointer">
+                Disconnect Gmail
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Auto-Import Invoice List                            -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-invoices" class="screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Dashboard</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">
+            Invoices
+            <span class="ml-auto bg-brand-600 text-white text-xs px-2 py-0.5 rounded-full">15</span>
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">
+            Review
+            <span class="ml-auto bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">5</span>
+          </a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">Products</a>
+        </nav>
+      </aside>
+
+      <div class="flex-1 ml-64">
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+          <h1 class="text-lg font-semibold text-gray-900">Upload Invoices</h1>
+        </div>
+
+        <div class="p-6">
+          <!-- Info Banner -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+            </div>
+            <div class="flex-1">
+              <span class="text-sm text-blue-800 font-medium">3 new invoices auto-imported from Gmail</span>
+              <span class="text-xs text-blue-600 ml-2">Last check: 2 minutes ago</span>
+            </div>
+            <span class="text-xs text-blue-500">via sarah@greengrocer.com.au</span>
+          </div>
+
+          <!-- Invoice Table -->
+          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th class="text-left px-4 py-3 font-medium text-gray-500">Source</th>
+                  <th class="text-left px-4 py-3 font-medium text-gray-500">Supplier</th>
+                  <th class="text-left px-4 py-3 font-medium text-gray-500">Invoice #</th>
+                  <th class="text-left px-4 py-3 font-medium text-gray-500">Date</th>
+                  <th class="text-right px-4 py-3 font-medium text-gray-500">Total</th>
+                  <th class="text-center px-4 py-3 font-medium text-gray-500">Lines</th>
+                  <th class="text-left px-4 py-3 font-medium text-gray-500">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Email-imported invoices (highlighted) -->
+                <tr class="border-b border-gray-100 bg-blue-50/30">
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2"/></svg>
+                      Email
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-medium text-gray-900">Fresh Produce Co.</td>
+                  <td class="px-4 py-3 text-gray-600">INV-2024-0892</td>
+                  <td class="px-4 py-3 text-gray-600">09 Mar 2026</td>
+                  <td class="px-4 py-3 text-right font-medium">$2,847.50</td>
+                  <td class="px-4 py-3 text-center text-gray-600">18</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Ready</span></td>
+                </tr>
+                <tr class="border-b border-gray-100 bg-blue-50/30">
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2"/></svg>
+                      Email
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-medium text-gray-900">Metcash Trading</td>
+                  <td class="px-4 py-3 text-gray-600">INV-48291</td>
+                  <td class="px-4 py-3 text-gray-600">08 Mar 2026</td>
+                  <td class="px-4 py-3 text-right font-medium">$5,120.00</td>
+                  <td class="px-4 py-3 text-center text-gray-600">32</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Ready</span></td>
+                </tr>
+                <tr class="border-b border-gray-100 bg-blue-50/30">
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2"/></svg>
+                      Email
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-medium text-gray-900">Drakes Supermarkets</td>
+                  <td class="px-4 py-3 text-gray-600">DRK-2024-1150</td>
+                  <td class="px-4 py-3 text-gray-600">08 Mar 2026</td>
+                  <td class="px-4 py-3 text-right font-medium">$1,340.80</td>
+                  <td class="px-4 py-3 text-center text-gray-600">12</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">Processing</span></td>
+                </tr>
+
+                <!-- Duplicate detected (amber warning row) -->
+                <tr class="border-b border-gray-100 bg-amber-50/50">
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                      <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2"/></svg>
+                      Email
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-medium text-gray-900">
+                    Fresh Produce Co.
+                    <div class="flex items-center gap-1 mt-1">
+                      <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/><path d="M12 15.75h.007v.008H12v-.008z"/></svg>
+                      <span class="text-xs text-amber-700 font-medium">Possible duplicate of INV-2024-0892 (uploaded 07 Mar)</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-gray-600">INV-2024-0892</td>
+                  <td class="px-4 py-3 text-gray-600">09 Mar 2026</td>
+                  <td class="px-4 py-3 text-right font-medium">$2,847.50</td>
+                  <td class="px-4 py-3 text-center text-gray-600">18</td>
+                  <td class="px-4 py-3">
+                    <span class="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">Duplicate?</span>
+                  </td>
+                </tr>
+
+                <!-- Manual upload -->
+                <tr class="border-b border-gray-100">
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                      Upload
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-medium text-gray-900">PFD Food Services</td>
+                  <td class="px-4 py-3 text-gray-600">PFD-99012</td>
+                  <td class="px-4 py-3 text-gray-600">07 Mar 2026</td>
+                  <td class="px-4 py-3 text-right font-medium">$892.30</td>
+                  <td class="px-4 py-3 text-center text-gray-600">8</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">In Review</span></td>
+                </tr>
+                <tr class="border-b border-gray-100">
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                      Upload
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 font-medium text-gray-900">Bidvest Fresh</td>
+                  <td class="px-4 py-3 text-gray-600">BF-78521</td>
+                  <td class="px-4 py-3 text-gray-600">06 Mar 2026</td>
+                  <td class="px-4 py-3 text-right font-medium">$3,210.45</td>
+                  <td class="px-4 py-3 text-center text-gray-600">24</td>
+                  <td class="px-4 py-3"><span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">Approved</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Notification Toast                                  -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-notification" class="screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full">
+        <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+          <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </div>
+          <div>
+            <div class="font-semibold text-sm">RetailEdge</div>
+            <div class="text-xs text-slate-400">Green Grocer Co.</div>
+          </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium bg-sidebar-active text-white">Dashboard</a>
+          <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300">
+            Invoices
+            <span class="ml-auto bg-brand-600 text-white text-xs px-2 py-0.5 rounded-full">15</span>
+          </a>
+        </nav>
+      </aside>
+
+      <div class="flex-1 ml-64 relative">
+        <div class="sticky top-[49px] z-20 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+          <h1 class="text-lg font-semibold text-gray-900">Dashboard</h1>
+          <!-- Notification Bell with Red Dot -->
+          <div class="relative cursor-pointer">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+            <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
+          </div>
+        </div>
+
+        <!-- Dashboard Content (placeholder) -->
+        <div class="p-6">
+          <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">Pending Review</div>
+              <div class="text-2xl font-bold text-brand-600">5</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">Ready for Match</div>
+              <div class="text-2xl font-bold text-blue-600">8</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">Approved Today</div>
+              <div class="text-2xl font-bold text-green-600">3</div>
+            </div>
+            <div class="bg-white rounded-xl border border-gray-200 p-4">
+              <div class="text-sm text-gray-500">Products Updated</div>
+              <div class="text-2xl font-bold text-purple-600">42</div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-gray-200 p-5 h-64 flex items-center justify-center text-gray-400">
+            Dashboard content...
+          </div>
+        </div>
+
+        <!-- Toast Notification (bottom-right) -->
+        <div class="fixed bottom-6 right-6 z-50">
+          <div class="bg-white rounded-xl border border-gray-200 shadow-2xl p-4 w-96">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none">
+                  <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
+                  <path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-semibold text-gray-900">3 new invoices imported from Gmail</div>
+                <div class="text-xs text-gray-500 mt-0.5">Fresh Produce Co., Metcash Trading, Drakes Supermarkets</div>
+                <div class="flex gap-2 mt-3">
+                  <button onclick="showScreen('invoices')" class="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700 cursor-pointer">
+                    View Invoices
+                  </button>
+                  <button class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 cursor-pointer">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+              <button class="text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <!-- SCREEN: Duplicate Detection                                  -->
+  <!-- ════════════════════════════════════════════════════════════ -->
+  <div id="screen-duplicates" class="screen">
+    <div class="max-w-6xl mx-auto p-8">
+      <h1 class="text-2xl font-bold text-gray-900 mb-2">Duplicate Detection — 3 Layers</h1>
+      <p class="text-gray-500 mb-8">How the system prevents duplicate invoices across Email and Manual Upload channels</p>
+
+      <!-- 3-Layer Dedup Diagram -->
+      <div class="grid grid-cols-3 gap-6 mb-8">
+        <!-- Layer 1: Email-Level -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="2"/><path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2"/></svg>
+            </div>
+            <div>
+              <div class="font-semibold text-sm text-gray-900">Layer 1: Email ID</div>
+              <div class="text-xs text-gray-500">Gmail message dedup</div>
+            </div>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="bg-blue-50 rounded-lg p-3">
+              <div class="text-xs font-medium text-blue-800 mb-1">How it works</div>
+              <p class="text-xs text-blue-700">Every Gmail email has a unique <code class="bg-blue-100 px-1 rounded">messageId</code>. We store this when an email is processed. If the same email appears again in a future poll, it's silently skipped.</p>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Prevents: Same email processed twice across polling cycles</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-2">
+              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Action: Silently skipped — no user intervention</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 2: File Hash -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33"/></svg>
+            </div>
+            <div>
+              <div class="font-semibold text-sm text-gray-900">Layer 2: File Hash</div>
+              <div class="text-xs text-gray-500">SHA-256 content fingerprint</div>
+            </div>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="bg-purple-50 rounded-lg p-3">
+              <div class="text-xs font-medium text-purple-800 mb-1">How it works</div>
+              <p class="text-xs text-purple-700">Every uploaded/downloaded file is hashed (SHA-256). Before processing, we check if the exact same file content already exists. Catches the same PDF uploaded manually AND arriving via email.</p>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Prevents: Same file uploaded via two channels (email + manual)</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-2">
+              <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/></svg>
+              <span>Action: Warning shown — user can keep or discard</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 3: Invoice-Level -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+            </div>
+            <div>
+              <div class="font-semibold text-sm text-gray-900">Layer 3: Invoice Data</div>
+              <div class="text-xs text-gray-500">OCR-extracted fields match</div>
+            </div>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="bg-amber-50 rounded-lg p-3">
+              <div class="text-xs font-medium text-amber-800 mb-1">How it works</div>
+              <p class="text-xs text-amber-700">After OCR, we check if <code class="bg-amber-100 px-1 rounded">supplier + invoice # + date</code> match an existing record. Catches re-sent invoices (same data, different PDF) and corrected invoices.</p>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-2">
+              <svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>Prevents: Re-sent or corrected invoices creating duplicates</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg p-2">
+              <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/></svg>
+              <span>Action: Flagged for review — user decides (keep/discard/replace)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Example: Duplicate Resolution UI -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
+        <h3 class="font-semibold text-gray-900 mb-4">Duplicate Resolution — User Experience</h3>
+
+        <!-- Scenario: Manual upload duplicates an email import -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-5">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 bg-amber-200 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/><path d="M12 15.75h.007v.008H12v-.008z"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="font-semibold text-amber-900 mb-1">Potential Duplicate Detected</div>
+              <div class="text-sm text-amber-800 mb-3">
+                This invoice appears to match an existing record already in the system.
+              </div>
+
+              <!-- Comparison Table -->
+              <div class="bg-white rounded-lg border border-amber-200 overflow-hidden mb-4">
+                <table class="w-full text-sm">
+                  <thead class="bg-amber-100/50">
+                    <tr>
+                      <th class="text-left px-4 py-2 font-medium text-amber-800 text-xs"></th>
+                      <th class="text-left px-4 py-2 font-medium text-amber-800 text-xs">Existing Record</th>
+                      <th class="text-left px-4 py-2 font-medium text-amber-800 text-xs">New Upload</th>
+                      <th class="text-center px-4 py-2 font-medium text-amber-800 text-xs">Match</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-b border-amber-100">
+                      <td class="px-4 py-2 text-xs font-medium text-gray-500">Source</td>
+                      <td class="px-4 py-2 text-xs">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">Email</span>
+                        <span class="text-gray-400 ml-1">07 Mar 9:32 AM</span>
+                      </td>
+                      <td class="px-4 py-2 text-xs">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-medium">Upload</span>
+                        <span class="text-gray-400 ml-1">09 Mar 2:15 PM</span>
+                      </td>
+                      <td class="px-4 py-2 text-center">—</td>
+                    </tr>
+                    <tr class="border-b border-amber-100">
+                      <td class="px-4 py-2 text-xs font-medium text-gray-500">Supplier</td>
+                      <td class="px-4 py-2 text-xs text-gray-900">Fresh Produce Co.</td>
+                      <td class="px-4 py-2 text-xs text-gray-900">Fresh Produce Co.</td>
+                      <td class="px-4 py-2 text-center"><span class="text-green-600 font-bold text-xs">MATCH</span></td>
+                    </tr>
+                    <tr class="border-b border-amber-100">
+                      <td class="px-4 py-2 text-xs font-medium text-gray-500">Invoice #</td>
+                      <td class="px-4 py-2 text-xs font-mono text-gray-900">INV-2024-0892</td>
+                      <td class="px-4 py-2 text-xs font-mono text-gray-900">INV-2024-0892</td>
+                      <td class="px-4 py-2 text-center"><span class="text-green-600 font-bold text-xs">MATCH</span></td>
+                    </tr>
+                    <tr class="border-b border-amber-100">
+                      <td class="px-4 py-2 text-xs font-medium text-gray-500">Date</td>
+                      <td class="px-4 py-2 text-xs text-gray-900">09 Mar 2026</td>
+                      <td class="px-4 py-2 text-xs text-gray-900">09 Mar 2026</td>
+                      <td class="px-4 py-2 text-center"><span class="text-green-600 font-bold text-xs">MATCH</span></td>
+                    </tr>
+                    <tr class="border-b border-amber-100">
+                      <td class="px-4 py-2 text-xs font-medium text-gray-500">Total</td>
+                      <td class="px-4 py-2 text-xs font-medium text-gray-900">$2,847.50</td>
+                      <td class="px-4 py-2 text-xs font-medium text-gray-900">$2,847.50</td>
+                      <td class="px-4 py-2 text-center"><span class="text-green-600 font-bold text-xs">MATCH</span></td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2 text-xs font-medium text-gray-500">File Hash</td>
+                      <td class="px-4 py-2 text-xs font-mono text-gray-400">a3f8c2...e91d</td>
+                      <td class="px-4 py-2 text-xs font-mono text-gray-400">a3f8c2...e91d</td>
+                      <td class="px-4 py-2 text-center"><span class="text-green-600 font-bold text-xs">MATCH</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex items-center gap-3">
+                <button class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 flex items-center gap-2 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                  Discard Duplicate
+                </button>
+                <button class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 flex items-center gap-2 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+                  Replace Existing
+                </button>
+                <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center gap-2 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                  Keep Both
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario: Silent skip (email dedup) -->
+        <div class="bg-green-50 border border-green-200 rounded-xl p-5 mb-5">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 bg-green-200 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="font-semibold text-green-900 mb-1">Silent Dedup — Email ID Match</div>
+              <div class="text-sm text-green-800">
+                When the polling service encounters an email it has already processed (same Gmail <code class="bg-green-100 px-1 rounded text-xs">messageId</code>), it is silently skipped. No user action needed. This happens automatically every poll cycle.
+              </div>
+              <div class="mt-3 text-xs text-green-600 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Last poll skipped 12 already-processed emails
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario: Connected state shows dedup stats -->
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+            </div>
+            <div class="flex-1">
+              <div class="font-semibold text-gray-900 mb-2">Dedup Stats (visible in Connected State)</div>
+              <div class="grid grid-cols-4 gap-3">
+                <div class="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                  <div class="text-lg font-bold text-blue-600">47</div>
+                  <div class="text-xs text-gray-500">Total Imported</div>
+                </div>
+                <div class="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                  <div class="text-lg font-bold text-green-600">156</div>
+                  <div class="text-xs text-gray-500">Emails Skipped</div>
+                  <div class="text-[10px] text-gray-400">(already processed)</div>
+                </div>
+                <div class="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                  <div class="text-lg font-bold text-purple-600">3</div>
+                  <div class="text-xs text-gray-500">File Hash Matches</div>
+                  <div class="text-[10px] text-gray-400">(cross-channel dupes)</div>
+                </div>
+                <div class="bg-white rounded-lg border border-gray-200 p-3 text-center">
+                  <div class="text-lg font-bold text-amber-600">1</div>
+                  <div class="text-xs text-gray-500">Invoice # Matches</div>
+                  <div class="text-[10px] text-gray-400">(pending review)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-center text-sm text-gray-500">Three layers ensure no invoice is processed twice, regardless of how it enters the system</p>
+    </div>
+  </div>
+
+  <script>
+    function showScreen(name) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + name).classList.add('active');
+      document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.remove('bg-brand-600', 'text-white');
+        b.classList.add('text-gray-600', 'hover:bg-gray-100');
+      });
+      const activeBtn = document.querySelector(`[data-screen="${name}"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-brand-600', 'text-white');
+        activeBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+      }
+    }
+    // Init
+    showScreen('flow');
+  </script>
+</body>
+</html>

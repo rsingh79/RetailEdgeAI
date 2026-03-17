@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RetailEdge — Workflow Pipeline Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'sans-serif'] },
+      colors: {
+        brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' },
+        sidebar: { bg:'#0f172a', hover:'#1e293b', active:'#334155' }
+      }
+    }
+  }
+}
+</script>
+<style>
+* { font-family: 'Inter', sans-serif; }
+.view { display: none; }
+.view.active { display: block; }
+.tab-btn.active { color: #0d9488; border-bottom-color: #0d9488; }
+.pipeline-arrow { width: 32px; height: 2px; background: #d1d5db; position: relative; }
+.pipeline-arrow::after { content: ''; position: absolute; right: -4px; top: -4px; border: 5px solid transparent; border-left-color: #d1d5db; }
+.line-expandable { cursor: pointer; }
+.line-expandable:hover { background: #f8fafc; }
+.match-detail { display: none; }
+.match-detail.open { display: block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900 antialiased min-h-screen">
+
+<!-- ===== TOP BAR ===== -->
+<div class="flex h-screen overflow-hidden">
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="w-64 bg-sidebar-bg text-white flex flex-col flex-shrink-0">
+  <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+    <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    </div>
+    <div>
+      <div class="font-semibold text-sm">RetailEdge</div>
+      <div class="text-xs text-slate-400">Green Grocer Co.</div>
+    </div>
+  </div>
+
+  <nav class="flex-1 p-3 space-y-1">
+    <a onclick="showView('dashboard')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer bg-sidebar-active text-white" data-view="dashboard">
+      <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zm9.75-9.75A2.25 2.25 0 0115.75 3.75H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/></svg>
+      Dashboard
+    </a>
+    <a onclick="showView('invoices')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer text-slate-300 hover:bg-sidebar-hover" data-view="invoices">
+      <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+      Invoices
+      <span class="ml-auto text-white text-xs px-2 py-0.5 rounded-full bg-amber-500">2</span>
+    </a>
+    <a onclick="showView('review')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer text-slate-300 hover:bg-sidebar-hover" data-view="review">
+      <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+      Review
+      <span class="ml-auto text-white text-xs px-2 py-0.5 rounded-full bg-amber-500">2</span>
+    </a>
+    <a onclick="showView('export')" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer text-slate-300 hover:bg-sidebar-hover" data-view="export">
+      <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+      Export
+    </a>
+
+    <div class="mt-4 pt-4 border-t border-slate-700/50 space-y-1">
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-sidebar-hover cursor-pointer">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+        Products
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-sidebar-hover cursor-pointer">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Pricing Rules
+      </a>
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-sidebar-hover cursor-pointer">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zm6.75-4.5c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zm6.75-3c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v14.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V5.625z"/></svg>
+        Reports
+      </a>
+    </div>
+
+    <div class="mt-4 pt-4 border-t border-slate-700/50">
+      <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-sidebar-hover cursor-pointer">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Settings
+      </a>
+    </div>
+  </nav>
+
+  <div class="p-4 border-t border-slate-700/50">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-brand-600 rounded-full flex items-center justify-center text-sm font-medium">SM</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-medium truncate">Sarah Mitchell</div>
+        <div class="text-xs text-slate-400">Owner</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main class="flex-1 overflow-y-auto">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- VIEW 1: DASHBOARD                                             -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="view-dashboard" class="view active p-6 space-y-6">
+
+  <!-- Pipeline Workflow Summary -->
+  <div class="bg-white rounded-xl border border-gray-200 p-6">
+    <h2 class="text-lg font-semibold mb-5">Invoice Pipeline</h2>
+    <div class="flex items-center justify-between">
+      <!-- Stage 1: Upload -->
+      <div onclick="showView('invoices')" class="flex-1 cursor-pointer group">
+        <div class="bg-blue-50 border-2 border-blue-200 group-hover:border-blue-400 rounded-xl p-4 text-center transition">
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            <span class="text-sm font-semibold text-blue-700">1. Upload</span>
+          </div>
+          <div class="text-3xl font-bold text-blue-600">1</div>
+          <div class="text-xs text-blue-500 mt-1">processing</div>
+        </div>
+      </div>
+      <!-- Arrow -->
+      <div class="flex-shrink-0 px-3">
+        <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+      </div>
+      <!-- Stage 2: Review -->
+      <div onclick="showView('review')" class="flex-1 cursor-pointer group">
+        <div class="bg-amber-50 border-2 border-amber-200 group-hover:border-amber-400 rounded-xl p-4 text-center transition">
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+            <span class="text-sm font-semibold text-amber-700">2. Review & Price</span>
+          </div>
+          <div class="text-3xl font-bold text-amber-600">2</div>
+          <div class="text-xs text-amber-500 mt-1">awaiting review</div>
+        </div>
+      </div>
+      <!-- Arrow -->
+      <div class="flex-shrink-0 px-3">
+        <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+      </div>
+      <!-- Stage 3: Export -->
+      <div onclick="showView('export')" class="flex-1 cursor-pointer group">
+        <div class="bg-emerald-50 border-2 border-emerald-200 group-hover:border-emerald-400 rounded-xl p-4 text-center transition">
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+            <span class="text-sm font-semibold text-emerald-700">3. Export</span>
+          </div>
+          <div class="text-3xl font-bold text-emerald-600">1</div>
+          <div class="text-xs text-emerald-500 mt-1">ready to export</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="grid grid-cols-4 gap-4">
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+      <div class="text-sm font-medium text-gray-500 mb-3">Pending Invoices</div>
+      <div class="text-3xl font-bold text-amber-600">2</div>
+      <div class="text-sm text-gray-500 mt-1">2 invoices to review</div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+      <div class="text-sm font-medium text-gray-500 mb-3">Awaiting Approval</div>
+      <div class="text-3xl font-bold">1</div>
+      <div class="text-sm text-gray-500 mt-1">$351.26 in cost changes</div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+      <div class="text-sm font-medium text-gray-500 mb-3">Margin Alerts</div>
+      <div class="text-3xl font-bold text-red-600">1</div>
+      <div class="text-sm text-gray-500 mt-1">1 product with &gt;10% cost increase</div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-5">
+      <div class="text-sm font-medium text-gray-500 mb-3">Cost Changes Today</div>
+      <div class="text-3xl font-bold text-emerald-600">5</div>
+      <div class="text-sm text-gray-500 mt-1">+2.4% avg change</div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="bg-white rounded-xl border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <h3 class="font-semibold text-gray-900">Invoices Requiring Action</h3>
+      <button onclick="showView('invoices')" class="text-sm text-brand-600 hover:text-brand-700 font-medium">View All</button>
+    </div>
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+          <th class="px-6 py-3">Status</th>
+          <th class="px-6 py-3">Supplier</th>
+          <th class="px-6 py-3">Invoice #</th>
+          <th class="px-6 py-3">Date</th>
+          <th class="px-6 py-3">Lines</th>
+          <th class="px-6 py-3">Total</th>
+          <th class="px-6 py-3">Next Step</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="showView('review')">
+          <td class="px-6 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Ready</span></td>
+          <td class="px-6 py-3 text-sm font-medium">Choco Nuts</td>
+          <td class="px-6 py-3 text-sm text-gray-600">INV-7784</td>
+          <td class="px-6 py-3 text-sm text-gray-500">11-Mar-2026</td>
+          <td class="px-6 py-3 text-sm">4</td>
+          <td class="px-6 py-3 text-sm font-medium">$387.06</td>
+          <td class="px-6 py-3">
+            <button class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+              Review
+            </button>
+          </td>
+        </tr>
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="showView('review')">
+          <td class="px-6 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>In Review</span></td>
+          <td class="px-6 py-3 text-sm font-medium">Melbourne Nut Co</td>
+          <td class="px-6 py-3 text-sm text-gray-600">INV-40083</td>
+          <td class="px-6 py-3 text-sm text-gray-500">08-Mar-2026</td>
+          <td class="px-6 py-3 text-sm">12</td>
+          <td class="px-6 py-3 text-sm font-medium">$1,247.38</td>
+          <td class="px-6 py-3">
+            <button class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+              Continue Review
+            </button>
+          </td>
+        </tr>
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="showView('export')">
+          <td class="px-6 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved</span></td>
+          <td class="px-6 py-3 text-sm font-medium">Grain & Co</td>
+          <td class="px-6 py-3 text-sm text-gray-600">INV-38123</td>
+          <td class="px-6 py-3 text-sm text-gray-500">05-Mar-2026</td>
+          <td class="px-6 py-3 text-sm">6</td>
+          <td class="px-6 py-3 text-sm font-medium">$523.40</td>
+          <td class="px-6 py-3">
+            <button class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+              Export
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- VIEW 2: INVOICES (Upload & Queue)                             -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="view-invoices" class="view p-6 space-y-6">
+
+  <!-- Workflow Breadcrumb -->
+  <div class="flex items-center gap-2 text-sm">
+    <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full font-medium">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+      1. Upload
+    </div>
+    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+    <div class="flex items-center gap-2 px-3 py-1.5 text-gray-400 rounded-full">2. Review & Price</div>
+    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+    <div class="flex items-center gap-2 px-3 py-1.5 text-gray-400 rounded-full">3. Export</div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="bg-white rounded-xl border-2 border-dashed border-gray-300 p-8 text-center hover:border-brand-400 transition cursor-pointer">
+    <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
+    <p class="text-gray-600 font-medium">Drop invoices here or click to upload</p>
+    <p class="text-sm text-gray-400 mt-1">PDF, JPG, PNG, WEBP up to 20MB</p>
+  </div>
+
+  <!-- Invoice Queue -->
+  <div class="bg-white rounded-xl border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-100">
+      <h3 class="font-semibold text-gray-900">All Invoices</h3>
+    </div>
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+          <th class="px-6 py-3">Stage</th>
+          <th class="px-6 py-3">Supplier</th>
+          <th class="px-6 py-3">Invoice #</th>
+          <th class="px-6 py-3">Date</th>
+          <th class="px-6 py-3">Lines</th>
+          <th class="px-6 py-3">Total</th>
+          <th class="px-6 py-3">OCR</th>
+          <th class="px-6 py-3">Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-3"><span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">Processing</span></td>
+          <td class="px-6 py-3 text-sm font-medium text-gray-400">Detecting...</td>
+          <td class="px-6 py-3 text-sm text-gray-400">-</td>
+          <td class="px-6 py-3 text-sm text-gray-400">-</td>
+          <td class="px-6 py-3 text-sm text-gray-400">-</td>
+          <td class="px-6 py-3 text-sm text-gray-400">-</td>
+          <td class="px-6 py-3"><div class="w-16 h-2 bg-gray-200 rounded-full overflow-hidden"><div class="h-full bg-blue-400 rounded-full animate-pulse" style="width:60%"></div></div></td>
+          <td class="px-6 py-3 text-xs text-gray-400">Waiting...</td>
+        </tr>
+        <tr class="hover:bg-gray-50 bg-amber-50/30 cursor-pointer" onclick="showView('review')">
+          <td class="px-6 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>Ready</span></td>
+          <td class="px-6 py-3 text-sm font-medium">Choco Nuts</td>
+          <td class="px-6 py-3 text-sm text-gray-600">INV-7784</td>
+          <td class="px-6 py-3 text-sm text-gray-500">11-Mar-2026</td>
+          <td class="px-6 py-3 text-sm">4</td>
+          <td class="px-6 py-3 text-sm font-medium">$387.06</td>
+          <td class="px-6 py-3"><span class="text-xs font-medium text-emerald-600">96%</span></td>
+          <td class="px-6 py-3">
+            <button class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition">Review</button>
+          </td>
+        </tr>
+        <tr class="hover:bg-gray-50 bg-amber-50/30 cursor-pointer" onclick="showView('review')">
+          <td class="px-6 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>In Review</span></td>
+          <td class="px-6 py-3 text-sm font-medium">Melbourne Nut Co</td>
+          <td class="px-6 py-3 text-sm text-gray-600">INV-40083</td>
+          <td class="px-6 py-3 text-sm text-gray-500">08-Mar-2026</td>
+          <td class="px-6 py-3 text-sm">12</td>
+          <td class="px-6 py-3 text-sm font-medium">$1,247.38</td>
+          <td class="px-6 py-3"><span class="text-xs font-medium text-emerald-600">94%</span></td>
+          <td class="px-6 py-3">
+            <button class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition">Continue</button>
+          </td>
+        </tr>
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="showView('export')">
+          <td class="px-6 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Approved</span></td>
+          <td class="px-6 py-3 text-sm font-medium">Grain & Co</td>
+          <td class="px-6 py-3 text-sm text-gray-600">INV-38123</td>
+          <td class="px-6 py-3 text-sm text-gray-500">05-Mar-2026</td>
+          <td class="px-6 py-3 text-sm">6</td>
+          <td class="px-6 py-3 text-sm font-medium">$523.40</td>
+          <td class="px-6 py-3"><span class="text-xs font-medium text-emerald-600">98%</span></td>
+          <td class="px-6 py-3">
+            <button class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition">Export</button>
+          </td>
+        </tr>
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500"><span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>Exported</span></td>
+          <td class="px-6 py-3 text-sm text-gray-400">Choco Nuts</td>
+          <td class="px-6 py-3 text-sm text-gray-400">INV-7501</td>
+          <td class="px-6 py-3 text-sm text-gray-400">01-Mar-2026</td>
+          <td class="px-6 py-3 text-sm text-gray-400">3</td>
+          <td class="px-6 py-3 text-sm text-gray-400">$276.90</td>
+          <td class="px-6 py-3"><span class="text-xs text-gray-400">92%</span></td>
+          <td class="px-6 py-3 text-xs text-gray-400">Exported 02-Mar</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- VIEW 3: REVIEW & PRICE (Matches current Invoice Review UI)    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="view-review" class="view p-6">
+
+  <!-- Workflow Breadcrumb -->
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-2 text-sm">
+      <div class="flex items-center gap-2 px-3 py-1.5 text-emerald-600 rounded-full">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        1. Upload
+      </div>
+      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+      <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-full font-medium">2. Review & Price</div>
+      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+      <div class="flex items-center gap-2 px-3 py-1.5 text-gray-400 rounded-full">3. Export</div>
+    </div>
+  </div>
+
+  <!-- Header: Title + Step Progress -->
+  <div class="flex items-start justify-between mb-1">
+    <div class="flex items-center gap-3">
+      <button onclick="showView('invoices')" class="text-gray-400 hover:text-gray-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+      </button>
+      <div>
+        <h1 class="text-xl font-semibold">Invoice Review</h1>
+        <div class="text-sm text-gray-500">CHOCO NUTS PTY LTD &mdash; INV-7784 &mdash; 2 line items</div>
+      </div>
+    </div>
+    <!-- Step Progress (matches current UI) -->
+    <div class="flex items-center gap-1">
+      <span class="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full border-2 border-brand-500 text-brand-700">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+        Match & Price
+      </span>
+      <div class="w-8 h-0.5 bg-gray-300"></div>
+      <span class="inline-flex items-center text-xs font-medium px-3 py-1.5 rounded-full bg-brand-600 text-white">Approval Summary</span>
+      <div class="w-8 h-0.5 bg-gray-300"></div>
+      <span class="inline-flex items-center text-xs font-medium px-3 py-1.5 rounded-full text-gray-400">Export</span>
+    </div>
+  </div>
+
+  <!-- Invoice Info Bar -->
+  <div class="flex items-center gap-6 text-sm mb-4 py-2">
+    <label class="flex items-center gap-2 text-gray-600">
+      <input type="checkbox" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+      Line prices include GST
+    </label>
+    <div>GST: <span class="font-semibold">$32.55</span></div>
+    <div>Subtotal: <span class="font-semibold">$325.46</span></div>
+    <div>Total: <span class="font-semibold">$358.01</span></div>
+  </div>
+
+  <!-- Actions bar -->
+  <div class="flex items-center justify-end gap-3 mb-3">
+    <button class="text-sm text-gray-500 hover:text-gray-700">Expand All</button>
+    <button class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition">Approve All Lines</button>
+  </div>
+
+  <!-- LINE 1: Expanded (Needs Review) -->
+  <div class="bg-white rounded-xl border border-gray-200 mb-3 overflow-hidden">
+    <!-- Line Header -->
+    <div class="line-expandable flex items-center px-5 py-3 gap-3 border-b border-gray-100" onclick="toggleLine(this)">
+      <svg class="w-5 h-5 text-gray-400 transition-transform rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+      <div class="flex-1">
+        <div class="text-sm font-bold text-gray-900">DARK CHOCOLATE GOJIBERRIES 7KG</div>
+        <div class="text-xs text-gray-500">Pack: 7KG | Qty: 1 | Unit: $149.94 | <span class="text-brand-600 font-medium">Landed cost: $23.56/BOX</span></div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        <span class="text-xs text-gray-500">4 SKUs</span>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">High</span>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Needs Review</span>
+      </div>
+    </div>
+
+    <!-- Expanded: Two-column layout matching current UI -->
+    <div class="match-detail open flex">
+      <!-- Left: Invoice Line + Search -->
+      <div class="w-[280px] flex-shrink-0 border-r border-gray-100 p-4 space-y-4">
+        <div>
+          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Invoice Line</div>
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div class="font-bold text-sm mb-2">DARK CHOCOLATE GOJIBERRIES 7KG</div>
+            <div class="grid grid-cols-2 gap-y-1 text-xs text-gray-600">
+              <div>Pack size: <span class="font-medium text-gray-900">7KG</span></div>
+              <div>Unit price: <span class="font-medium text-gray-900">$149.94</span></div>
+              <div>Landed cost: <span class="font-medium text-gray-900">$23.56/BOX</span></div>
+              <div>Qty ordered: <span class="font-medium text-gray-900">1</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-semibold text-gray-500 uppercase mb-2">Search Products</div>
+          <div class="flex gap-2 mb-2">
+            <input type="text" value="DARK CHOCOLATE" class="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <button class="px-3 py-1.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700">Search</button>
+          </div>
+          <select class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+            <option>All Stores</option>
+            <option>POS - Abacus</option>
+            <option>Shopify Online Store</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Right: AI Suggestions table -->
+      <div class="flex-1 overflow-auto p-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs font-semibold text-gray-500 uppercase">AI Suggestions</div>
+          <div class="text-xs text-brand-600 font-medium">2 of 2 selected</div>
+        </div>
+        <div class="overflow-auto" style="max-height:300px">
+          <table class="w-full text-xs min-w-[800px]">
+            <thead>
+              <tr class="text-gray-500 uppercase border-b border-gray-200">
+                <th class="text-left py-2 pr-2 w-8"></th>
+                <th class="text-left py-2 pr-2">Product</th>
+                <th class="text-left py-2 pr-2">Source</th>
+                <th class="text-left py-2 pr-2">Score</th>
+                <th class="text-right py-2 pr-2">Curr Cost</th>
+                <th class="text-right py-2 pr-2">Sell Price</th>
+                <th class="text-right py-2 pr-2">Margin %</th>
+                <th class="text-right py-2 pr-2">New Cost</th>
+                <th class="text-right py-2 pr-2">New Sell</th>
+                <th class="text-right py-2 pr-2">New Margin %</th>
+                <th class="text-right py-2">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Product group: Shopify -->
+              <tr class="border-b border-gray-50">
+                <td class="py-2 pr-2"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-4 h-4"></td>
+                <td class="py-2 pr-2 font-medium text-sm" colspan="3">
+                  <div>Dark Chocolate Goji Berry (Vegan)</div>
+                  <div class="text-gray-400 font-normal text-xs">Candied & Chocolate Covered Fruit</div>
+                </td>
+                <td class="py-2 pr-2"><span class="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">Shopify</span></td>
+                <td class="py-2 pr-2 text-brand-600 font-medium">95%</td>
+                <td class="py-2 pr-2 text-right text-gray-400" colspan="5"><span class="italic">3 variants</span></td>
+              </tr>
+              <tr class="border-b border-gray-50 bg-gray-50/50">
+                <td class="py-1.5 pr-2"></td>
+                <td class="py-1.5 pr-2"><span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 text-[10px] font-medium">250g</span></span></td>
+                <td class="py-1.5 pr-2 font-mono text-gray-400">11000527-3</td>
+                <td class="py-1.5 pr-2 text-gray-400">Shopify Online Store</td>
+                <td class="py-1.5 pr-2 text-right">$0.00</td>
+                <td class="py-1.5 pr-2 text-right">$18.99</td>
+                <td class="py-1.5 pr-2 text-right">&mdash;</td>
+                <td class="py-1.5 pr-2 text-right font-medium">$5.89</td>
+                <td class="py-1.5 pr-2 text-right">18.99</td>
+                <td class="py-1.5 pr-2 text-right"><span class="px-2 py-0.5 rounded bg-brand-100 text-brand-700 font-medium">69.0</span></td>
+                <td class="py-1.5 text-right">&mdash;</td>
+              </tr>
+              <tr class="border-b border-gray-50 bg-gray-50/50">
+                <td class="py-1.5 pr-2"></td>
+                <td class="py-1.5 pr-2"><span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 text-[10px] font-medium">1000g</span></td>
+                <td class="py-1.5 pr-2 font-mono text-gray-400">11000524-1-1</td>
+                <td class="py-1.5 pr-2 text-gray-400">Shopify Online Store</td>
+                <td class="py-1.5 pr-2 text-right">$0.00</td>
+                <td class="py-1.5 pr-2 text-right">$69.99</td>
+                <td class="py-1.5 pr-2 text-right">&mdash;</td>
+                <td class="py-1.5 pr-2 text-right font-medium text-brand-600">$23.56</td>
+                <td class="py-1.5 pr-2 text-right">69.99</td>
+                <td class="py-1.5 pr-2 text-right"><span class="px-2 py-0.5 rounded bg-brand-100 text-brand-700 font-medium">66.3</span></td>
+                <td class="py-1.5 text-right">&mdash;</td>
+              </tr>
+              <tr class="border-b border-gray-50 bg-gray-50/50">
+                <td class="py-1.5 pr-2"></td>
+                <td class="py-1.5 pr-2"><span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 text-[10px] font-medium">500g</span></td>
+                <td class="py-1.5 pr-2 font-mono text-gray-400">11000527-2</td>
+                <td class="py-1.5 pr-2 text-gray-400">Shopify Online Store</td>
+                <td class="py-1.5 pr-2 text-right">$0.00</td>
+                <td class="py-1.5 pr-2 text-right">$35.99</td>
+                <td class="py-1.5 pr-2 text-right">&mdash;</td>
+                <td class="py-1.5 pr-2 text-right font-medium">$11.78</td>
+                <td class="py-1.5 pr-2 text-right">35.99</td>
+                <td class="py-1.5 pr-2 text-right"><span class="px-2 py-0.5 rounded bg-brand-100 text-brand-700 font-medium">67.3</span></td>
+                <td class="py-1.5 text-right">&mdash;</td>
+              </tr>
+              <!-- Product group: POS -->
+              <tr class="border-b border-gray-100">
+                <td class="py-2 pr-2"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-4 h-4"></td>
+                <td class="py-2 pr-2">
+                  <div class="font-medium text-sm">Dark Choc Goji Berry (Vegan)</div>
+                  <div class="text-gray-400 text-xs">Chocolate &middot; 1000527</div>
+                </td>
+                <td class="py-2 pr-2"><span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">POS</span></td>
+                <td class="py-2 pr-2 text-brand-600 font-medium">95%</td>
+                <td class="py-2 pr-2 text-right">$31.51</td>
+                <td class="py-2 pr-2 text-right">$69.99</td>
+                <td class="py-2 pr-2 text-right">55.0%</td>
+                <td class="py-2 pr-2 text-right font-medium text-brand-600">$23.56</td>
+                <td class="py-2 pr-2 text-right">69.99</td>
+                <td class="py-2 pr-2 text-right"><span class="px-2 py-0.5 rounded bg-brand-100 text-brand-700 font-medium">66.3</span></td>
+                <td class="py-2 text-right text-red-500 font-medium">-25.2%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm footer -->
+    <div class="border-t border-gray-100 px-5 py-3 flex items-center justify-between bg-gray-50">
+      <label class="flex items-center gap-2 text-sm text-gray-600">
+        <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+        Save this mapping for future invoices from CHOCO NUTS PTY LTD
+      </label>
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-gray-500">2 products selected</span>
+        <button class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+          Confirm Matches & Continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LINE 2: Collapsed (Approved) -->
+  <div class="bg-white rounded-xl border border-gray-200 mb-3 overflow-hidden">
+    <div class="line-expandable flex items-center px-5 py-3 gap-3" onclick="toggleLine(this)">
+      <svg class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+      <div class="flex-1">
+        <div class="text-sm font-bold text-gray-900">DARK CHOCOLATE MACADAMIA 7KG</div>
+        <div class="text-xs text-gray-500">Pack: 7KG | Qty: 1 | Unit: $175.52 | <span class="text-brand-600 font-medium">Landed cost: $27.58/BOX</span></div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        <span class="text-xs text-gray-500">4 SKUs</span>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">High</span>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">APPROVED</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom action -->
+  <div class="flex justify-end mt-4">
+    <button onclick="showView('export')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
+      Continue to Summary
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+    </button>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- VIEW 4: EXPORT                                                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="view-export" class="view p-6 space-y-6">
+
+  <!-- Workflow Breadcrumb -->
+  <div class="flex items-center gap-2 text-sm">
+    <div class="flex items-center gap-2 px-3 py-1.5 text-emerald-600 rounded-full">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+      1. Upload
+    </div>
+    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+    <div class="flex items-center gap-2 px-3 py-1.5 text-emerald-600 rounded-full">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+      2. Review & Price
+    </div>
+    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+    <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+      3. Export
+    </div>
+  </div>
+
+  <h1 class="text-xl font-semibold">Export Price Updates</h1>
+
+  <!-- Approved Invoices -->
+  <div class="bg-white rounded-xl border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-100">
+      <h3 class="font-semibold text-gray-900">Approved Invoices</h3>
+      <p class="text-sm text-gray-500 mt-0.5">Select invoices to include in the export</p>
+    </div>
+    <table class="w-full">
+      <thead>
+        <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+          <th class="px-6 py-3 w-10"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600"></th>
+          <th class="px-6 py-3">Supplier</th>
+          <th class="px-6 py-3">Invoice #</th>
+          <th class="px-6 py-3">Date</th>
+          <th class="px-6 py-3">Confirmed Items</th>
+          <th class="px-6 py-3">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="hover:bg-gray-50 bg-brand-50/30">
+          <td class="px-6 py-3"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600"></td>
+          <td class="px-6 py-3 text-sm font-medium">Grain & Co</td>
+          <td class="px-6 py-3 text-sm">INV-38123</td>
+          <td class="px-6 py-3 text-sm text-gray-500">05-Mar-2026</td>
+          <td class="px-6 py-3 text-sm">6 items</td>
+          <td class="px-6 py-3"><span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">Approved</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Export Items -->
+  <div class="bg-white rounded-xl border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div>
+        <h3 class="font-semibold text-gray-900">Export Items</h3>
+        <p class="text-sm text-gray-500 mt-0.5">6 of 6 selected</p>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-500">
+        <input type="checkbox" class="rounded border-gray-300 text-brand-600">
+        Show previously exported
+      </label>
+    </div>
+    <div class="overflow-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-6 py-3 w-10"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600"></th>
+            <th class="px-6 py-3">Product</th>
+            <th class="px-6 py-3">SKU</th>
+            <th class="px-6 py-3">Source</th>
+            <th class="px-6 py-3 text-right">New Cost</th>
+            <th class="px-6 py-3 text-right">New Price</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-3"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600"></td>
+            <td class="px-6 py-3"><div class="font-medium">Flour Rye Dark</div><div class="text-xs text-gray-400">5kg</div></td>
+            <td class="px-6 py-3 font-mono text-xs text-gray-500">FLR-RYE-5K</td>
+            <td class="px-6 py-3"><span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">POS</span></td>
+            <td class="px-6 py-3 text-right">$4.75</td>
+            <td class="px-6 py-3 text-right font-medium">$8.49</td>
+          </tr>
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-3"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600"></td>
+            <td class="px-6 py-3"><div class="font-medium">Flour Spelt Wholemeal</div><div class="text-xs text-gray-400">2kg</div></td>
+            <td class="px-6 py-3 font-mono text-xs text-gray-500">FLR-SPW-2K</td>
+            <td class="px-6 py-3"><span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">POS</span></td>
+            <td class="px-6 py-3 text-right">$6.20</td>
+            <td class="px-6 py-3 text-right font-medium">$10.99</td>
+          </tr>
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-3"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600"></td>
+            <td class="px-6 py-3"><div class="font-medium">Flour Spelt Wholemeal</div><div class="text-xs text-gray-400">2kg</div></td>
+            <td class="px-6 py-3 font-mono text-xs text-gray-500">FLR-SPW-2K-SH</td>
+            <td class="px-6 py-3"><span class="text-xs px-2 py-0.5 rounded bg-violet-100 text-violet-700">Shopify</span></td>
+            <td class="px-6 py-3 text-right">$6.20</td>
+            <td class="px-6 py-3 text-right font-medium">$10.99</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Export Actions -->
+  <div class="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-6 py-4">
+    <div class="text-sm text-gray-500">
+      Will generate: <span class="font-medium text-gray-900">1 POS CSV</span> + <span class="font-medium text-gray-900">1 Shopify CSV</span> + <span class="font-medium text-gray-900">INSTORE_UPDATE.xlsx</span>
+    </div>
+    <button class="px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition inline-flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+      Export 6 Items
+    </button>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+function showView(viewId) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + viewId).classList.add('active');
+
+  document.querySelectorAll('.sidebar-link').forEach(link => {
+    link.classList.remove('bg-sidebar-active', 'text-white');
+    link.classList.add('text-slate-300', 'hover:bg-sidebar-hover');
+    if (link.dataset.view === viewId) {
+      link.classList.add('bg-sidebar-active', 'text-white');
+      link.classList.remove('text-slate-300', 'hover:bg-sidebar-hover');
+    }
+  });
+}
+
+function toggleLine(el) {
+  const detail = el.parentElement.querySelector('.match-detail');
+  if (detail) {
+    detail.classList.toggle('open');
+    const chevron = el.querySelector('svg:last-child');
+    if (chevron) chevron.style.transform = detail.classList.contains('open') ? 'rotate(180deg)' : '';
+  }
+}
+
+function togglePdf() {
+  const panel = document.getElementById('pdf-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'flex';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gmail Integration Setup Guide — RetailEdge</title>
+  <style>
+    :root {
+      --brand: #4f46e5;
+      --brand-light: #eef2ff;
+      --emerald: #10b981;
+      --emerald-light: #d1fae5;
+      --amber: #f59e0b;
+      --amber-light: #fef3c7;
+      --red: #ef4444;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --gcp-blue: #1a73e8;
+      --gcp-blue-light: #e8f0fe;
+      --gcp-dark: #202124;
+      --gcp-sidebar: #f1f3f4;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      line-height: 1.6;
+    }
+
+    /* ── Header ────────────────────────────────── */
+    .header {
+      background: white;
+      border-bottom: 1px solid var(--gray-200);
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-inner {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo {
+      width: 32px; height: 32px;
+      background: var(--brand);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 800; font-size: 14px;
+    }
+    .header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+    .header-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      background: var(--brand-light);
+      color: var(--brand);
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    /* ── Main content ──────────────────────────── */
+    .content {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    .intro {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .intro h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .intro p {
+      font-size: 15px;
+      color: var(--gray-500);
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* ── Time estimate ─────────────────────────── */
+    .time-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--emerald-light);
+      color: #065f46;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+    }
+
+    /* ── Step cards ─────────────────────────────── */
+    .step {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .step-header {
+      padding: 20px 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .step-number {
+      width: 32px; height: 32px;
+      background: var(--brand);
+      color: white;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .step-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+    .step-subtitle {
+      font-size: 13px;
+      color: var(--gray-500);
+      margin-top: 2px;
+    }
+    .step-body {
+      padding: 20px 24px;
+    }
+    .step-body p {
+      font-size: 14px;
+      color: var(--gray-600);
+      margin-bottom: 12px;
+    }
+    .step-body ol, .step-body ul {
+      padding-left: 20px;
+      margin-bottom: 16px;
+    }
+    .step-body li {
+      font-size: 14px;
+      color: var(--gray-600);
+      margin-bottom: 6px;
+    }
+    .step-body li strong {
+      color: var(--gray-800);
+    }
+
+    /* ── Browser mockup frame ──────────────────── */
+    .browser-mock {
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 16px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .browser-bar {
+      background: var(--gray-100);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .browser-dots {
+      display: flex;
+      gap: 5px;
+    }
+    .browser-dots span {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+    .browser-dots span:nth-child(1) { background: #ff5f57; }
+    .browser-dots span:nth-child(2) { background: #ffbd2e; }
+    .browser-dots span:nth-child(3) { background: #28c840; }
+    .browser-url {
+      flex: 1;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--gray-500);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .browser-content {
+      background: white;
+      min-height: 120px;
+    }
+
+    /* ── GCP UI mockups ────────────────────────── */
+    .gcp-topbar {
+      background: var(--gcp-dark);
+      color: white;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+    }
+    .gcp-topbar-hamburger {
+      width: 20px; height: 14px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .gcp-topbar-hamburger span {
+      display: block; height: 2px; background: white; border-radius: 1px;
+    }
+    .gcp-topbar-logo {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .gcp-topbar-logo .cloud-icon {
+      color: var(--gcp-blue);
+    }
+    .gcp-project-badge {
+      background: rgba(255,255,255,0.1);
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .gcp-layout {
+      display: flex;
+      min-height: 200px;
+    }
+    .gcp-sidebar {
+      width: 220px;
+      background: var(--gcp-sidebar);
+      border-right: 1px solid var(--gray-200);
+      padding: 8px 0;
+      flex-shrink: 0;
+    }
+    .gcp-sidebar-item {
+      padding: 8px 20px;
+      font-size: 13px;
+      color: var(--gray-700);
+      cursor: default;
+    }
+    .gcp-sidebar-item.active {
+      background: var(--gcp-blue-light);
+      color: var(--gcp-blue);
+      font-weight: 600;
+    }
+    .gcp-main {
+      flex: 1;
+      padding: 20px;
+    }
+    .gcp-main h3 {
+      font-size: 20px;
+      color: var(--gcp-dark);
+      margin-bottom: 16px;
+      font-weight: 400;
+    }
+
+    /* GCP buttons */
+    .gcp-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 20px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: default;
+      border: none;
+    }
+    .gcp-btn-primary {
+      background: var(--gcp-blue);
+      color: white;
+    }
+    .gcp-btn-outline {
+      background: white;
+      color: var(--gcp-blue);
+      border: 1px solid var(--gray-300);
+    }
+
+    /* Highlight overlay */
+    .highlight-box {
+      position: relative;
+      display: inline-block;
+    }
+    .highlight-box::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border: 2.5px solid var(--amber);
+      border-radius: 8px;
+      animation: pulse-border 1.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes pulse-border {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .highlight-arrow {
+      color: var(--amber);
+      font-size: 22px;
+      display: inline-block;
+      animation: bounce-arrow 1s ease-in-out infinite;
+      margin: 0 6px;
+    }
+    @keyframes bounce-arrow {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(4px); }
+    }
+
+    /* ── Form mockups ──────────────────────────── */
+    .mock-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 420px;
+    }
+    .mock-field label {
+      display: block;
+      font-size: 12px;
+      color: var(--gray-600);
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .mock-field input, .mock-field select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--gray-300);
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      color: var(--gray-800);
+    }
+
+    /* ── Credential display mockup ─────────────── */
+    .cred-display {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 12px 0;
+    }
+    .cred-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+    .cred-row + .cred-row {
+      border-top: 1px solid var(--gray-200);
+    }
+    .cred-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-700);
+      width: 100px;
+    }
+    .cred-value {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--gray-600);
+      background: white;
+      padding: 4px 8px;
+      border: 1px solid var(--gray-200);
+      border-radius: 4px;
+      flex: 1;
+      margin: 0 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cred-copy-btn {
+      padding: 4px 12px;
+      font-size: 12px;
+      background: white;
+      border: 1px solid var(--gray-300);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--gcp-blue);
+      font-weight: 500;
+    }
+
+    /* ── Callout boxes ──────────────────────────── */
+    .callout {
+      padding: 14px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin: 12px 0;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .callout-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .callout-tip {
+      background: var(--emerald-light);
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .callout-warning {
+      background: var(--amber-light);
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .callout-info {
+      background: var(--brand-light);
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+    }
+
+    /* ── Copy button ───────────────────────────── */
+    .copy-block {
+      display: flex;
+      align-items: center;
+      background: var(--gray-800);
+      border-radius: 8px;
+      padding: 4px 4px 4px 14px;
+      margin: 8px 0;
+      gap: 8px;
+    }
+    .copy-block code {
+      flex: 1;
+      font-size: 13px;
+      color: #a5f3fc;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      user-select: all;
+      word-break: break-all;
+    }
+    .copy-btn {
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .copy-btn:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
+    /* ── RetailEdge mockup ─────────────────────── */
+    .re-sidebar {
+      width: 200px;
+      background: #111827;
+      color: rgba(255,255,255,0.6);
+      padding: 16px 0;
+      flex-shrink: 0;
+    }
+    .re-sidebar-brand {
+      padding: 0 16px 12px;
+      font-weight: 700;
+      color: white;
+      font-size: 15px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 8px;
+    }
+    .re-sidebar-item {
+      padding: 8px 16px;
+      font-size: 13px;
+      cursor: default;
+    }
+    .re-sidebar-item.active {
+      color: white;
+      background: rgba(255,255,255,0.08);
+      border-left: 3px solid var(--brand);
+      padding-left: 13px;
+    }
+    .re-main {
+      flex: 1;
+      padding: 20px;
+      background: var(--gray-50);
+    }
+    .re-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .re-field {
+      margin-bottom: 8px;
+    }
+    .re-field label {
+      display: block;
+      font-size: 11px;
+      color: var(--gray-500);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .re-field input {
+      width: 100%;
+      padding: 6px 10px;
+      border: 1px solid var(--gray-300);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: var(--gray-700);
+    }
+    .re-btn {
+      padding: 6px 14px;
+      background: var(--gray-800);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: default;
+      margin-top: 6px;
+    }
+
+    /* ── Scopes table ──────────────────────────── */
+    .scopes-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 8px 0;
+    }
+    .scopes-table td {
+      padding: 6px 10px;
+      border: 1px solid var(--gray-200);
+    }
+    .scopes-table td:first-child {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      background: var(--gray-50);
+      color: var(--gray-700);
+      white-space: nowrap;
+    }
+    .scopes-table td:last-child {
+      color: var(--gray-500);
+    }
+
+    /* ── Responsive ────────────────────────────── */
+    @media (max-width: 768px) {
+      .gcp-sidebar { display: none; }
+      .re-sidebar { display: none; }
+      .cred-row { flex-wrap: wrap; gap: 4px; }
+      .cred-label { width: 100%; }
+      .cred-value { flex: 1 1 100%; margin: 0; }
+      .intro h2 { font-size: 22px; }
+      .step-header { padding: 14px 16px; }
+      .step-body { padding: 14px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ Header ═══ -->
+<div class="header">
+  <div class="header-inner">
+    <div class="header-logo">RE</div>
+    <h1>Gmail Integration Setup Guide</h1>
+    <span class="header-badge">How-To</span>
+  </div>
+</div>
+
+<!-- ═══ Content ═══ -->
+<div class="content">
+
+  <div class="intro">
+    <span class="time-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Estimated time: 5-10 minutes
+    </span>
+    <h2>Connect Gmail to RetailEdge</h2>
+    <p>Follow these steps to create Google Cloud OAuth credentials and connect your Gmail account for automatic invoice imports.</p>
+  </div>
+
+  <!-- ═══ STEP 1 ═══ -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-number">1</span>
+      <div>
+        <div class="step-title">Create a Google Cloud Project</div>
+        <div class="step-subtitle">If you already have a project, skip to Step 2</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p>Go to the <strong><a href="https://console.cloud.google.com" target="_blank" rel="noopener" style="color: var(--gcp-blue);">Google Cloud Console</a></strong> and sign in with your Google account.</p>
+
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">console.cloud.google.com</div>
+        </div>
+        <div class="browser-content">
+          <div class="gcp-topbar">
+            <div class="gcp-topbar-hamburger"><span></span><span></span><span></span></div>
+            <div class="gcp-topbar-logo">
+              <span class="cloud-icon">&#9729;</span> Google Cloud
+            </div>
+            <div class="highlight-box">
+              <div class="gcp-project-badge" style="cursor: pointer;">
+                Select a project &#9662;
+              </div>
+            </div>
+          </div>
+          <div style="padding: 30px 20px; text-align: center; color: var(--gray-500); font-size: 13px;">
+            <p style="margin-bottom: 12px;">Click the project dropdown, then click <strong>New Project</strong>:</p>
+            <div style="display: inline-flex; flex-direction: column; gap: 6px; background: white; border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+              <div style="font-size: 13px; color: var(--gray-700); font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--gray-100);">Select a project</div>
+              <div style="font-size: 13px; color: var(--gray-500); padding: 4px 0;">My First Project</div>
+              <div class="highlight-box" style="margin-top: 4px;">
+                <span class="gcp-btn gcp-btn-outline" style="font-size: 12px; padding: 6px 16px;">
+                  + NEW PROJECT
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ol>
+        <li>Click the <strong>project dropdown</strong> at the top of the page (highlighted above)</li>
+        <li>Click <strong>New Project</strong></li>
+        <li>Enter a name like <strong>"RetailEdge"</strong> and click <strong>Create</strong></li>
+        <li>Select your new project from the dropdown once it's created</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 2 ═══ -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-number">2</span>
+      <div>
+        <div class="step-title">Enable the Gmail API</div>
+        <div class="step-subtitle">This allows your project to access Gmail</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p>Navigate to the API Library to enable the Gmail API for your project.</p>
+
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">console.cloud.google.com/apis/library</div>
+        </div>
+        <div class="browser-content">
+          <div class="gcp-topbar">
+            <div class="gcp-topbar-hamburger"><span></span><span></span><span></span></div>
+            <div class="gcp-topbar-logo"><span class="cloud-icon">&#9729;</span> Google Cloud</div>
+            <div class="gcp-project-badge">RetailEdge &#9662;</div>
+          </div>
+          <div class="gcp-layout">
+            <div class="gcp-sidebar">
+              <div class="gcp-sidebar-item">APIs & Services</div>
+              <div class="gcp-sidebar-item active">&nbsp;&nbsp;Library</div>
+              <div class="gcp-sidebar-item">&nbsp;&nbsp;Credentials</div>
+              <div class="gcp-sidebar-item">&nbsp;&nbsp;OAuth consent</div>
+            </div>
+            <div class="gcp-main">
+              <h3>API Library</h3>
+              <div style="display: flex; margin-bottom: 16px;">
+                <input type="text" value="Gmail API" readonly style="flex: 1; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 4px; font-size: 14px; color: var(--gray-700);" />
+              </div>
+              <div style="display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid var(--gray-200); border-radius: 8px;">
+                <div style="width: 48px; height: 48px; background: #ea4335; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-size: 15px; font-weight: 600; color: var(--gcp-dark);">Gmail API</div>
+                  <div style="font-size: 12px; color: var(--gray-500);">Flexible, RESTful access to the user's inbox</div>
+                </div>
+                <div class="highlight-box">
+                  <span class="gcp-btn gcp-btn-primary">ENABLE</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ol>
+        <li>Go to <strong>APIs & Services</strong> <span class="highlight-arrow">&rarr;</span> <strong>Library</strong> in the left sidebar</li>
+        <li>Search for <strong>"Gmail API"</strong></li>
+        <li>Click the Gmail API result</li>
+        <li>Click the <strong>Enable</strong> button (highlighted above)</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 3 ═══ -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-number">3</span>
+      <div>
+        <div class="step-title">Configure the OAuth Consent Screen</div>
+        <div class="step-subtitle">This controls what users see when authorizing your app</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p>Before creating credentials, you need to set up the OAuth consent screen.</p>
+
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">console.cloud.google.com/auth/overview</div>
+        </div>
+        <div class="browser-content">
+          <div class="gcp-topbar">
+            <div class="gcp-topbar-hamburger"><span></span><span></span><span></span></div>
+            <div class="gcp-topbar-logo"><span class="cloud-icon">&#9729;</span> Google Cloud</div>
+            <div class="gcp-project-badge">RetailEdge &#9662;</div>
+          </div>
+          <div class="gcp-layout">
+            <div class="gcp-sidebar">
+              <div class="gcp-sidebar-item">APIs & Services</div>
+              <div class="gcp-sidebar-item">&nbsp;&nbsp;Library</div>
+              <div class="gcp-sidebar-item">&nbsp;&nbsp;Credentials</div>
+              <div class="gcp-sidebar-item active">&nbsp;&nbsp;OAuth consent</div>
+            </div>
+            <div class="gcp-main">
+              <h3>OAuth consent screen</h3>
+              <div class="mock-form">
+                <div class="mock-field">
+                  <label>App name</label>
+                  <input type="text" value="RetailEdge" readonly />
+                </div>
+                <div class="mock-field">
+                  <label>User support email</label>
+                  <input type="text" value="you@company.com" readonly />
+                </div>
+                <div style="margin: 8px 0;">
+                  <label style="font-size: 12px; color: var(--gray-600); font-weight: 500; display: block; margin-bottom: 6px;">Scopes</label>
+                  <table class="scopes-table">
+                    <tr>
+                      <td>gmail.readonly</td>
+                      <td>Read-only access to Gmail</td>
+                    </tr>
+                    <tr>
+                      <td>userinfo.email</td>
+                      <td>See your email address</td>
+                    </tr>
+                  </table>
+                </div>
+                <div class="mock-field">
+                  <label>Test users</label>
+                  <input type="text" value="your-gmail@gmail.com" readonly style="border-color: var(--amber);" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ol>
+        <li>Go to <strong>APIs & Services</strong> <span class="highlight-arrow">&rarr;</span> <strong>OAuth consent screen</strong></li>
+        <li>If prompted, choose <strong>External</strong> user type (or <strong>Internal</strong> if using Google Workspace)</li>
+        <li>Click <strong>Get Started</strong> and fill in the form:
+          <ul>
+            <li>App name: <strong>RetailEdge</strong></li>
+            <li>User support email: <strong>your email</strong></li>
+          </ul>
+        </li>
+        <li>Click <strong>Add or Remove Scopes</strong> and add:
+          <ul>
+            <li><code>https://www.googleapis.com/auth/gmail.readonly</code></li>
+            <li><code>https://www.googleapis.com/auth/userinfo.email</code></li>
+          </ul>
+        </li>
+        <li>Under <strong>Test Users</strong>, add the Gmail address you want to connect</li>
+        <li>Click <strong>Save and Continue</strong></li>
+      </ol>
+
+      <div class="callout callout-warning">
+        <span class="callout-icon">&#9888;</span>
+        <div><strong>Important:</strong> You must add your Gmail address as a <strong>Test User</strong>, or you won't be able to authorize the connection. Your app stays in "Testing" mode until you publish it.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 4 ═══ -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-number">4</span>
+      <div>
+        <div class="step-title">Create OAuth 2.0 Credentials</div>
+        <div class="step-subtitle">This generates the Client ID and Client Secret you need</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p>Now create the OAuth credentials that RetailEdge will use to connect to Gmail.</p>
+
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">console.cloud.google.com/apis/credentials</div>
+        </div>
+        <div class="browser-content">
+          <div class="gcp-topbar">
+            <div class="gcp-topbar-hamburger"><span></span><span></span><span></span></div>
+            <div class="gcp-topbar-logo"><span class="cloud-icon">&#9729;</span> Google Cloud</div>
+            <div class="gcp-project-badge">RetailEdge &#9662;</div>
+          </div>
+          <div class="gcp-layout">
+            <div class="gcp-sidebar">
+              <div class="gcp-sidebar-item">APIs & Services</div>
+              <div class="gcp-sidebar-item">&nbsp;&nbsp;Library</div>
+              <div class="gcp-sidebar-item active">&nbsp;&nbsp;Credentials</div>
+              <div class="gcp-sidebar-item">&nbsp;&nbsp;OAuth consent</div>
+            </div>
+            <div class="gcp-main">
+              <h3>Credentials</h3>
+              <div style="margin-bottom: 20px;">
+                <div class="highlight-box">
+                  <span class="gcp-btn gcp-btn-primary">+ CREATE CREDENTIALS</span>
+                </div>
+              </div>
+              <div style="background: white; border: 1px solid var(--gray-200); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: inline-block; padding: 4px 0;">
+                <div style="padding: 8px 16px; font-size: 13px; color: var(--gray-500); cursor: default;">API key</div>
+                <div class="highlight-box" style="padding: 8px 16px; font-size: 13px; font-weight: 600; color: var(--gcp-blue); cursor: default; background: var(--gcp-blue-light);">OAuth client ID</div>
+                <div style="padding: 8px 16px; font-size: 13px; color: var(--gray-500); cursor: default;">Service account</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ol>
+        <li>Go to <strong>APIs & Services</strong> <span class="highlight-arrow">&rarr;</span> <strong>Credentials</strong></li>
+        <li>Click <strong>Create Credentials</strong> (highlighted above)</li>
+        <li>Select <strong>OAuth client ID</strong> from the dropdown</li>
+        <li>Set application type to <strong>Web application</strong></li>
+        <li>Name it <strong>"RetailEdge"</strong></li>
+        <li>Under <strong>Authorized redirect URIs</strong>, click <strong>Add URI</strong> and paste this exact URL:</li>
+      </ol>
+
+      <div class="copy-block">
+        <code id="redirect-uri">http://localhost:3001/api/gmail/oauth/callback</code>
+        <button class="copy-btn" onclick="copyText('redirect-uri')">Copy</button>
+      </div>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">&#8505;</span>
+        <div>The redirect URI must match <strong>exactly</strong>. If your RetailEdge server runs on a different port or domain, update accordingly.</div>
+      </div>
+
+      <ol start="7">
+        <li>Click <strong>Create</strong></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 5 ═══ -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-number">5</span>
+      <div>
+        <div class="step-title">Copy Your Client ID and Client Secret</div>
+        <div class="step-subtitle">Save these values — you'll need them in the next step</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p>After clicking Create, a dialog shows your new credentials. Copy both values now.</p>
+
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">console.cloud.google.com/apis/credentials</div>
+        </div>
+        <div class="browser-content" style="padding: 30px; display: flex; justify-content: center;">
+          <div style="background: white; border: 1px solid var(--gray-200); border-radius: 12px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); max-width: 480px; width: 100%;">
+            <div style="font-size: 18px; font-weight: 500; color: var(--gcp-dark); margin-bottom: 4px;">OAuth client created</div>
+            <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 20px;">Your Client ID and Client Secret have been created.</div>
+
+            <div class="cred-display">
+              <div class="cred-row">
+                <div class="cred-label">Client ID</div>
+                <div class="highlight-box" style="flex: 1; margin: 0 8px;">
+                  <div class="cred-value">123456789012-abc123def456.apps.googleusercontent.com</div>
+                </div>
+                <span class="cred-copy-btn">Copy</span>
+              </div>
+              <div class="cred-row">
+                <div class="cred-label">Client Secret</div>
+                <div class="highlight-box" style="flex: 1; margin: 0 8px;">
+                  <div class="cred-value">GOCSPX-AbCdEfGhIjKlMnOpQrStUvWx</div>
+                </div>
+                <span class="cred-copy-btn">Copy</span>
+              </div>
+            </div>
+
+            <div style="text-align: right; margin-top: 16px;">
+              <span class="gcp-btn gcp-btn-primary" style="padding: 8px 24px;">OK</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout callout-warning">
+        <span class="callout-icon">&#9888;</span>
+        <div><strong>Copy the Client Secret now!</strong> Google may only show the full secret once. If you lose it, you'll need to create a new credential. Store both values securely.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 6 ═══ -->
+  <div class="step">
+    <div class="step-header">
+      <span class="step-number">6</span>
+      <div>
+        <div class="step-title">Paste Credentials into RetailEdge</div>
+        <div class="step-subtitle">You're almost done!</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p>Go back to RetailEdge and paste your credentials into the integration settings.</p>
+
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <div class="browser-dots"><span></span><span></span><span></span></div>
+          <div class="browser-url">localhost:5174/settings</div>
+        </div>
+        <div class="browser-content">
+          <div style="display: flex; min-height: 250px;">
+            <div class="re-sidebar">
+              <div class="re-sidebar-brand">RetailEdge</div>
+              <div class="re-sidebar-item">Dashboard</div>
+              <div class="re-sidebar-item">Invoices</div>
+              <div class="re-sidebar-item">Products</div>
+              <div class="re-sidebar-item active">Settings</div>
+            </div>
+            <div class="re-main">
+              <div style="font-size: 14px; font-weight: 600; color: var(--gray-900); margin-bottom: 12px;">Settings &rsaquo; Integrations</div>
+              <div class="re-card">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <div style="width: 28px; height: 28px; background: #fef2f2; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#ef4444"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                  </div>
+                  <span style="font-size: 13px; font-weight: 600; color: var(--gray-900);">Gmail Integration</span>
+                </div>
+                <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px;">
+                  <div style="font-size: 12px; font-weight: 600; color: var(--gray-700); margin-bottom: 8px;">
+                    <span style="background: var(--brand-light); color: var(--brand); width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; margin-right: 6px;">1</span>
+                    Google Cloud Credentials
+                  </div>
+                  <div class="re-field">
+                    <label>Client ID</label>
+                    <div class="highlight-box" style="display: block;">
+                      <input type="text" value="123456789012-abc...googleusercontent.com" readonly />
+                    </div>
+                  </div>
+                  <div class="re-field">
+                    <label>Client Secret</label>
+                    <div class="highlight-box" style="display: block;">
+                      <input type="password" value="GOCSPX-AbCdEfGhI..." readonly />
+                    </div>
+                  </div>
+                  <span class="re-btn">Save Credentials</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ol>
+        <li>Open RetailEdge and go to <strong>Settings</strong> <span class="highlight-arrow">&rarr;</span> <strong>Integrations</strong></li>
+        <li>Paste your <strong>Client ID</strong> into the first field (highlighted above)</li>
+        <li>Paste your <strong>Client Secret</strong> into the second field</li>
+        <li>Click <strong>Save Credentials</strong></li>
+        <li>Click <strong>Connect Gmail</strong> (appears after credentials are saved)</li>
+        <li>Authorize in the Google popup that opens</li>
+      </ol>
+
+      <div class="callout callout-tip">
+        <span class="callout-icon">&#10004;</span>
+        <div><strong>Done!</strong> Once connected, you'll see your Gmail address and a "Poll Now" button. You can configure sender filters, Gmail label filters, and polling intervals.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Troubleshooting ═══ -->
+  <div class="step" style="border-color: var(--amber);">
+    <div class="step-header" style="background: var(--amber-light);">
+      <span class="step-number" style="background: var(--amber);">?</span>
+      <div>
+        <div class="step-title">Troubleshooting</div>
+        <div class="step-subtitle">Common issues and how to fix them</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <tr style="border-bottom: 1px solid var(--gray-100);">
+          <td style="padding: 10px 8px; font-weight: 600; color: var(--gray-700); width: 40%; vertical-align: top;">"redirect_uri_mismatch"</td>
+          <td style="padding: 10px 8px; color: var(--gray-600);">The redirect URI in Google Console must exactly match <code style="font-size: 11px; background: var(--gray-100); padding: 1px 4px; border-radius: 3px;">http://localhost:3001/api/gmail/oauth/callback</code></td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--gray-100);">
+          <td style="padding: 10px 8px; font-weight: 600; color: var(--gray-700); vertical-align: top;">"access_denied"</td>
+          <td style="padding: 10px 8px; color: var(--gray-600);">Make sure you added your Gmail address as a <strong>Test User</strong> in the OAuth consent screen (Step 3)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--gray-100);">
+          <td style="padding: 10px 8px; font-weight: 600; color: var(--gray-700); vertical-align: top;">Popup blocked</td>
+          <td style="padding: 10px 8px; color: var(--gray-600);">Allow popups for your RetailEdge URL in your browser settings</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--gray-100);">
+          <td style="padding: 10px 8px; font-weight: 600; color: var(--gray-700); vertical-align: top;">"invalid_grant"</td>
+          <td style="padding: 10px 8px; color: var(--gray-600);">Your Gmail access was revoked. Click <strong>Disconnect</strong> in RetailEdge and reconnect</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 8px; font-weight: 600; color: var(--gray-700); vertical-align: top;">Lost your Client Secret</td>
+          <td style="padding: 10px 8px; color: var(--gray-600);">Go back to Google Cloud Console <span class="highlight-arrow">&rarr;</span> Credentials, delete the old OAuth client, and create a new one</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function copyText(elementId) {
+  const el = document.getElementById(elementId);
+  const text = el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = el.nextElementSibling;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+</script>
+
+</body>
+</html>

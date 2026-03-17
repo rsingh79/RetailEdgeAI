@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RetailEdge — Mockups</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'sans-serif'] },
+      colors: {
+        brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' },
+        sidebar: { bg:'#0f172a', hover:'#1e293b', active:'#334155' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .nav-item.active { background: #334155; }
+  .editable:focus { outline: 2px solid #0d9488; border-radius: 4px; }
+  .expand-row { display: none; }
+  .expand-row.open { display: table-row; }
+  .bulk-bar { transform: translateY(100%); transition: transform 0.2s; }
+  .bulk-bar.visible { transform: translateY(0); }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900 antialiased">
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="screen active min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+  <div class="w-full max-w-md">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        </div>
+        <span class="text-2xl font-bold text-white">RetailEdge</span>
+      </div>
+      <p class="text-slate-400 text-sm">Invoice, pricing & margin management</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      <h2 class="text-xl font-semibold mb-6">Sign in to your account</h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+          <input type="email" value="sarah@greengrocer.com.au" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <input type="password" value="password123" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+        </div>
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked class="rounded border-gray-300 text-brand-600"> Remember me</label>
+          <a href="#" class="text-sm text-brand-600 hover:text-brand-700">Forgot password?</a>
+        </div>
+        <button onclick="showApp()" class="w-full py-2.5 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 transition">Sign In</button>
+      </div>
+      <p class="mt-6 text-center text-sm text-gray-500">Don't have an account? <a href="#" class="text-brand-600 font-medium">Create account</a></p>
+    </div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="app-shell" class="hidden min-h-screen flex">
+
+  <!-- SIDEBAR -->
+  <aside class="w-64 bg-sidebar-bg text-white flex flex-col flex-shrink-0 fixed h-full z-30">
+    <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+      <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-sm">RetailEdge</div>
+        <div class="text-xs text-slate-400">Green Grocer Co.</div>
+      </div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <a onclick="showScreen('dashboard')" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zm9.75-9.75A2.25 2.25 0 0115.75 3.75H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/></svg>
+        Dashboard
+      </a>
+      <a onclick="showScreen('invoices')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+        Invoices
+        <span class="ml-auto bg-brand-600 text-white text-xs px-2 py-0.5 rounded-full">12</span>
+      </a>
+      <a onclick="showScreen('review')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+        Review
+        <span class="ml-auto bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">5</span>
+      </a>
+      <a onclick="showScreen('products')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+        Products
+      </a>
+      <a onclick="showScreen('pricing')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Pricing Rules
+      </a>
+      <a onclick="showScreen('reports')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zm6.75-4.5c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zm6.75-3c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v14.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V5.625z"/></svg>
+        Reports
+      </a>
+      <div class="mt-4 pt-4 border-t border-slate-700/50">
+        <a onclick="showScreen('settings')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+          <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Settings
+        </a>
+      </div>
+    </nav>
+    <div class="p-4 border-t border-slate-700/50">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-brand-600 rounded-full flex items-center justify-center text-sm font-medium">SM</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate">Sarah Mitchell</div>
+          <div class="text-xs text-slate-400">Owner</div>
+        </div>
+        <button onclick="showLogin()" class="text-slate-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 ml-64">
+    <!-- TOP BAR -->
+    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <h1 id="page-title" class="text-lg font-semibold">Dashboard</h1>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="relative">
+          <input type="text" placeholder="Search products, invoices..." class="w-72 pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:bg-white">
+          <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <button class="relative p-2 text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+          <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- DASHBOARD -->
+    <div id="screen-dashboard" class="screen active p-6 space-y-6">
+      <!-- Stats -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-medium text-gray-500">Pending Invoices</span>
+            <div class="w-10 h-10 bg-brand-50 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
+          </div>
+          <div class="text-3xl font-bold">12</div>
+          <div class="text-sm text-gray-500 mt-1"><span class="text-amber-600 font-medium">3 urgent</span> &middot; 9 normal</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-medium text-gray-500">Awaiting Approval</span>
+            <div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+          </div>
+          <div class="text-3xl font-bold">5</div>
+          <div class="text-sm text-gray-500 mt-1"><span class="text-brand-600 font-medium">$2,340</span> in cost changes</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-medium text-gray-500">Margin Alerts</span>
+            <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg></div>
+          </div>
+          <div class="text-3xl font-bold text-red-600">3</div>
+          <div class="text-sm text-gray-500 mt-1">Products below min margin</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-medium text-gray-500">Cost Changes Today</span>
+            <div class="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg></div>
+          </div>
+          <div class="text-3xl font-bold">8</div>
+          <div class="text-sm text-gray-500 mt-1"><span class="text-emerald-600 font-medium">+2.4%</span> avg increase</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-6">
+        <!-- Action Queue -->
+        <div class="col-span-2 bg-white rounded-xl border border-gray-200">
+          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="font-semibold">Review Queue</h2>
+            <button onclick="showScreen('review')" class="text-sm text-brand-600 font-medium hover:text-brand-700">View all &rarr;</button>
+          </div>
+          <div class="divide-y divide-gray-100">
+            <div class="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 cursor-pointer" onclick="showScreen('review')">
+              <div class="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium">Smith & Sons Wholesale</div>
+                <div class="text-xs text-gray-500">INV-2024-0847 &middot; 14 line items &middot; $3,245.60</div>
+              </div>
+              <span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">Urgent</span>
+              <span class="text-xs text-gray-400">2h ago</span>
+            </div>
+            <div class="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 cursor-pointer" onclick="showScreen('review')">
+              <div class="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium">Fresh Fields Produce</div>
+                <div class="text-xs text-gray-500">INV-FF-1203 &middot; 22 line items &middot; $5,891.20</div>
+              </div>
+              <span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">Urgent</span>
+              <span class="text-xs text-gray-400">3h ago</span>
+            </div>
+            <div class="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 cursor-pointer" onclick="showScreen('review')">
+              <div class="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium">Aussie Pet Supplies</div>
+                <div class="text-xs text-gray-500">INV-APS-0412 &middot; 8 line items &middot; $1,567.80</div>
+              </div>
+              <span class="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Cost increase</span>
+              <span class="text-xs text-gray-400">5h ago</span>
+            </div>
+            <div class="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 cursor-pointer" onclick="showScreen('review')">
+              <div class="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium">Pacific Health Distributors</div>
+                <div class="text-xs text-gray-500">INV-PHD-9981 &middot; 31 line items &middot; $8,442.00</div>
+              </div>
+              <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Normal</span>
+              <span class="text-xs text-gray-400">1d ago</span>
+            </div>
+            <div class="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 cursor-pointer" onclick="showScreen('review')">
+              <div class="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium">GourmetCo Foods</div>
+                <div class="text-xs text-gray-500">INV-GC-5567 &middot; 11 line items &middot; $2,190.40</div>
+              </div>
+              <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Normal</span>
+              <span class="text-xs text-gray-400">1d ago</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions + Recent Activity -->
+        <div class="space-y-6">
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 class="font-semibold mb-4">Quick Actions</h2>
+            <div class="space-y-2">
+              <button onclick="showScreen('invoices')" class="w-full flex items-center gap-3 px-4 py-3 bg-brand-50 text-brand-700 rounded-lg hover:bg-brand-100 transition text-sm font-medium">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                Upload Invoice
+              </button>
+              <button onclick="showScreen('review')" class="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition text-sm font-medium">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+                Review Queue
+              </button>
+              <button onclick="showScreen('reports')" class="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition text-sm font-medium">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z"/></svg>
+                View Reports
+              </button>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 class="font-semibold mb-4">Recent Activity</h2>
+            <div class="space-y-3">
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+                <div><div class="text-sm">Approved 8 price updates from <span class="font-medium">Metro Dairy</span></div><div class="text-xs text-gray-400">Yesterday at 4:32pm</div></div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg></div>
+                <div><div class="text-sm">Uploaded 3 invoices from <span class="font-medium">Fresh Fields</span></div><div class="text-xs text-gray-400">Yesterday at 2:15pm</div></div>
+              </div>
+              <div class="flex items-start gap-3">
+                <div class="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/></svg></div>
+                <div><div class="text-sm">Margin alert: <span class="font-medium">Organic Almonds 1kg</span> dropped to 18%</div><div class="text-xs text-gray-400">2 days ago</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVOICE UPLOAD -->
+    <div id="screen-invoices" class="screen p-6 space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Upload Invoices</h2>
+          <p class="text-sm text-gray-500 mt-1">Upload supplier invoices for OCR extraction and review</p>
+        </div>
+      </div>
+      <!-- Drop Zone -->
+      <div class="bg-white rounded-xl border-2 border-dashed border-gray-300 hover:border-brand-400 transition p-12 text-center cursor-pointer">
+        <div class="flex flex-col items-center">
+          <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+          </div>
+          <p class="text-lg font-medium text-gray-700">Drop files here or click to browse</p>
+          <p class="text-sm text-gray-400 mt-2">PDF, JPG, PNG, CSV, or XLSX &middot; Max 25MB per file</p>
+          <button class="mt-4 px-6 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">Select Files</button>
+        </div>
+      </div>
+      <!-- Recent Uploads -->
+      <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100">
+          <h3 class="font-semibold">Recent Uploads</h3>
+        </div>
+        <table class="w-full">
+          <thead><tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-5 py-3">File</th><th class="px-5 py-3">Supplier</th><th class="px-5 py-3">Lines</th><th class="px-5 py-3">Status</th><th class="px-5 py-3">Uploaded</th><th class="px-5 py-3"></th>
+          </tr></thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr class="hover:bg-gray-50">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M7 18h10V6H7v12zM14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg><span class="text-sm font-medium">INV-2024-0847.pdf</span></div></td>
+              <td class="px-5 py-3 text-sm">Smith & Sons Wholesale</td>
+              <td class="px-5 py-3 text-sm">14</td>
+              <td class="px-5 py-3"><span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Ready for review</span></td>
+              <td class="px-5 py-3 text-sm text-gray-500">2 hours ago</td>
+              <td class="px-5 py-3"><button onclick="showScreen('review')" class="text-sm text-brand-600 font-medium hover:text-brand-700">Review &rarr;</button></td>
+            </tr>
+            <tr class="hover:bg-gray-50">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M7 18h10V6H7v12zM14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg><span class="text-sm font-medium">INV-FF-1203.pdf</span></div></td>
+              <td class="px-5 py-3 text-sm">Fresh Fields Produce</td>
+              <td class="px-5 py-3 text-sm">22</td>
+              <td class="px-5 py-3"><span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Ready for review</span></td>
+              <td class="px-5 py-3 text-sm text-gray-500">3 hours ago</td>
+              <td class="px-5 py-3"><button onclick="showScreen('review')" class="text-sm text-brand-600 font-medium hover:text-brand-700">Review &rarr;</button></td>
+            </tr>
+            <tr class="hover:bg-gray-50">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M7 18h10V6H7v12zM14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg><span class="text-sm font-medium">APS-April-Statement.xlsx</span></div></td>
+              <td class="px-5 py-3 text-sm">Aussie Pet Supplies</td>
+              <td class="px-5 py-3 text-sm">8</td>
+              <td class="px-5 py-3"><span class="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"/></svg> Processing</span></td>
+              <td class="px-5 py-3 text-sm text-gray-500">5 hours ago</td>
+              <td class="px-5 py-3"><span class="text-sm text-gray-400">Pending...</span></td>
+            </tr>
+            <tr class="hover:bg-gray-50">
+              <td class="px-5 py-3"><div class="flex items-center gap-2"><svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M7 18h10V6H7v12zM14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/></svg><span class="text-sm font-medium">handwritten-invoice.jpg</span></div></td>
+              <td class="px-5 py-3 text-sm text-gray-400">Unknown</td>
+              <td class="px-5 py-3 text-sm text-gray-400">&mdash;</td>
+              <td class="px-5 py-3"><span class="px-2.5 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">OCR failed</span></td>
+              <td class="px-5 py-3 text-sm text-gray-500">1 day ago</td>
+              <td class="px-5 py-3"><button class="text-sm text-gray-500 hover:text-gray-700">Retry</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REVIEW WORKSPACE -->
+    <div id="screen-review" class="screen p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Invoice Review</h2>
+          <p class="text-sm text-gray-500 mt-1">Review matched products, costs and approve price changes</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="margin-toggle" onclick="toggleMargin()" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition">Margin: %</button>
+          <select class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+            <option>All Suppliers</option><option>Smith & Sons</option><option>Fresh Fields</option>
+          </select>
+          <select class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+            <option>All Statuses</option><option>Pending</option><option>Approved</option><option>On Hold</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Supplier Group: Smith & Sons -->
+      <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between cursor-pointer" onclick="toggleSupplier('smith')">
+          <div class="flex items-center gap-3">
+            <svg id="smith-chevron" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+            <div>
+              <span class="font-semibold text-sm">Smith & Sons Wholesale</span>
+              <span class="text-xs text-gray-500 ml-3">1 invoice &middot; 4 items &middot; $3,245.60</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">2 cost increases</span>
+            <button onclick="event.stopPropagation()" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700">Approve All</button>
+          </div>
+        </div>
+        <div id="smith-body">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">
+              <th class="px-4 py-2.5 w-8"><input type="checkbox" class="rounded border-gray-300 text-brand-600" onchange="toggleAll(this, 'smith')"></th>
+              <th class="px-3 py-2.5">Invoice Product</th>
+              <th class="px-3 py-2.5">Matched POS Product</th>
+              <th class="px-3 py-2.5">Ecom Product</th>
+              <th class="px-3 py-2.5 text-right">Inv. Cost</th>
+              <th class="px-3 py-2.5 text-right">Curr. Cost</th>
+              <th class="px-3 py-2.5 text-right">Delta</th>
+              <th class="px-3 py-2.5 text-right">Curr. Price</th>
+              <th class="px-3 py-2.5 text-right">Prop. Price</th>
+              <th class="px-3 py-2.5 text-right margin-col">Margin</th>
+              <th class="px-3 py-2.5 text-center">Conf.</th>
+              <th class="px-3 py-2.5 text-center">Status</th>
+              <th class="px-3 py-2.5 w-8"></th>
+            </tr></thead>
+            <tbody class="divide-y divide-gray-50">
+              <tr class="hover:bg-gray-50 group">
+                <td class="px-4 py-3"><input type="checkbox" class="smith-cb rounded border-gray-300 text-brand-600"></td>
+                <td class="px-3 py-3 font-medium">Free Range Eggs 700g</td>
+                <td class="px-3 py-3 text-gray-600">Free Range Eggs Dozen 700g</td>
+                <td class="px-3 py-3 text-gray-400">Free Range Eggs 700g</td>
+                <td class="px-3 py-3 text-right font-mono">$4.80</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-500">$4.50</td>
+                <td class="px-3 py-3 text-right font-mono text-red-600 font-medium">+$0.30</td>
+                <td class="px-3 py-3 text-right font-mono">$7.99</td>
+                <td class="px-3 py-3 text-right"><input type="text" value="$8.49" class="editable w-20 text-right font-mono px-2 py-1 border border-transparent hover:border-gray-300 rounded bg-transparent focus:bg-white focus:border-brand-500"></td>
+                <td class="px-3 py-3 text-right font-mono margin-col">43.5%</td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">High</span></td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Pending</span></td>
+                <td class="px-3 py-3"><button class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600" onclick="toggleExpandRow('expand-1')"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button></td>
+              </tr>
+              <!-- Expandable detail row -->
+              <tr id="expand-1" class="expand-row bg-slate-50">
+                <td colspan="13" class="px-8 py-4">
+                  <div class="grid grid-cols-3 gap-6 text-xs">
+                    <div>
+                      <div class="font-semibold text-gray-700 mb-2 uppercase tracking-wider">Pack Conversion</div>
+                      <div class="space-y-1 text-gray-600">
+                        <div>Supplier pack: <span class="font-medium">Dozen (12 eggs) 700g</span></div>
+                        <div>Base unit cost: <span class="font-medium font-mono">$4.80 / dozen</span></div>
+                        <div>Conversion: <span class="font-medium">1:1 (sold as dozen)</span></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-700 mb-2 uppercase tracking-wider">POS Variants</div>
+                      <table class="w-full text-xs">
+                        <tr class="border-b border-gray-200"><th class="text-left py-1 text-gray-500">Variant</th><th class="text-right py-1 text-gray-500">Cost</th><th class="text-right py-1 text-gray-500">Price</th><th class="text-right py-1 text-gray-500">Margin</th></tr>
+                        <tr><td class="py-1">Free Range Eggs 700g</td><td class="text-right font-mono">$4.80</td><td class="text-right font-mono">$8.49</td><td class="text-right font-mono text-emerald-600">43.5%</td></tr>
+                      </table>
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-700 mb-2 uppercase tracking-wider">Ecommerce Variants</div>
+                      <table class="w-full text-xs">
+                        <tr class="border-b border-gray-200"><th class="text-left py-1 text-gray-500">Variant</th><th class="text-right py-1 text-gray-500">Cost</th><th class="text-right py-1 text-gray-500">Price</th><th class="text-right py-1 text-gray-500">Margin</th></tr>
+                        <tr><td class="py-1">Free Range Eggs 700g</td><td class="text-right font-mono">$4.80</td><td class="text-right font-mono">$8.99</td><td class="text-right font-mono text-emerald-600">46.6%</td></tr>
+                      </table>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50 group">
+                <td class="px-4 py-3"><input type="checkbox" class="smith-cb rounded border-gray-300 text-brand-600"></td>
+                <td class="px-3 py-3 font-medium">Organic Rolled Oats 10kg</td>
+                <td class="px-3 py-3 text-gray-600">Organic Rolled Oats 1kg</td>
+                <td class="px-3 py-3 text-gray-400">Organic Oats 1kg / 500g</td>
+                <td class="px-3 py-3 text-right font-mono">$28.50</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-500">$26.00</td>
+                <td class="px-3 py-3 text-right font-mono text-red-600 font-medium">+$2.50</td>
+                <td class="px-3 py-3 text-right font-mono">$5.99</td>
+                <td class="px-3 py-3 text-right"><input type="text" value="$6.49" class="editable w-20 text-right font-mono px-2 py-1 border border-transparent hover:border-gray-300 rounded bg-transparent focus:bg-white focus:border-brand-500"></td>
+                <td class="px-3 py-3 text-right font-mono margin-col">56.1%</td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">High</span></td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Pending</span></td>
+                <td class="px-3 py-3"><button class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600" onclick="toggleExpandRow('expand-2')"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button></td>
+              </tr>
+              <tr id="expand-2" class="expand-row bg-slate-50">
+                <td colspan="13" class="px-8 py-4">
+                  <div class="grid grid-cols-3 gap-6 text-xs">
+                    <div>
+                      <div class="font-semibold text-gray-700 mb-2 uppercase tracking-wider">Pack Conversion</div>
+                      <div class="space-y-1 text-gray-600">
+                        <div>Supplier pack: <span class="font-medium">10kg bag</span></div>
+                        <div>Base unit cost: <span class="font-medium font-mono">$2.85 / kg</span></div>
+                        <div>Conversion: <span class="font-medium">10kg &rarr; 1kg, 500g sellable units</span></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-700 mb-2 uppercase tracking-wider">POS Variants</div>
+                      <table class="w-full text-xs">
+                        <tr class="border-b border-gray-200"><th class="text-left py-1 text-gray-500">Variant</th><th class="text-right py-1 text-gray-500">Cost</th><th class="text-right py-1 text-gray-500">Price</th><th class="text-right py-1 text-gray-500">Margin</th></tr>
+                        <tr><td class="py-1">Rolled Oats 1kg</td><td class="text-right font-mono">$2.85</td><td class="text-right font-mono">$6.49</td><td class="text-right font-mono text-emerald-600">56.1%</td></tr>
+                      </table>
+                    </div>
+                    <div>
+                      <div class="font-semibold text-gray-700 mb-2 uppercase tracking-wider">Ecommerce Variants</div>
+                      <table class="w-full text-xs">
+                        <tr class="border-b border-gray-200"><th class="text-left py-1 text-gray-500">Variant</th><th class="text-right py-1 text-gray-500">Cost</th><th class="text-right py-1 text-gray-500">Price</th><th class="text-right py-1 text-gray-500">Margin</th></tr>
+                        <tr><td class="py-1">Organic Oats 1kg</td><td class="text-right font-mono">$2.85</td><td class="text-right font-mono">$6.99</td><td class="text-right font-mono text-emerald-600">59.2%</td></tr>
+                        <tr><td class="py-1">Organic Oats 500g</td><td class="text-right font-mono">$1.43</td><td class="text-right font-mono">$3.99</td><td class="text-right font-mono text-emerald-600">64.2%</td></tr>
+                      </table>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr class="hover:bg-gray-50 group">
+                <td class="px-4 py-3"><input type="checkbox" class="smith-cb rounded border-gray-300 text-brand-600"></td>
+                <td class="px-3 py-3 font-medium">Whole Milk Full Cream 2L</td>
+                <td class="px-3 py-3 text-gray-600">Full Cream Milk 2L</td>
+                <td class="px-3 py-3 text-gray-400">Full Cream Milk 2L</td>
+                <td class="px-3 py-3 text-right font-mono">$2.40</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-500">$2.40</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-400">&mdash;</td>
+                <td class="px-3 py-3 text-right font-mono">$4.49</td>
+                <td class="px-3 py-3 text-right"><input type="text" value="$4.49" class="editable w-20 text-right font-mono px-2 py-1 border border-transparent hover:border-gray-300 rounded bg-transparent focus:bg-white focus:border-brand-500"></td>
+                <td class="px-3 py-3 text-right font-mono margin-col">46.5%</td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">High</span></td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Pending</span></td>
+                <td class="px-3 py-3"><button class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button></td>
+              </tr>
+              <tr class="hover:bg-gray-50 group">
+                <td class="px-4 py-3"><input type="checkbox" class="smith-cb rounded border-gray-300 text-brand-600"></td>
+                <td class="px-3 py-3 font-medium">Cheddar Cheese Block 1kg</td>
+                <td class="px-3 py-3 text-gray-600">Cheddar Block 1kg</td>
+                <td class="px-3 py-3 text-gray-400 italic">No match</td>
+                <td class="px-3 py-3 text-right font-mono">$9.20</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-500">$8.80</td>
+                <td class="px-3 py-3 text-right font-mono text-red-600 font-medium">+$0.40</td>
+                <td class="px-3 py-3 text-right font-mono">$16.99</td>
+                <td class="px-3 py-3 text-right"><input type="text" value="$17.49" class="editable w-20 text-right font-mono px-2 py-1 border border-transparent hover:border-gray-300 rounded bg-transparent focus:bg-white focus:border-brand-500"></td>
+                <td class="px-3 py-3 text-right font-mono margin-col">47.4%</td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Med</span></td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Pending</span></td>
+                <td class="px-3 py-3"><button class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Supplier Group: Fresh Fields -->
+      <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between cursor-pointer" onclick="toggleSupplier('fresh')">
+          <div class="flex items-center gap-3">
+            <svg id="fresh-chevron" class="w-5 h-5 text-gray-400 transition-transform rotate-[-90deg]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+            <div>
+              <span class="font-semibold text-sm">Fresh Fields Produce</span>
+              <span class="text-xs text-gray-500 ml-3">2 invoices &middot; 22 items &middot; $5,891.20</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">1 low match</span>
+            <button onclick="event.stopPropagation()" class="px-3 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700">Approve All</button>
+          </div>
+        </div>
+        <div id="fresh-body" class="hidden">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">
+              <th class="px-4 py-2.5 w-8"><input type="checkbox" class="rounded border-gray-300 text-brand-600"></th>
+              <th class="px-3 py-2.5">Invoice Product</th>
+              <th class="px-3 py-2.5">Matched POS Product</th>
+              <th class="px-3 py-2.5">Ecom Product</th>
+              <th class="px-3 py-2.5 text-right">Inv. Cost</th>
+              <th class="px-3 py-2.5 text-right">Curr. Cost</th>
+              <th class="px-3 py-2.5 text-right">Delta</th>
+              <th class="px-3 py-2.5 text-right">Curr. Price</th>
+              <th class="px-3 py-2.5 text-right">Prop. Price</th>
+              <th class="px-3 py-2.5 text-right margin-col">Margin</th>
+              <th class="px-3 py-2.5 text-center">Conf.</th>
+              <th class="px-3 py-2.5 text-center">Status</th>
+              <th class="px-3 py-2.5 w-8"></th>
+            </tr></thead>
+            <tbody class="divide-y divide-gray-50">
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3"><input type="checkbox" class="rounded border-gray-300 text-brand-600"></td>
+                <td class="px-3 py-3 font-medium">Organic Bananas per kg</td>
+                <td class="px-3 py-3 text-gray-600">Organic Bananas kg</td>
+                <td class="px-3 py-3 text-gray-400">Organic Bananas 1kg</td>
+                <td class="px-3 py-3 text-right font-mono">$3.20</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-500">$2.90</td>
+                <td class="px-3 py-3 text-right font-mono text-red-600 font-medium">+$0.30</td>
+                <td class="px-3 py-3 text-right font-mono">$5.99</td>
+                <td class="px-3 py-3 text-right"><input type="text" value="$6.49" class="editable w-20 text-right font-mono px-2 py-1 border border-transparent hover:border-gray-300 rounded bg-transparent"></td>
+                <td class="px-3 py-3 text-right font-mono margin-col">50.7%</td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">High</span></td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Pending</span></td>
+                <td class="px-3 py-3"></td>
+              </tr>
+              <tr class="hover:bg-gray-50 bg-red-50/30">
+                <td class="px-4 py-3"><input type="checkbox" class="rounded border-gray-300 text-brand-600"></td>
+                <td class="px-3 py-3 font-medium">Ripe Avocados Tray x20</td>
+                <td class="px-3 py-3 text-amber-700">Hass Avocados Each <span class="text-xs">(?)</span></td>
+                <td class="px-3 py-3 text-gray-400 italic">No match</td>
+                <td class="px-3 py-3 text-right font-mono">$38.00</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-500">$1.80</td>
+                <td class="px-3 py-3 text-right font-mono text-red-600 font-medium">+$0.10/ea</td>
+                <td class="px-3 py-3 text-right font-mono">$2.99</td>
+                <td class="px-3 py-3 text-right"><input type="text" value="$3.29" class="editable w-20 text-right font-mono px-2 py-1 border border-transparent hover:border-gray-300 rounded bg-transparent"></td>
+                <td class="px-3 py-3 text-right font-mono margin-col">42.2%</td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">Low</span></td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">Review</span></td>
+                <td class="px-3 py-3"></td>
+              </tr>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3"><input type="checkbox" class="rounded border-gray-300 text-brand-600"></td>
+                <td class="px-3 py-3 font-medium">Baby Spinach 120g</td>
+                <td class="px-3 py-3 text-gray-600">Baby Spinach 120g</td>
+                <td class="px-3 py-3 text-gray-400">Baby Spinach 120g</td>
+                <td class="px-3 py-3 text-right font-mono">$2.10</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-500">$2.10</td>
+                <td class="px-3 py-3 text-right font-mono text-gray-400">&mdash;</td>
+                <td class="px-3 py-3 text-right font-mono">$4.49</td>
+                <td class="px-3 py-3 text-right"><input type="text" value="$4.49" class="editable w-20 text-right font-mono px-2 py-1 border border-transparent hover:border-gray-300 rounded bg-transparent"></td>
+                <td class="px-3 py-3 text-right font-mono margin-col">53.2%</td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">High</span></td>
+                <td class="px-3 py-3 text-center"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Pending</span></td>
+                <td class="px-3 py-3"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bulk Action Bar -->
+      <div id="bulk-bar" class="bulk-bar fixed bottom-0 left-64 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between shadow-lg z-10">
+        <span class="text-sm text-gray-600"><span id="selected-count" class="font-semibold">0</span> items selected</span>
+        <div class="flex items-center gap-3">
+          <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Hold Selected</button>
+          <button class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Export CSV</button>
+          <button class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">Approve Selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div id="screen-products" class="screen p-6 space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Product Catalog</h2>
+          <p class="text-sm text-gray-500 mt-1">348 products across 12 categories</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Import CSV</button>
+          <button class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">+ Add Product</button>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <div class="relative flex-1">
+          <input type="text" placeholder="Search products by name, SKU, barcode..." class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+          <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <select class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm"><option>All Categories</option><option>Dairy</option><option>Produce</option><option>Bakery</option><option>Pantry</option></select>
+        <select class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm"><option>All Suppliers</option><option>Smith & Sons</option><option>Fresh Fields</option></select>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200">
+        <table class="w-full text-sm">
+          <thead><tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-5 py-3">SKU</th><th class="px-5 py-3">Product</th><th class="px-5 py-3">Category</th><th class="px-5 py-3">Supplier</th><th class="px-5 py-3 text-right">Cost</th><th class="px-5 py-3 text-right">Price</th><th class="px-5 py-3 text-right">Margin</th><th class="px-5 py-3 text-right">Stock</th><th class="px-5 py-3">Status</th>
+          </tr></thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr class="hover:bg-gray-50 cursor-pointer"><td class="px-5 py-3 font-mono text-xs text-gray-500">SKU-0012</td><td class="px-5 py-3 font-medium">Free Range Eggs 700g</td><td class="px-5 py-3">Dairy</td><td class="px-5 py-3">Smith & Sons</td><td class="px-5 py-3 text-right font-mono">$4.80</td><td class="px-5 py-3 text-right font-mono">$8.49</td><td class="px-5 py-3 text-right font-mono text-emerald-600">43.5%</td><td class="px-5 py-3 text-right">124</td><td class="px-5 py-3"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Active</span></td></tr>
+            <tr class="hover:bg-gray-50 cursor-pointer"><td class="px-5 py-3 font-mono text-xs text-gray-500">SKU-0034</td><td class="px-5 py-3 font-medium">Organic Rolled Oats 1kg</td><td class="px-5 py-3">Pantry</td><td class="px-5 py-3">Smith & Sons</td><td class="px-5 py-3 text-right font-mono">$2.85</td><td class="px-5 py-3 text-right font-mono">$6.49</td><td class="px-5 py-3 text-right font-mono text-emerald-600">56.1%</td><td class="px-5 py-3 text-right">89</td><td class="px-5 py-3"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Active</span></td></tr>
+            <tr class="hover:bg-gray-50 cursor-pointer"><td class="px-5 py-3 font-mono text-xs text-gray-500">SKU-0056</td><td class="px-5 py-3 font-medium">Organic Bananas kg</td><td class="px-5 py-3">Produce</td><td class="px-5 py-3">Fresh Fields</td><td class="px-5 py-3 text-right font-mono">$3.20</td><td class="px-5 py-3 text-right font-mono">$6.49</td><td class="px-5 py-3 text-right font-mono text-emerald-600">50.7%</td><td class="px-5 py-3 text-right">67</td><td class="px-5 py-3"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Active</span></td></tr>
+            <tr class="hover:bg-gray-50 cursor-pointer"><td class="px-5 py-3 font-mono text-xs text-gray-500">SKU-0078</td><td class="px-5 py-3 font-medium">Organic Almonds 1kg</td><td class="px-5 py-3">Pantry</td><td class="px-5 py-3">GourmetCo</td><td class="px-5 py-3 text-right font-mono">$14.20</td><td class="px-5 py-3 text-right font-mono">$18.99</td><td class="px-5 py-3 text-right font-mono text-red-600">25.2%</td><td class="px-5 py-3 text-right">23</td><td class="px-5 py-3"><span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">Low margin</span></td></tr>
+            <tr class="hover:bg-gray-50 cursor-pointer"><td class="px-5 py-3 font-mono text-xs text-gray-500">SKU-0091</td><td class="px-5 py-3 font-medium">Full Cream Milk 2L</td><td class="px-5 py-3">Dairy</td><td class="px-5 py-3">Smith & Sons</td><td class="px-5 py-3 text-right font-mono">$2.40</td><td class="px-5 py-3 text-right font-mono">$4.49</td><td class="px-5 py-3 text-right font-mono text-emerald-600">46.5%</td><td class="px-5 py-3 text-right">201</td><td class="px-5 py-3"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Active</span></td></tr>
+            <tr class="hover:bg-gray-50 cursor-pointer"><td class="px-5 py-3 font-mono text-xs text-gray-500">SKU-0103</td><td class="px-5 py-3 font-medium">Sourdough Loaf 680g</td><td class="px-5 py-3">Bakery</td><td class="px-5 py-3">Pacific Health</td><td class="px-5 py-3 text-right font-mono">$3.50</td><td class="px-5 py-3 text-right font-mono">$7.49</td><td class="px-5 py-3 text-right font-mono text-emerald-600">53.3%</td><td class="px-5 py-3 text-right">45</td><td class="px-5 py-3"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Active</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PRICING RULES -->
+    <div id="screen-pricing" class="screen p-6 space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Pricing Rules</h2>
+          <p class="text-sm text-gray-500 mt-1">Configure margin targets, markup rules, and rounding strategies</p>
+        </div>
+        <button class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">+ Add Rule</button>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Rule 1 -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 bg-brand-100 text-brand-700 text-xs font-medium rounded">Category</span>
+              <span class="font-semibold text-sm">Default — All Products</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer"><div class="w-9 h-5 bg-gray-200 peer-checked:bg-brand-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label>
+          </div>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">Target margin</span><div class="font-semibold mt-1">40%</div></div>
+            <div><span class="text-gray-500">Min margin</span><div class="font-semibold mt-1">25%</div></div>
+            <div><span class="text-gray-500">Max price jump</span><div class="font-semibold mt-1">10%</div></div>
+            <div><span class="text-gray-500">Rounding</span><div class="font-semibold mt-1">.99 ending</div></div>
+          </div>
+        </div>
+        <!-- Rule 2 -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">Category</span>
+              <span class="font-semibold text-sm">Dairy</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer"><div class="w-9 h-5 bg-gray-200 peer-checked:bg-brand-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label>
+          </div>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">Target margin</span><div class="font-semibold mt-1">35%</div></div>
+            <div><span class="text-gray-500">Min margin</span><div class="font-semibold mt-1">20%</div></div>
+            <div><span class="text-gray-500">Max price jump</span><div class="font-semibold mt-1">8%</div></div>
+            <div><span class="text-gray-500">Rounding</span><div class="font-semibold mt-1">.49 / .99</div></div>
+          </div>
+        </div>
+        <!-- Rule 3 -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded">Supplier</span>
+              <span class="font-semibold text-sm">Fresh Fields Produce</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer"><div class="w-9 h-5 bg-gray-200 peer-checked:bg-brand-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label>
+          </div>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">Target margin</span><div class="font-semibold mt-1">45%</div></div>
+            <div><span class="text-gray-500">Min margin</span><div class="font-semibold mt-1">30%</div></div>
+            <div><span class="text-gray-500">Max price jump</span><div class="font-semibold mt-1">12%</div></div>
+            <div><span class="text-gray-500">Rounding</span><div class="font-semibold mt-1">.99 ending</div></div>
+          </div>
+        </div>
+        <!-- Rule 4 -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-medium rounded">Product</span>
+              <span class="font-semibold text-sm">Organic Almonds 1kg</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked class="sr-only peer"><div class="w-9 h-5 bg-gray-200 peer-checked:bg-brand-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div></label>
+          </div>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">Target margin</span><div class="font-semibold mt-1">30%</div></div>
+            <div><span class="text-gray-500">Min margin</span><div class="font-semibold mt-1">22%</div></div>
+            <div><span class="text-gray-500">Max price jump</span><div class="font-semibold mt-1">15%</div></div>
+            <div><span class="text-gray-500">Rounding</span><div class="font-semibold mt-1">.99 ending</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 class="font-semibold mb-3">Approval Thresholds</h3>
+        <div class="grid grid-cols-3 gap-6 text-sm">
+          <div><span class="text-gray-500">Auto-approve cost changes under</span><div class="font-semibold mt-1">$0.50 or 5%</div></div>
+          <div><span class="text-gray-500">Owner approval required above</span><div class="font-semibold mt-1">$2.00 or 15%</div></div>
+          <div><span class="text-gray-500">Block auto-write-back when margin below</span><div class="font-semibold mt-1">20%</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="screen-reports" class="screen p-6 space-y-6">
+      <div><h2 class="text-lg font-semibold">Reports & Analytics</h2><p class="text-sm text-gray-500 mt-1">Monitor cost movements, margin health, and supplier trends</p></div>
+      <div class="grid grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4"><h3 class="font-semibold">Cost Changes</h3><span class="text-xs text-gray-400">Last 30 days</span></div>
+          <div class="h-40 bg-gradient-to-t from-brand-50 to-transparent rounded-lg flex items-end px-2 pb-2 gap-1">
+            <div class="flex-1 bg-brand-200 rounded-t" style="height:30%"></div><div class="flex-1 bg-brand-300 rounded-t" style="height:45%"></div><div class="flex-1 bg-brand-200 rounded-t" style="height:25%"></div><div class="flex-1 bg-brand-400 rounded-t" style="height:60%"></div><div class="flex-1 bg-brand-300 rounded-t" style="height:40%"></div><div class="flex-1 bg-brand-500 rounded-t" style="height:75%"></div><div class="flex-1 bg-red-400 rounded-t" style="height:90%"></div><div class="flex-1 bg-brand-400 rounded-t" style="height:55%"></div>
+          </div>
+          <div class="flex justify-between mt-3 text-xs text-gray-500"><span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Week 4</span></div>
+          <div class="mt-4 flex items-center gap-4 text-sm"><div><span class="text-gray-500">Total changes:</span> <span class="font-semibold">47</span></div><div><span class="text-gray-500">Avg increase:</span> <span class="font-semibold text-red-600">+3.2%</span></div></div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4"><h3 class="font-semibold">Margin Risk</h3><span class="text-xs text-gray-400">Current snapshot</span></div>
+          <div class="space-y-3">
+            <div><div class="flex justify-between text-sm mb-1"><span>Above target (&gt;40%)</span><span class="font-semibold text-emerald-600">218 products</span></div><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-emerald-500 h-2 rounded-full" style="width:63%"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Within range (25-40%)</span><span class="font-semibold text-amber-600">97 products</span></div><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-amber-500 h-2 rounded-full" style="width:28%"></div></div></div>
+            <div><div class="flex justify-between text-sm mb-1"><span>Below minimum (&lt;25%)</span><span class="font-semibold text-red-600">33 products</span></div><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-red-500 h-2 rounded-full" style="width:9%"></div></div></div>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4"><h3 class="font-semibold">Supplier Analysis</h3><span class="text-xs text-gray-400">Last 90 days</span></div>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-3"><div class="w-3 h-3 bg-brand-500 rounded-full"></div><span>Fresh Fields Produce</span></div><div class="font-mono">$18,420</div></div>
+            <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-3"><div class="w-3 h-3 bg-brand-400 rounded-full"></div><span>Smith & Sons Wholesale</span></div><div class="font-mono">$14,890</div></div>
+            <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-3"><div class="w-3 h-3 bg-brand-300 rounded-full"></div><span>Pacific Health Dist.</span></div><div class="font-mono">$12,340</div></div>
+            <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-3"><div class="w-3 h-3 bg-brand-200 rounded-full"></div><span>GourmetCo Foods</span></div><div class="font-mono">$8,750</div></div>
+            <div class="flex items-center justify-between text-sm"><div class="flex items-center gap-3"><div class="w-3 h-3 bg-gray-300 rounded-full"></div><span>Aussie Pet Supplies</span></div><div class="font-mono">$6,210</div></div>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <div class="flex items-center justify-between mb-4"><h3 class="font-semibold">Price Competitiveness</h3><span class="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">Phase 2</span></div>
+          <div class="h-40 flex items-center justify-center text-gray-400">
+            <div class="text-center"><svg class="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg><p class="text-sm">Competitor monitoring coming soon</p><p class="text-xs text-gray-400 mt-1">Enable in Settings &rarr; Integrations</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="screen-settings" class="screen p-6 space-y-6">
+      <div><h2 class="text-lg font-semibold">Settings</h2></div>
+      <div class="flex gap-3 border-b border-gray-200">
+        <button class="px-4 py-2 text-sm font-medium text-brand-600 border-b-2 border-brand-600">Business Profile</button>
+        <button class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">Users & Roles</button>
+        <button class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">Integrations</button>
+        <button class="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">Notifications</button>
+      </div>
+      <div class="max-w-2xl space-y-6">
+        <div class="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <h3 class="font-semibold">Business Information</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Business Name</label><input type="text" value="Green Grocer Co." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">ABN</label><input type="text" value="12 345 678 901" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Timezone</label><select class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option>Australia/Sydney (AEST)</option></select></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Currency</label><select class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option>AUD ($)</option></select></div>
+          </div>
+          <div class="pt-2"><button class="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">Save Changes</button></div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 class="font-semibold mb-4">Team Members</h3>
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs font-medium text-gray-500 uppercase border-b border-gray-100"><th class="py-2">Name</th><th class="py-2">Email</th><th class="py-2">Role</th><th class="py-2">Status</th></tr></thead>
+            <tbody class="divide-y divide-gray-50">
+              <tr><td class="py-3 font-medium">Sarah Mitchell</td><td class="py-3 text-gray-500">sarah@greengrocer.com.au</td><td class="py-3"><span class="px-2 py-0.5 bg-brand-100 text-brand-700 text-xs font-medium rounded-full">Owner</span></td><td class="py-3"><span class="w-2 h-2 bg-emerald-500 rounded-full inline-block mr-1"></span>Active</td></tr>
+              <tr><td class="py-3 font-medium">James Chen</td><td class="py-3 text-gray-500">james@greengrocer.com.au</td><td class="py-3"><span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">Ops Manager</span></td><td class="py-3"><span class="w-2 h-2 bg-emerald-500 rounded-full inline-block mr-1"></span>Active</td></tr>
+              <tr><td class="py-3 font-medium">Lisa Nguyen</td><td class="py-3 text-gray-500">lisa@greengrocer.com.au</td><td class="py-3"><span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Merchandiser</span></td><td class="py-3"><span class="w-2 h-2 bg-emerald-500 rounded-full inline-block mr-1"></span>Active</td></tr>
+              <tr><td class="py-3 font-medium">Tom Bradley</td><td class="py-3 text-gray-500">tom@greengrocer.com.au</td><td class="py-3"><span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">Store Manager</span></td><td class="py-3"><span class="w-2 h-2 bg-gray-300 rounded-full inline-block mr-1"></span>Invited</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 class="font-semibold mb-4">Integrations</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between"><div><div class="font-medium text-sm">Lightspeed POS</div><div class="text-xs text-gray-400">Point of Sale</div></div><button class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50">Connect</button></div>
+            <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between"><div><div class="font-medium text-sm">Square POS</div><div class="text-xs text-gray-400">Point of Sale</div></div><button class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50">Connect</button></div>
+            <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between"><div><div class="font-medium text-sm">Shopify</div><div class="text-xs text-gray-400">Ecommerce</div></div><button class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50">Connect</button></div>
+            <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between"><div><div class="font-medium text-sm">WooCommerce</div><div class="text-xs text-gray-400">Ecommerce</div></div><button class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium hover:bg-gray-50">Connect</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const screenNames = { dashboard:'Dashboard', invoices:'Upload Invoices', review:'Invoice Review', products:'Product Catalog', pricing:'Pricing Rules', reports:'Reports & Analytics', settings:'Settings' };
+let marginMode = '%';
+
+function showApp() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('app-shell').classList.remove('hidden');
+}
+function showLogin() {
+  document.getElementById('app-shell').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-screen').classList.add('active');
+}
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('page-title').textContent = screenNames[name] || name;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[['dashboard','invoices','review','products','pricing','reports','settings'].indexOf(name)].classList.add('active');
+}
+function toggleSupplier(id) {
+  const body = document.getElementById(id + '-body');
+  const chevron = document.getElementById(id + '-chevron');
+  if (body.classList.contains('hidden')) {
+    body.classList.remove('hidden');
+    chevron.style.transform = 'rotate(0deg)';
+  } else {
+    body.classList.add('hidden');
+    chevron.style.transform = 'rotate(-90deg)';
+  }
+}
+function toggleExpandRow(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+function toggleMargin() {
+  marginMode = marginMode === '%' ? '$' : '%';
+  document.getElementById('margin-toggle').textContent = 'Margin: ' + marginMode;
+  const dollarVals = { '43.5%':'$3.69','56.1%':'$3.64','46.5%':'$2.09','47.4%':'$8.29','50.7%':'$3.29','42.2%':'$1.39','53.2%':'$2.39' };
+  const pctVals = { '$3.69':'43.5%','$3.64':'56.1%','$2.09':'46.5%','$8.29':'47.4%','$3.29':'50.7%','$1.39':'42.2%','$2.39':'53.2%' };
+  document.querySelectorAll('.margin-col').forEach(el => {
+    if (el.tagName === 'TH') return;
+    const cur = el.textContent.trim();
+    if (marginMode === '$' && dollarVals[cur]) el.textContent = dollarVals[cur];
+    else if (marginMode === '%' && pctVals[cur]) el.textContent = pctVals[cur];
+  });
+}
+function toggleAll(master, group) {
+  document.querySelectorAll('.' + group + '-cb').forEach(cb => cb.checked = master.checked);
+  updateBulkBar();
+}
+document.addEventListener('change', function(e) {
+  if (e.target.type === 'checkbox') updateBulkBar();
+});
+function updateBulkBar() {
+  const checked = document.querySelectorAll('#screen-review input[type=checkbox]:checked').length;
+  const bar = document.getElementById('bulk-bar');
+  document.getElementById('selected-count').textContent = checked;
+  if (checked > 0) bar.classList.add('visible'); else bar.classList.remove('visible');
+}
+</script>
+</body>
+</html>

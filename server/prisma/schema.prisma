@@ -1,0 +1,584 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Multi-tenant ──
+
+model Tenant {
+  id                  String   @id @default(cuid())
+  name                String
+  abn                 String?
+  timezone            String   @default("Australia/Sydney")
+  currency            String   @default("AUD")
+  contactEmail        String?
+  contactPhone        String?
+  trialEndsAt         DateTime?
+  isLocked            Boolean  @default(false)
+  lockReason          String?
+  lockedAt            DateTime?
+  lockedBy            String?
+  subscriptionStatus  String   @default("trial")   // trial, active, cancelled, expired
+  paymentMethodOnFile Boolean  @default(false)
+  maxUsers            Int      @default(5)
+  maxStores           Int      @default(2)
+  maxApiCallsPerMonth Int      @default(100)
+  plan                String   @default("starter")  // starter, professional, enterprise
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  users               User[]
+  stores              Store[]
+  suppliers           Supplier[]
+  products            Product[]
+  invoices            Invoice[]
+  pricingRules        PricingRule[]
+  auditLogs           AuditLog[]
+  importTemplates     ImportTemplate[]
+  apiUsageLogs        ApiUsageLog[]
+  accessLogs          TenantAccessLog[]
+  gmailIntegration    GmailIntegration?
+  gmailImportLogs     GmailImportLog[]
+  folderIntegration   FolderIntegration?
+  folderImportLogs    FolderImportLog[]
+  competitorMonitors  CompetitorMonitor[]
+  competitorPrices    CompetitorPrice[]
+  priceAlerts         PriceAlert[]
+}
+
+// ── Auth ──
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String?
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(STORE_MANAGER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant    Tenant?    @relation(fields: [tenantId], references: [id])
+  auditLogs AuditLog[]
+
+  @@index([tenantId])
+}
+
+enum Role {
+  OWNER
+  OPS_MANAGER
+  MERCHANDISER
+  STORE_MANAGER
+  ACCOUNTANT
+  SYSTEM_ADMIN
+}
+
+// ── Stores ──
+
+model Store {
+  id         String    @id @default(cuid())
+  tenantId   String
+  name       String
+  type       StoreType
+  platform   String?   // e.g. "Lightspeed", "Shopify", "WooCommerce"
+  apiConfig  Json?     // encrypted connection details
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  productVariants ProductVariant[]
+
+  @@index([tenantId])
+}
+
+enum StoreType {
+  POS
+  ECOMMERCE
+}
+
+// ── Products ──
+
+model Product {
+  id         String   @id @default(cuid())
+  tenantId   String
+  name       String
+  category   String?
+  baseUnit   String?  // e.g. "kg", "each", "litre"
+  barcode    String?
+  costPrice  Float?   // supplier/wholesale cost
+  sellingPrice Float? // retail selling price
+  source     String?  // POS/ecommerce system (e.g. "Lightspeed", "Shopify")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  variants           ProductVariant[]
+  competitorMonitors CompetitorMonitor[]
+  priceAlerts        PriceAlert[]
+  invoiceMatches     InvoiceLineMatch[]
+
+  @@index([tenantId])
+  @@index([barcode])
+}
+
+model ProductVariant {
+  id          String  @id @default(cuid())
+  productId   String
+  storeId     String
+  sku         String
+  name        String
+  size        String? // e.g. "1kg", "250g", "Dozen"
+  unitQty     Float   @default(1) // how many base units this variant represents
+  currentCost Float   @default(0)
+  salePrice   Float   @default(0)
+  shelfLocation String?
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product        Product              @relation(fields: [productId], references: [id])
+  store          Store                @relation(fields: [storeId], references: [id])
+  invoiceMatches InvoiceLineMatch[]
+
+  @@unique([storeId, sku])
+  @@index([productId])
+  @@index([storeId])
+}
+
+// ── Suppliers ──
+
+model Supplier {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  abn       String?
+  email     String?
+  phone        String?
+  gstInclusive Boolean  @default(false) // does this supplier's line prices include GST?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  invoices Invoice[]
+  mappings SupplierProductMapping[]
+
+  @@index([tenantId])
+}
+
+// ── Invoices ──
+
+model Invoice {
+  id              String        @id @default(cuid())
+  tenantId        String
+  supplierId      String?
+  supplierName    String?       // as detected by OCR
+  invoiceNumber   String?
+  invoiceDate     DateTime?
+  dueDate         DateTime?
+  subtotal        Float?
+  gst             Float?
+  freight         Float?
+  total           Float?
+  freightMethod   FreightMethod @default(PROPORTIONAL_VALUE)
+  gstInclusive    Boolean       @default(false)  // are line prices GST-inclusive?
+  status          InvoiceStatus @default(PROCESSING)
+  ocrConfidence   Float?
+  originalFileUrl String?
+  source          String        @default("manual")  // "manual" or "email"
+  gmailMessageId  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  supplier Supplier?     @relation(fields: [supplierId], references: [id])
+  lines    InvoiceLine[]
+
+  @@index([tenantId])
+  @@index([supplierId])
+}
+
+enum InvoiceStatus {
+  PROCESSING
+  READY
+  IN_REVIEW
+  APPROVED
+  EXPORTED
+  FAILED
+}
+
+enum FreightMethod {
+  EQUAL_SPLIT
+  PROPORTIONAL_VALUE
+  PROPORTIONAL_QTY
+  MANUAL
+}
+
+model InvoiceLine {
+  id               String  @id @default(cuid())
+  invoiceId        String
+  lineNumber       Int
+  description      String  // as shown on invoice
+  quantity         Float
+  unitPrice        Float
+  lineTotal        Float
+  freightAlloc     Float   @default(0)
+  gstAlloc         Float   @default(0)
+  packSize         String? // e.g. "10kg bag", "Tray x30"
+  baseUnit         String? // e.g. "kg", "each"
+  baseUnitCost     Float?  // normalized cost per base unit
+  ocrConfidence    Float?
+  status           LineStatus @default(PENDING)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  invoice Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  matches InvoiceLineMatch[]
+
+  @@index([invoiceId])
+}
+
+enum LineStatus {
+  PENDING
+  MATCHED
+  NEEDS_REVIEW
+  APPROVED
+  HELD
+  FLAGGED
+}
+
+model InvoiceLineMatch {
+  id               String      @id @default(cuid())
+  invoiceLineId    String
+  productVariantId String?     // null for product-level matches (no variant)
+  productId        String?     // direct product ref for variant-less matches
+  confidence       Float       @default(0)
+  matchReason      String?     // e.g. "barcode", "sku", "fuzzy_name"
+  isManual         Boolean     @default(false)
+  matchedByUserId  String?
+  previousCost     Float?
+  newCost          Float?
+  currentPrice     Float?
+  suggestedPrice   Float?
+  approvedPrice    Float?
+  exportFlagged    Boolean     @default(false) // true when user overrode the sell price
+  exportedAt       DateTime?   // null = not exported, date = when exported
+  status           MatchStatus @default(PENDING)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  invoiceLine    InvoiceLine     @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+  product        Product?        @relation(fields: [productId], references: [id])
+
+  @@index([invoiceLineId])
+  @@index([productVariantId])
+  @@index([productId])
+}
+
+enum MatchStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  APPROVED
+  EXPORTED
+}
+
+// ── Supplier-Product Mappings (for reuse) ──
+
+model SupplierProductMapping {
+  id                  String   @id @default(cuid())
+  supplierId          String
+  supplierDescription String   // invoice line description
+  supplierSku         String?
+  productId           String
+  confidence          Float    @default(1)
+  confirmedByUserId   String?
+  timesUsed           Int      @default(1)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@index([supplierDescription])
+}
+
+// ── Pricing Rules ──
+
+model PricingRule {
+  id             String        @id @default(cuid())
+  tenantId       String
+  name           String
+  scope          RuleScope
+  scopeValue     String?       // category name, supplier id, or product id
+  targetMargin   Float?
+  minMargin      Float?
+  maxPriceJump   Float?        // max % increase allowed
+  roundingStrategy String?     // ".99", ".49/.99", "nearest_5"
+  isActive       Boolean       @default(true)
+  priority       Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+enum RuleScope {
+  GLOBAL
+  CATEGORY
+  SUPPLIER
+  PRODUCT
+}
+
+// ── Import Templates ──
+
+model ImportTemplate {
+  id         String   @id @default(cuid())
+  tenantId   String
+  systemName String
+  mapping    Json     // { internalField: externalColumnHeader }
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, systemName])
+  @@index([tenantId])
+}
+
+// ── Audit ──
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  action      String   // e.g. "INVOICE_APPROVED", "PRICE_UPDATED", "MATCH_CONFIRMED"
+  entityType  String   // e.g. "Invoice", "ProductVariant"
+  entityId    String
+  previousVal Json?
+  newVal      Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ── Platform Settings (singleton) ──
+
+model PlatformSettings {
+  id                    String   @id @default("singleton")
+  defaultTrialDays      Int      @default(14)
+  autoLockOnTrialExpiry Boolean  @default(true)
+  gracePeriodDays       Int      @default(3)
+  updatedAt             DateTime @updatedAt
+}
+
+// ── API Usage Tracking ──
+
+model ApiUsageLog {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String?
+  endpoint        String   // "ocr", "chat", etc.
+  model           String?  // Claude model name
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  totalTokens     Int      @default(0)
+  costUsd         Float    @default(0)
+  requestPayload  Json?
+  responsePayload Json?
+  durationMs      Int?
+  status          String   @default("success") // "success" | "error"
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
+}
+
+// ── Tenant Access Log ──
+
+model TenantAccessLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  action      String   // "LOCKED", "UNLOCKED", "REGISTERED"
+  reason      String?
+  performedBy String?  // userId of admin who performed action
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+// ── Gmail Integration ──
+
+model GmailIntegration {
+  id                    String    @id @default(cuid())
+  tenantId              String    @unique
+  googleClientId        String?                      // tenant's own Google OAuth Client ID
+  googleClientSecretEnc String?                      // AES-256-GCM encrypted Client Secret
+  email                 String?                      // connected Gmail address (set after OAuth)
+  accessTokenEnc        String?                      // AES-256-GCM encrypted (set after OAuth)
+  refreshTokenEnc       String?                      // AES-256-GCM encrypted (set after OAuth)
+  tokenExpiresAt        DateTime?
+  historyId             String?                      // Gmail history ID for incremental sync
+  lastPollAt            DateTime?
+  pollIntervalMin       Int       @default(30)
+  isActive              Boolean   @default(true)
+  senderWhitelist       String[]  @default([])       // email addresses to filter
+  labelFilter           String?                      // Gmail label to filter
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model GmailImportLog {
+  id              String    @id @default(cuid())
+  tenantId        String
+  gmailMessageId  String                           // Dedup layer 1: Gmail message ID
+  fileHash        String?                          // Dedup layer 2: SHA-256 of attachment
+  supplierName    String?                          // Dedup layer 3 component
+  invoiceNumber   String?                          // Dedup layer 3 component
+  invoiceDate     DateTime?                        // Dedup layer 3 component
+  senderEmail     String
+  subject         String?
+  attachmentName  String
+  status          String    @default("imported")   // imported, duplicate, failed, skipped
+  duplicateReason String?                          // "message_id", "file_hash", "invoice_match"
+  invoiceId       String?                          // linked Invoice if imported
+  createdAt       DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, gmailMessageId])
+  @@index([tenantId])
+  @@index([tenantId, fileHash])
+  @@index([tenantId, invoiceNumber, invoiceDate])
+}
+
+// ── Folder Polling Integration ──
+
+model FolderIntegration {
+  id               String    @id @default(cuid())
+  tenantId         String    @unique
+  folderPath       String?                          // local or UNC path, e.g. "C:\Invoices" or "\\server\share"
+  lastPollAt       DateTime?
+  pollIntervalMin  Int       @default(30)
+  isActive         Boolean   @default(true)
+  filePatterns     String[]  @default(["*.pdf", "*.jpg", "*.jpeg", "*.png"])
+  moveToProcessed  Boolean   @default(true)         // move files to Processed/ subfolder after import
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model FolderImportLog {
+  id              String    @id @default(cuid())
+  tenantId        String
+  filePath        String                           // Dedup layer 1: original file path
+  fileHash        String?                          // Dedup layer 2: SHA-256 of file contents
+  supplierName    String?                          // Dedup layer 3 component
+  invoiceNumber   String?                          // Dedup layer 3 component
+  invoiceDate     DateTime?                        // Dedup layer 3 component
+  fileName        String
+  fileSize        Int                              // file size in bytes
+  status          String    @default("imported")   // imported, duplicate, failed, skipped
+  duplicateReason String?                          // "file_path", "file_hash", "content_match"
+  invoiceId       String?                          // linked Invoice if imported
+  createdAt       DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, filePath])
+  @@index([tenantId])
+  @@index([tenantId, fileHash])
+  @@index([tenantId, invoiceNumber, invoiceDate])
+}
+
+// ── Competitor Intelligence ──
+
+model CompetitorMonitor {
+  id            String    @id @default(cuid())
+  tenantId      String
+  competitor    String                             // "woolworths", "coles", "aldi", "iga"
+  productId     String                             // RetailEdge product to compare
+  externalUrl   String?                            // competitor product page URL
+  externalSku   String?                            // competitor product code
+  searchTerm    String?                            // search term for matching
+  isActive      Boolean   @default(true)
+  lastScrapedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id])
+  product Product           @relation(fields: [productId], references: [id])
+  prices  CompetitorPrice[]
+
+  @@index([tenantId])
+  @@index([productId])
+  @@index([competitor])
+}
+
+model CompetitorPrice {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  competitorMonitorId String
+  price               Float
+  unitPrice           Float?                       // price per base unit (e.g. per kg)
+  unit                String?                      // "kg", "each", "litre"
+  isOnSpecial         Boolean   @default(false)
+  specialEndDate      DateTime?
+  scrapedAt           DateTime  @default(now())
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id])
+  competitorMonitor CompetitorMonitor @relation(fields: [competitorMonitorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([competitorMonitorId])
+  @@index([scrapedAt])
+}
+
+model PriceAlert {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  alertType   String                               // "competitor_undercut", "margin_squeeze", "cost_increase", "price_opportunity"
+  severity    String   @default("info")            // "info", "warning", "critical"
+  title       String
+  description String
+  metadata    Json?                                // competitor, prices, margins, etc.
+  isRead      Boolean  @default(false)
+  isDismissed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, isRead])
+  @@index([productId])
+  @@index([createdAt])
+}

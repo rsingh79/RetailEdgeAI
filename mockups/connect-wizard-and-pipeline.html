@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RetailEdge AI — Connection Wizard & Invoice Pipeline Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: { extend: {
+    fontFamily: { sans: ['Inter', 'sans-serif'] },
+    colors: {
+      brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' },
+      sidebar: { bg:'#0f172a', hover:'#1e293b', active:'#334155' }
+    }
+  }}
+}
+</script>
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  .scenario { display: none; }
+  .scenario.active { display: block; }
+  .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes slide-up { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .slide-up { animation: slide-up 0.4s ease-out; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes check-draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+  .step-line { transition: all 0.3s ease; }
+</style>
+</head>
+<body class="bg-gray-100 text-gray-900 antialiased">
+
+<!-- SCENARIO SELECTOR -->
+<div class="bg-white border-b border-gray-200 px-6 py-3 sticky top-0 z-50">
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      </div>
+      <span class="font-bold text-sm">RetailEdge <span class="text-brand-600">AI</span> — Scenarios</span>
+    </div>
+    <div class="h-6 w-px bg-gray-200"></div>
+    <button onclick="showScenario('wizard-start')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium bg-brand-50 text-brand-700">1. Connect Wizard</button>
+    <button onclick="showScenario('wizard-oauth')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100">2. OAuth Flow</button>
+    <button onclick="showScenario('wizard-mapping')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100">3. Store Mapping</button>
+    <button onclick="showScenario('wizard-success')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100">4. Connected!</button>
+    <div class="h-6 w-px bg-gray-200"></div>
+    <button onclick="showScenario('pipeline-arrive')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100">5. Invoice Arrives</button>
+    <button onclick="showScenario('pipeline-process')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100">6. AI Processing</button>
+    <button onclick="showScenario('pipeline-notify')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100">7. Owner Notified</button>
+    <button onclick="showScenario('csv-import')" class="scenario-btn px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100">8. CSV Import</button>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 1: Connect Wizard Start ==================== -->
+<div id="scenario-wizard-start" class="scenario active">
+  <div class="max-w-3xl mx-auto py-12 px-6">
+    <div class="text-center mb-8">
+      <h1 class="text-2xl font-bold">Connect Your POS System</h1>
+      <p class="text-gray-500 mt-2">Select your POS system below. You'll sign in with your existing account — no API keys or technical setup needed.</p>
+    </div>
+
+    <!-- Progress -->
+    <div class="flex items-center justify-center gap-0 mb-12">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+        <span class="text-sm font-medium text-brand-700">Select System</span>
+      </div>
+      <div class="w-12 h-0.5 bg-gray-200 mx-2"></div>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">2</div>
+        <span class="text-sm text-gray-500">Sign In</span>
+      </div>
+      <div class="w-12 h-0.5 bg-gray-200 mx-2"></div>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">3</div>
+        <span class="text-sm text-gray-500">Map Stores</span>
+      </div>
+      <div class="w-12 h-0.5 bg-gray-200 mx-2"></div>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">4</div>
+        <span class="text-sm text-gray-500">Done!</span>
+      </div>
+    </div>
+
+    <!-- POS Options -->
+    <div class="grid grid-cols-2 gap-4 max-w-xl mx-auto">
+      <button onclick="showScenario('wizard-oauth')" class="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-brand-400 hover:shadow-lg transition-all text-left group">
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 bg-black rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="text-white font-bold text-xl">□</span>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg">Square</h3>
+            <p class="text-sm text-gray-500">POS & Payments</p>
+          </div>
+        </div>
+        <p class="text-sm text-gray-600">Connect your Square account to sync products, prices, sales data, and inventory in real-time.</p>
+        <div class="mt-3 flex items-center gap-1 text-brand-600 text-sm font-medium">
+          Select Square
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+        </div>
+      </button>
+
+      <button class="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-brand-400 hover:shadow-lg transition-all text-left group">
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="text-white font-bold text-xl">L</span>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg">Lightspeed</h3>
+            <p class="text-sm text-gray-500">Retail POS</p>
+          </div>
+        </div>
+        <p class="text-sm text-gray-600">Sync your Lightspeed Retail catalog, inventory levels, and daily sales transactions.</p>
+        <div class="mt-3 flex items-center gap-1 text-brand-600 text-sm font-medium">
+          Select Lightspeed
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+        </div>
+      </button>
+
+      <button class="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-brand-400 hover:shadow-lg transition-all text-left group">
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 bg-green-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="text-white font-bold text-xl">S</span>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg">Shopify POS</h3>
+            <p class="text-sm text-gray-500">In-store & Online</p>
+          </div>
+        </div>
+        <p class="text-sm text-gray-600">Already connected Shopify? Enable POS sync for in-store transactions and inventory.</p>
+        <div class="mt-3 flex items-center gap-1 text-brand-600 text-sm font-medium">
+          Select Shopify POS
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+        </div>
+      </button>
+
+      <button onclick="showScenario('csv-import')" class="bg-white rounded-xl border-2 border-dashed border-gray-300 p-6 hover:border-brand-400 hover:shadow-lg transition-all text-left group">
+        <div class="flex items-center gap-4 mb-3">
+          <div class="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <svg class="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg text-gray-700">Other / CSV</h3>
+            <p class="text-sm text-gray-500">Any POS system</p>
+          </div>
+        </div>
+        <p class="text-sm text-gray-600">Use CSV import/export if your POS isn't listed. Works with any system that can export data.</p>
+        <div class="mt-3 flex items-center gap-1 text-brand-600 text-sm font-medium">
+          Setup CSV Import
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 2: OAuth Flow ==================== -->
+<div id="scenario-wizard-oauth" class="scenario">
+  <div class="min-h-screen flex items-center justify-center py-12">
+    <!-- Simulated OAuth Popup -->
+    <div class="bg-white rounded-2xl shadow-2xl w-[480px] slide-up overflow-hidden">
+      <div class="bg-black px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="text-white font-bold text-lg">□</span>
+          <span class="text-white font-semibold">Square</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <div class="w-3 h-3 rounded-full bg-gray-600"></div>
+          <div class="w-3 h-3 rounded-full bg-gray-600"></div>
+          <div class="w-3 h-3 rounded-full bg-gray-600"></div>
+        </div>
+      </div>
+      <div class="p-8">
+        <div class="text-center mb-6">
+          <h2 class="text-xl font-semibold">Authorize RetailEdge AI</h2>
+          <p class="text-gray-500 text-sm mt-1">RetailEdge AI is requesting access to your Square account</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-xl p-4 mb-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            </div>
+            <div>
+              <div class="font-semibold text-sm">RetailEdge AI</div>
+              <div class="text-xs text-gray-500">by RetailEdge Pty Ltd</div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600">This app will be able to:</p>
+          <ul class="mt-2 space-y-2">
+            <li class="flex items-center gap-2 text-sm"><svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg> Read your product catalog and variants</li>
+            <li class="flex items-center gap-2 text-sm"><svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg> Update product prices</li>
+            <li class="flex items-center gap-2 text-sm"><svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg> Read order and sales data</li>
+            <li class="flex items-center gap-2 text-sm"><svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg> Read inventory levels</li>
+          </ul>
+        </div>
+
+        <div class="bg-blue-50 rounded-lg p-3 mb-6 flex items-start gap-2">
+          <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+          <div class="text-xs text-blue-800">
+            <strong>Your data is secure.</strong> RetailEdge will never share your data. You can revoke access anytime from your Square Dashboard or RetailEdge Settings.
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button class="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">Deny</button>
+          <button onclick="showScenario('wizard-mapping')" class="flex-1 px-4 py-3 bg-black text-white rounded-xl font-medium hover:bg-gray-800 transition">Allow Access</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 3: Store Mapping ==================== -->
+<div id="scenario-wizard-mapping" class="scenario">
+  <div class="max-w-2xl mx-auto py-12 px-6">
+    <!-- Progress -->
+    <div class="flex items-center justify-center gap-0 mb-12">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+        <span class="text-sm font-medium text-green-700">Select System</span>
+      </div>
+      <div class="w-12 h-0.5 bg-green-400 mx-2"></div>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+        <span class="text-sm font-medium text-green-700">Signed In</span>
+      </div>
+      <div class="w-12 h-0.5 bg-brand-400 mx-2"></div>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+        <span class="text-sm font-medium text-brand-700">Map Stores</span>
+      </div>
+      <div class="w-12 h-0.5 bg-gray-200 mx-2"></div>
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">4</div>
+        <span class="text-sm text-gray-500">Done!</span>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-lg p-8 slide-up">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-green-50 rounded-2xl mx-auto flex items-center justify-center mb-4">
+          <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h2 class="text-xl font-bold">Square Connected!</h2>
+        <p class="text-gray-500 mt-1">We found 2 locations in your Square account. Map them to your RetailEdge stores.</p>
+      </div>
+
+      <div class="space-y-4 mb-8">
+        <!-- Location 1 -->
+        <div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-black rounded-lg flex items-center justify-center"><span class="text-white font-bold">□</span></div>
+              <div>
+                <div class="font-semibold">Green Grocer — Main Street</div>
+                <div class="text-xs text-gray-500">Square Location ID: LX4F2...</div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">234 products</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3"/></svg>
+            <span class="text-sm text-gray-600">Map to RetailEdge store:</span>
+            <select class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+              <option selected>Main Street Store (POS)</option>
+              <option>+ Create new store</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Location 2 -->
+        <div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-black rounded-lg flex items-center justify-center"><span class="text-white font-bold">□</span></div>
+              <div>
+                <div class="font-semibold">Green Grocer — Saturday Markets</div>
+                <div class="text-xs text-gray-500">Square Location ID: M8K2P...</div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 text-xs rounded-full font-medium">98 products</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3"/></svg>
+            <span class="text-sm text-gray-600">Map to RetailEdge store:</span>
+            <select class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+              <option>Select a store...</option>
+              <option selected>+ Create new store "Saturday Markets"</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sync Options -->
+      <div class="bg-brand-50 rounded-xl p-4 mb-6">
+        <h4 class="font-medium text-brand-900 text-sm mb-3">Sync Settings</h4>
+        <div class="space-y-2">
+          <label class="flex items-center gap-3 text-sm">
+            <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+            <span>Import product catalog from Square</span>
+          </label>
+          <label class="flex items-center gap-3 text-sm">
+            <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+            <span>Import daily sales data</span>
+          </label>
+          <label class="flex items-center gap-3 text-sm">
+            <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+            <span>Push price updates to Square when approved</span>
+          </label>
+          <label class="flex items-center gap-3 text-sm">
+            <input type="checkbox" class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+            <span>Sync inventory levels (bidirectional)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">Back</button>
+        <button onclick="showScenario('wizard-success')" class="flex-1 px-6 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition">Complete Setup & Start Sync</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 4: Connected! ==================== -->
+<div id="scenario-wizard-success" class="scenario">
+  <div class="max-w-lg mx-auto py-20 px-6 text-center slide-up">
+    <div class="w-24 h-24 bg-green-50 rounded-3xl mx-auto flex items-center justify-center mb-6">
+      <svg class="w-14 h-14 text-green-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    </div>
+    <h1 class="text-3xl font-bold mb-3">You're All Set! 🎉</h1>
+    <p class="text-gray-500 text-lg mb-8">Square POS is now connected. Your product catalog is syncing in the background.</p>
+
+    <div class="bg-white rounded-2xl shadow-lg p-6 mb-8 text-left">
+      <h3 class="font-semibold mb-4">What happens next:</h3>
+      <div class="space-y-4">
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="text-sm">📦</span>
+          </div>
+          <div>
+            <div class="font-medium text-sm">Product catalog syncing now...</div>
+            <div class="text-xs text-gray-500 mt-0.5">234 products importing from Main Street Store</div>
+            <div class="mt-2 w-full bg-gray-200 rounded-full h-1.5"><div class="bg-brand-500 h-1.5 rounded-full" style="width:45%"></div></div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="text-sm">📊</span>
+          </div>
+          <div>
+            <div class="font-medium text-sm">Sales data will start flowing in</div>
+            <div class="text-xs text-gray-500 mt-0.5">Historical sales from the last 30 days will be imported within the hour</div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="text-sm">💰</span>
+          </div>
+          <div>
+            <div class="font-medium text-sm">Price updates push automatically</div>
+            <div class="text-xs text-gray-500 mt-0.5">When you approve a price change, it's instantly pushed to your Square POS</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="px-8 py-3 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition text-lg">Go to AI Command Center</button>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 5: Invoice Arrives ==================== -->
+<div id="scenario-pipeline-arrive" class="scenario">
+  <div class="max-w-4xl mx-auto py-12 px-6">
+    <h2 class="text-xl font-bold text-center mb-2">End-to-End Invoice Automation Pipeline</h2>
+    <p class="text-center text-gray-500 mb-10">What happens when a supplier emails an invoice — fully automated, no user action needed</p>
+
+    <!-- Pipeline Steps -->
+    <div class="relative">
+      <!-- Step 1: Email Arrives -->
+      <div class="flex items-start gap-6 mb-0">
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold">📧</div>
+          <div class="w-0.5 h-20 bg-blue-300 mt-2"></div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm p-5 slide-up">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-blue-900">Step 1: Email Arrives</h3>
+            <span class="text-xs text-gray-400">9:02:14 AM</span>
+          </div>
+          <div class="bg-blue-50 rounded-lg p-4">
+            <div class="flex items-center gap-3 mb-2">
+              <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium">Gmail Push Notification</span>
+              <span class="text-xs text-gray-400">via Google Pub/Sub</span>
+            </div>
+            <div class="text-sm space-y-1">
+              <div class="flex gap-2"><span class="text-gray-500 w-16">From:</span><span class="font-medium">invoices@farmfreshsupplies.com.au</span></div>
+              <div class="flex gap-2"><span class="text-gray-500 w-16">Subject:</span><span>Invoice #4521 - Green Grocer Co</span></div>
+              <div class="flex gap-2"><span class="text-gray-500 w-16">Attach:</span><span>📎 INV-4521.pdf (245 KB)</span></div>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-gray-500 flex items-center gap-1">
+            <svg class="w-3 h-3 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+            Sender whitelisted ✓ PDF attachment detected ✓ Dedup check passed ✓ → Queued for processing
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: OCR Extract -->
+      <div class="flex items-start gap-6 mb-0">
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 bg-purple-600 text-white rounded-xl flex items-center justify-center font-bold">🤖</div>
+          <div class="w-0.5 h-20 bg-purple-300 mt-2"></div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm p-5 slide-up">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-purple-900">Step 2: AI Extracts Invoice Data</h3>
+            <span class="text-xs text-gray-400">9:02:18 AM — 4 seconds</span>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-purple-50 rounded-lg p-3">
+              <div class="text-xs font-semibold text-purple-700 uppercase mb-2">Extracted Header</div>
+              <div class="text-xs space-y-1">
+                <div class="flex justify-between"><span class="text-gray-600">Supplier:</span><span class="font-medium">Farm Fresh Supplies</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Invoice #:</span><span class="font-medium">4521</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Date:</span><span class="font-medium">17 Mar 2026</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Total:</span><span class="font-medium">$847.30 (inc GST)</span></div>
+              </div>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-3">
+              <div class="text-xs font-semibold text-purple-700 uppercase mb-2">Extracted Lines (12)</div>
+              <div class="text-xs space-y-1">
+                <div>Free Range Eggs 700g × 10 @ $5.80</div>
+                <div>Organic Milk 2L × 20 @ $3.40</div>
+                <div>Sourdough Loaf 750g × 15 @ $3.20</div>
+                <div class="text-gray-400">... + 9 more line items</div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-gray-500 flex items-center gap-2">
+            <span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Claude Sonnet 4.6</span>
+            <span>OCR Confidence: 97% · Cost: $0.12 · GST detected: Inclusive</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Match -->
+      <div class="flex items-start gap-6 mb-0">
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 bg-green-600 text-white rounded-xl flex items-center justify-center font-bold">🔍</div>
+          <div class="w-0.5 h-20 bg-green-300 mt-2"></div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm p-5 slide-up">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-green-900">Step 3: AI Matches Products</h3>
+            <span class="text-xs text-gray-400">9:02:20 AM — 2 seconds</span>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center gap-3 bg-green-50 rounded-lg p-2 text-sm">
+              <span class="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></span>
+              <span class="flex-1">Free Range Eggs 700g → Product #142</span>
+              <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">98% · Learned mapping</span>
+            </div>
+            <div class="flex items-center gap-3 bg-green-50 rounded-lg p-2 text-sm">
+              <span class="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></span>
+              <span class="flex-1">Organic Milk 2L → Product #87</span>
+              <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">99% · Barcode match</span>
+            </div>
+            <div class="flex items-center gap-3 bg-amber-50 rounded-lg p-2 text-sm">
+              <span class="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-white text-xs font-bold">?</span>
+              <span class="flex-1">"Bonsoy Organic Soy Milk 1L" → Soy Milk 1L?</span>
+              <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">87% · AI fuzzy match</span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">11/12 auto-matched · 1 needs human confirmation</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Price Recommendations -->
+      <div class="flex items-start gap-6 mb-0">
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 bg-amber-500 text-white rounded-xl flex items-center justify-center font-bold">💰</div>
+          <div class="w-0.5 h-16 bg-amber-300 mt-2"></div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm p-5 slide-up">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-amber-900">Step 4: AI Generates Price Recommendations</h3>
+            <span class="text-xs text-gray-400">9:02:22 AM — 2 seconds</span>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+              <div class="text-xs text-green-600 font-medium">Raise Price</div>
+              <div class="text-lg font-bold text-green-700">3</div>
+              <div class="text-xs text-green-600">+$42/wk potential</div>
+            </div>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+              <div class="text-xs text-gray-600 font-medium">Keep Current</div>
+              <div class="text-lg font-bold text-gray-700">7</div>
+              <div class="text-xs text-gray-500">Margins within target</div>
+            </div>
+            <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+              <div class="text-xs text-red-600 font-medium">Review Urgently</div>
+              <div class="text-lg font-bold text-red-700">1</div>
+              <div class="text-xs text-red-600">Margin below minimum</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: Notify Owner -->
+      <div class="flex items-start gap-6">
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 bg-brand-600 text-white rounded-xl flex items-center justify-center font-bold">🔔</div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl border-2 border-brand-200 shadow-sm p-5 slide-up">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-brand-900">Step 5: Owner Notified</h3>
+            <span class="text-xs text-gray-400">9:02:24 AM — Total: 10 seconds</span>
+          </div>
+          <div class="bg-brand-50 rounded-lg p-4 flex items-center gap-4">
+            <div class="w-12 h-12 bg-brand-600 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">📱</div>
+            <div>
+              <div class="font-medium text-sm">Push notification sent to Sarah's phone</div>
+              <div class="text-sm text-gray-600 mt-1">"New invoice from Farm Fresh. 3 price changes recommended (+$42/wk). 1 product match needs confirmation. Review when ready."</div>
+            </div>
+          </div>
+          <div class="mt-3 bg-gray-50 rounded-lg p-3 text-center">
+            <div class="text-sm text-gray-500">⏱️ Total processing time: <strong class="text-brand-600">10 seconds</strong></div>
+            <div class="text-xs text-gray-400 mt-1">Without RetailEdge: 2–3 hours of manual data entry, price lookups, and spreadsheet updates</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 6: AI Processing (Live View) ==================== -->
+<div id="scenario-pipeline-process" class="scenario">
+  <div class="max-w-3xl mx-auto py-12 px-6">
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div class="bg-gradient-to-r from-brand-600 to-brand-700 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3 text-white">
+          <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+          </div>
+          <div>
+            <h2 class="font-semibold">AI Processing Invoice #4521</h2>
+            <p class="text-brand-100 text-xs">Farm Fresh Supplies · 12 line items</p>
+          </div>
+        </div>
+        <span class="text-white/80 text-sm">Processing...</span>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <!-- Completed steps -->
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+          <span class="font-medium">Downloaded PDF attachment</span>
+          <span class="ml-auto text-xs text-gray-400">245 KB · 0.3s</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+          <span class="font-medium">Duplicate check passed</span>
+          <span class="ml-auto text-xs text-gray-400">3 layers · 0.1s</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+          <span class="font-medium">OCR extracted 12 line items</span>
+          <span class="ml-auto text-xs text-gray-400">Claude Sonnet · 97% conf · $0.12 · 3.8s</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+          <span class="font-medium">Supplier matched: Farm Fresh Supplies</span>
+          <span class="ml-auto text-xs text-gray-400">Existing supplier · 0.1s</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+          <span class="font-medium">GST allocated across lines</span>
+          <span class="ml-auto text-xs text-gray-400">$77.03 GST · 0.05s</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg></div>
+          <span class="font-medium">Product matching: 11/12 auto-matched</span>
+          <span class="ml-auto text-xs text-gray-400">4-stage · 1.2s</span>
+        </div>
+
+        <!-- Current step -->
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center">
+            <svg class="w-4 h-4 text-white spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+          </div>
+          <span class="font-medium text-brand-700">Generating price recommendations...</span>
+          <span class="ml-auto text-xs text-gray-400">Checking competitors + demand signals</span>
+        </div>
+
+        <!-- Pending steps -->
+        <div class="flex items-center gap-3 text-sm opacity-40">
+          <div class="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-400 text-xs">8</div>
+          <span>Send notification to owner</span>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <div class="flex justify-between text-xs text-gray-500 mb-2">
+            <span>Overall progress</span>
+            <span>7 of 8 steps complete</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-brand-500 h-2 rounded-full transition-all" style="width: 87%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 7: Owner Notification ==================== -->
+<div id="scenario-pipeline-notify" class="scenario">
+  <div class="max-w-sm mx-auto py-12 px-4">
+    <!-- Phone Mockup -->
+    <div class="bg-gray-900 rounded-[3rem] p-3 shadow-2xl">
+      <div class="bg-white rounded-[2.5rem] overflow-hidden">
+        <!-- Phone Status Bar -->
+        <div class="bg-gray-50 px-6 py-2 flex items-center justify-between text-xs text-gray-500">
+          <span>9:02 AM</span>
+          <div class="w-24 h-6 bg-gray-900 rounded-full mx-auto"></div>
+          <span>📶 🔋</span>
+        </div>
+
+        <!-- Notification -->
+        <div class="px-4 py-3">
+          <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-4 slide-up">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+              </div>
+              <div>
+                <div class="font-semibold text-sm">RetailEdge AI</div>
+                <div class="text-xs text-gray-400">Just now</div>
+              </div>
+            </div>
+            <p class="text-sm text-gray-800 leading-relaxed">📥 New invoice from <strong>Farm Fresh Supplies</strong></p>
+            <p class="text-sm text-gray-600 mt-1">• 12 items processed, 11 auto-matched</p>
+            <p class="text-sm text-gray-600">• 💰 3 price changes recommended</p>
+            <p class="text-sm text-green-600 font-medium">• Potential gain: +$42/week</p>
+            <p class="text-sm text-amber-600 mt-1">• 1 product needs your confirmation</p>
+
+            <div class="mt-4 flex gap-2">
+              <button class="flex-1 px-3 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium">Review Now</button>
+              <button class="px-3 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">Later</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Review (what owner sees when they tap "Review Now") -->
+        <div class="px-4 py-2">
+          <h3 class="text-xs font-semibold text-gray-500 uppercase mb-3">Quick Review</h3>
+
+          <!-- Quick decision cards -->
+          <div class="space-y-3">
+            <div class="bg-green-50 border border-green-200 rounded-xl p-3">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-medium text-sm">Free Range Eggs 700g</span>
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">+$18/wk</span>
+              </div>
+              <div class="text-xs text-gray-600 mb-2">Cost ↑11.5% · Competitors higher · Demand ↑</div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm">$6.50 → <strong class="text-green-700">$6.99</strong></span>
+                <div class="flex gap-1">
+                  <button class="w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center text-lg">✓</button>
+                  <button class="w-8 h-8 bg-gray-200 text-gray-500 rounded-lg flex items-center justify-center text-lg">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-green-50 border border-green-200 rounded-xl p-3">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-medium text-sm">Greek Yogurt 1kg</span>
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">+$12/wk</span>
+              </div>
+              <div class="text-xs text-gray-600 mb-2">Cost ↑5% · Demand ↑↑ · Low elasticity</div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm">$8.49 → <strong class="text-green-700">$8.99</strong></span>
+                <div class="flex gap-1">
+                  <button class="w-8 h-8 bg-green-500 text-white rounded-lg flex items-center justify-center text-lg">✓</button>
+                  <button class="w-8 h-8 bg-gray-200 text-gray-500 rounded-lg flex items-center justify-center text-lg">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-medium text-sm">Confirm Product Match</span>
+                <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">87%</span>
+              </div>
+              <div class="text-xs text-gray-600 mb-2">"Bonsoy Organic Soy Milk 1L" → Soy Milk 1L</div>
+              <div class="flex gap-2">
+                <button class="flex-1 py-2 bg-brand-600 text-white rounded-lg text-xs font-medium">Confirm</button>
+                <button class="flex-1 py-2 bg-gray-200 text-gray-600 rounded-lg text-xs font-medium">Different</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div class="mt-4 bg-gray-50 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-500">Total time to review: <strong class="text-brand-600">~30 seconds</strong></p>
+          </div>
+        </div>
+
+        <!-- Bottom padding -->
+        <div class="h-8"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENARIO 8: CSV Import ==================== -->
+<div id="scenario-csv-import" class="scenario">
+  <div class="max-w-3xl mx-auto py-12 px-6">
+    <div class="text-center mb-8">
+      <h2 class="text-xl font-bold">Smart CSV Import</h2>
+      <p class="text-gray-500 mt-1">AI automatically detects your column mapping — works with any POS export</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-lg p-8">
+      <!-- Drop Zone -->
+      <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center mb-6 hover:border-brand-400 transition">
+        <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+        <p class="text-gray-500 mb-1">Drag & drop your POS export file here</p>
+        <p class="text-xs text-gray-400">CSV, XLSX, or TSV — max 10MB</p>
+        <button class="mt-3 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">Browse Files</button>
+      </div>
+
+      <!-- AI Column Detection -->
+      <div class="bg-brand-50 border border-brand-200 rounded-xl p-5 mb-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center"><span class="text-white">🤖</span></div>
+          <div>
+            <div class="font-semibold text-sm text-brand-900">AI detected your column mapping</div>
+            <div class="text-xs text-brand-700">"sales_export_march_2026.csv" — 847 rows detected from Hike POS</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex items-center gap-3 bg-white rounded-lg p-3">
+            <div class="text-xs text-gray-500 w-24">Your Column:</div>
+            <div class="text-sm font-medium flex-1">"Product Name"</div>
+            <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <select class="px-2 py-1 border border-gray-200 rounded text-xs bg-white">
+              <option selected>productName ✓</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-3 bg-white rounded-lg p-3">
+            <div class="text-xs text-gray-500 w-24">Your Column:</div>
+            <div class="text-sm font-medium flex-1">"Retail Price"</div>
+            <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <select class="px-2 py-1 border border-gray-200 rounded text-xs bg-white">
+              <option selected>salePrice ✓</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-3 bg-white rounded-lg p-3">
+            <div class="text-xs text-gray-500 w-24">Your Column:</div>
+            <div class="text-sm font-medium flex-1">"Cost"</div>
+            <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <select class="px-2 py-1 border border-gray-200 rounded text-xs bg-white">
+              <option selected>currentCost ✓</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-3 bg-white rounded-lg p-3">
+            <div class="text-xs text-gray-500 w-24">Your Column:</div>
+            <div class="text-sm font-medium flex-1">"Units Sold"</div>
+            <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            <select class="px-2 py-1 border border-gray-200 rounded text-xs bg-white">
+              <option selected>quantitySold ✓</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-3 flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+          <span class="text-xs text-green-700 font-medium">All 6 columns mapped automatically. Confirm to import, or adjust any mapping.</span>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="mb-6">
+        <h4 class="text-sm font-semibold text-gray-700 mb-3">Preview (first 3 rows)</h4>
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="bg-gray-50"><th class="px-3 py-2 text-left">Product Name</th><th class="px-3 py-2">SKU</th><th class="px-3 py-2">Cost</th><th class="px-3 py-2">Retail Price</th><th class="px-3 py-2">Units Sold</th><th class="px-3 py-2">Date</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-3 py-2 font-medium">Free Range Eggs 700g</td><td class="px-3 py-2">EGG-FR-700</td><td class="px-3 py-2">$5.20</td><td class="px-3 py-2">$6.50</td><td class="px-3 py-2">24</td><td class="px-3 py-2">16 Mar</td></tr>
+            <tr><td class="px-3 py-2 font-medium">Organic Milk 2L</td><td class="px-3 py-2">MLK-ORG-2L</td><td class="px-3 py-2">$3.40</td><td class="px-3 py-2">$5.99</td><td class="px-3 py-2">18</td><td class="px-3 py-2">16 Mar</td></tr>
+            <tr><td class="px-3 py-2 font-medium">Sourdough Loaf 750g</td><td class="px-3 py-2">BRD-SD-750</td><td class="px-3 py-2">$3.20</td><td class="px-3 py-2">$6.99</td><td class="px-3 py-2">15</td><td class="px-3 py-2">16 Mar</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" checked class="rounded border-gray-300 text-brand-600">
+          Save this mapping for future imports from "Hike POS"
+        </label>
+        <button class="px-6 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">Import 847 Rows</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showScenario(id) {
+  document.querySelectorAll('.scenario').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.scenario-btn').forEach(b => { b.classList.remove('bg-brand-50', 'text-brand-700'); b.classList.add('hover:bg-gray-100'); });
+  document.getElementById('scenario-' + id).classList.add('active');
+  event.target.classList.add('bg-brand-50', 'text-brand-700');
+  event.target.classList.remove('hover:bg-gray-100');
+}
+</script>
+</body>
+</html>

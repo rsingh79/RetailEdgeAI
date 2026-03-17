@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RetailEdge AI — Invoice Review & Human Intervention Flow</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: { extend: {
+    fontFamily: { sans: ['Inter', 'sans-serif'] },
+    colors: {
+      brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' },
+      sidebar: { bg:'#0f172a', hover:'#1e293b', active:'#334155' }
+    }
+  }}
+}
+</script>
+<style>
+  * { font-family: 'Inter', sans-serif; }
+  .step-panel { display: none; }
+  .step-panel.active { display: block; }
+  .expand-detail { display: none; }
+  .expand-detail.open { display: block; }
+  .nav-item.active { background: #334155; }
+  @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes slide-up { from{transform:translateY(12px);opacity:0;} to{transform:translateY(0);opacity:1;} }
+  .slide-up { animation: slide-up 0.3s ease-out; }
+  .chevron { transition: transform 0.2s; }
+  .chevron.rotated { transform: rotate(90deg); }
+  .editable:focus { outline: 2px solid #0d9488; border-radius: 4px; background: white; }
+  .bulk-bar { transform: translateY(100%); transition: transform 0.25s ease; }
+  .bulk-bar.visible { transform: translateY(0); }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900 antialiased">
+
+<!-- APP SHELL -->
+<div class="min-h-screen flex">
+
+  <!-- SIDEBAR (collapsed) -->
+  <aside class="w-64 bg-sidebar-bg text-white flex flex-col flex-shrink-0 fixed h-full z-30">
+    <div class="p-5 flex items-center gap-3 border-b border-slate-700/50">
+      <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-sm">RetailEdge <span class="text-brand-400 text-xs font-bold">AI</span></div>
+        <div class="text-xs text-slate-400">Green Grocer Co.</div>
+      </div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+        AI Command Center
+      </a>
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+        Invoices
+      </a>
+      <a class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+        Review
+        <span class="ml-auto bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">3</span>
+      </a>
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Smart Pricing
+      </a>
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4"/></svg>
+        Products
+      </a>
+      <a class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer hover:bg-sidebar-hover transition">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Competitors
+      </a>
+    </nav>
+    <div class="p-3 border-t border-slate-700/50">
+      <div class="flex items-center gap-3 px-3 py-2">
+        <div class="w-8 h-8 bg-brand-600 rounded-full flex items-center justify-center text-sm font-medium">SS</div>
+        <div class="flex-1 min-w-0"><div class="text-sm font-medium truncate">Sarah Singh</div><div class="text-xs text-slate-400">Owner</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 ml-64">
+    <!-- TOP BAR -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+      <div class="flex items-center gap-3">
+        <button class="text-gray-400 hover:text-gray-600" title="Back to invoices">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+        </button>
+        <h1 class="text-lg font-semibold">Invoice Review — #4521</h1>
+        <span class="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-medium">Awaiting Review</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-gray-500">
+        <span>Farm Fresh Supplies</span>
+        <span class="text-gray-300">·</span>
+        <span>17 Mar 2026</span>
+        <span class="text-gray-300">·</span>
+        <span>12 line items</span>
+        <span class="text-gray-300">·</span>
+        <span class="text-brand-600 font-medium">AI processed 10 sec ago</span>
+      </div>
+    </header>
+
+    <!-- STEP PROGRESS BAR -->
+    <div class="bg-white border-b border-gray-200 px-6 py-3">
+      <div class="flex items-center gap-0 max-w-2xl mx-auto">
+        <button onclick="showStep(1)" class="step-btn flex items-center gap-2 cursor-pointer">
+          <div class="step-indicator w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>
+          </div>
+          <span class="text-sm font-medium text-green-700">OCR & Extract</span>
+        </button>
+        <div class="flex-1 h-px bg-green-300 mx-3"></div>
+        <button onclick="showStep(2)" class="step-btn flex items-center gap-2 cursor-pointer">
+          <div class="step-indicator w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+          <span class="text-sm font-medium text-brand-700">Match & Price</span>
+        </button>
+        <div class="flex-1 h-px bg-gray-300 mx-3"></div>
+        <button onclick="showStep(3)" class="step-btn flex items-center gap-2 cursor-pointer">
+          <div class="step-indicator w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">3</div>
+          <span class="text-sm text-gray-500">Review & Approve</span>
+        </button>
+        <div class="flex-1 h-px bg-gray-300 mx-3"></div>
+        <button onclick="showStep(4)" class="step-btn flex items-center gap-2 cursor-pointer">
+          <div class="step-indicator w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">4</div>
+          <span class="text-sm text-gray-500">Export & Push</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== STEP 1: OCR & EXTRACT ==================== -->
+    <div id="step-1" class="step-panel p-6 space-y-4">
+      <!-- AI Processing Summary -->
+      <div class="bg-gradient-to-r from-brand-50 to-emerald-50 border border-brand-200 rounded-xl p-4 flex items-center gap-4 slide-up">
+        <div class="w-12 h-12 bg-brand-600 rounded-xl flex items-center justify-center flex-shrink-0">
+          <span class="text-white text-xl">🤖</span>
+        </div>
+        <div class="flex-1">
+          <h3 class="font-semibold text-brand-900 text-sm">AI Ingestion Agent completed in 4 seconds</h3>
+          <p class="text-sm text-brand-700 mt-0.5">Extracted 12 line items from PDF · Supplier matched: Farm Fresh Supplies · OCR confidence: 97% · GST: Inclusive · Freight: $22.00 allocated proportionally</p>
+        </div>
+        <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium flex-shrink-0">✓ Auto-processed</span>
+      </div>
+
+      <div class="grid grid-cols-5 gap-6">
+        <!-- Invoice Preview (2 cols) -->
+        <div class="col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-semibold text-sm">Invoice PDF</h3>
+            <button class="text-xs text-brand-600 hover:text-brand-700 font-medium">Open Full Size ↗</button>
+          </div>
+          <div class="bg-gray-100 p-6 min-h-[500px]">
+            <div class="bg-white rounded shadow p-6 text-xs space-y-4 font-mono">
+              <div class="flex justify-between items-start">
+                <div><div class="font-bold text-sm">FARM FRESH SUPPLIES</div><div class="text-gray-500">ABN: 12 345 678 901</div><div class="text-gray-500">42 Market Lane, Melbourne VIC 3000</div></div>
+                <div class="text-right"><div class="font-bold text-lg text-brand-700">INVOICE</div><div class="mt-1">Invoice #: <strong>4521</strong></div><div>Date: <strong>17/03/2026</strong></div><div>Due: <strong>14/04/2026</strong></div></div>
+              </div>
+              <div class="border-t border-gray-200 pt-3"><div class="text-gray-500">Bill To:</div><div class="font-medium">Green Grocer Co.</div></div>
+              <table class="w-full text-[10px] mt-3">
+                <thead><tr class="bg-gray-50"><th class="text-left px-2 py-1">Description</th><th class="px-2 py-1 text-right">Qty</th><th class="px-2 py-1 text-right">Unit</th><th class="px-2 py-1 text-right">Total</th></tr></thead>
+                <tbody>
+                  <tr class="border-t"><td class="px-2 py-1">Free Range Eggs 700g (tray x10)</td><td class="px-2 py-1 text-right">10</td><td class="px-2 py-1 text-right">$5.80</td><td class="px-2 py-1 text-right">$58.00</td></tr>
+                  <tr class="border-t"><td class="px-2 py-1">Organic Full Cream Milk 2L</td><td class="px-2 py-1 text-right">20</td><td class="px-2 py-1 text-right">$3.40</td><td class="px-2 py-1 text-right">$68.00</td></tr>
+                  <tr class="border-t"><td class="px-2 py-1">Artisan Sourdough 750g</td><td class="px-2 py-1 text-right">15</td><td class="px-2 py-1 text-right">$3.20</td><td class="px-2 py-1 text-right">$48.00</td></tr>
+                  <tr class="border-t"><td class="px-2 py-1">Greek Yogurt Natural 1kg</td><td class="px-2 py-1 text-right">12</td><td class="px-2 py-1 text-right">$4.80</td><td class="px-2 py-1 text-right">$57.60</td></tr>
+                  <tr class="border-t"><td class="px-2 py-1">Bonsoy Organic Soy Milk 1L</td><td class="px-2 py-1 text-right">8</td><td class="px-2 py-1 text-right">$3.95</td><td class="px-2 py-1 text-right">$31.60</td></tr>
+                  <tr class="border-t text-gray-400"><td class="px-2 py-1" colspan="4">... 7 more items</td></tr>
+                </tbody>
+              </table>
+              <div class="border-t border-gray-300 pt-2 text-right space-y-1">
+                <div>Subtotal: <strong>$770.30</strong></div>
+                <div>Freight: <strong>$22.00</strong></div>
+                <div>GST (incl): <strong>$77.03</strong></div>
+                <div class="text-sm font-bold">Total: $847.30</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Extracted Data (3 cols) -->
+        <div class="col-span-3 space-y-4">
+          <!-- Header Data -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="font-semibold text-sm mb-3">Extracted Invoice Data</h3>
+            <div class="grid grid-cols-3 gap-4">
+              <div><div class="text-xs text-gray-500 mb-1">Supplier</div><div class="font-medium text-sm">Farm Fresh Supplies</div><div class="text-xs text-green-600 mt-0.5">✓ Known supplier (23 previous invoices)</div></div>
+              <div><div class="text-xs text-gray-500 mb-1">Invoice Number</div><div class="font-medium text-sm">#4521</div></div>
+              <div><div class="text-xs text-gray-500 mb-1">Invoice Date</div><div class="font-medium text-sm">17 March 2026</div></div>
+              <div><div class="text-xs text-gray-500 mb-1">Subtotal (ex GST)</div><div class="font-medium text-sm">$770.30</div></div>
+              <div><div class="text-xs text-gray-500 mb-1">GST</div><div class="font-medium text-sm">$77.03 <span class="text-xs text-gray-400">(inclusive)</span></div></div>
+              <div><div class="text-xs text-gray-500 mb-1">Total</div><div class="font-semibold text-sm text-brand-700">$847.30</div></div>
+              <div><div class="text-xs text-gray-500 mb-1">Freight</div><div class="font-medium text-sm">$22.00 <span class="text-xs text-gray-400">(proportional allocation)</span></div></div>
+              <div><div class="text-xs text-gray-500 mb-1">OCR Confidence</div><div class="font-medium text-sm flex items-center gap-1"><span class="w-2 h-2 bg-green-500 rounded-full"></span> 97%</div></div>
+              <div><div class="text-xs text-gray-500 mb-1">AI Cost</div><div class="font-medium text-sm">$0.12 <span class="text-xs text-gray-400">(Claude Sonnet)</span></div></div>
+            </div>
+          </div>
+
+          <!-- Extracted Lines -->
+          <div class="bg-white rounded-xl border border-gray-200">
+            <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h3 class="font-semibold text-sm">Extracted Line Items (12)</h3>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-400">Freight allocation:</span>
+                <select class="px-2 py-1 border border-gray-200 rounded text-xs bg-white">
+                  <option selected>Proportional by value</option>
+                  <option>Equal split</option>
+                  <option>By weight</option>
+                  <option>None</option>
+                </select>
+              </div>
+            </div>
+            <table class="w-full text-xs">
+              <thead><tr class="bg-gray-50 text-gray-500 uppercase">
+                <th class="text-left px-4 py-2 font-medium">#</th>
+                <th class="text-left px-4 py-2 font-medium">Description</th>
+                <th class="text-center px-4 py-2 font-medium">Qty</th>
+                <th class="text-right px-4 py-2 font-medium">Unit Price</th>
+                <th class="text-right px-4 py-2 font-medium">Line Total</th>
+                <th class="text-right px-4 py-2 font-medium">+ Freight</th>
+                <th class="text-right px-4 py-2 font-medium">Landed Unit</th>
+                <th class="text-center px-4 py-2 font-medium">OCR</th>
+              </tr></thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr class="hover:bg-gray-50"><td class="px-4 py-2">1</td><td class="px-4 py-2 font-medium">Free Range Eggs 700g (tray x10)</td><td class="px-4 py-2 text-center">10</td><td class="px-4 py-2 text-right font-mono">$5.80</td><td class="px-4 py-2 text-right font-mono">$58.00</td><td class="px-4 py-2 text-right font-mono text-gray-400">+$1.66</td><td class="px-4 py-2 text-right font-mono font-medium">$5.97</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-green-500 rounded-full inline-block"></span></td></tr>
+                <tr class="hover:bg-gray-50"><td class="px-4 py-2">2</td><td class="px-4 py-2 font-medium">Organic Full Cream Milk 2L</td><td class="px-4 py-2 text-center">20</td><td class="px-4 py-2 text-right font-mono">$3.40</td><td class="px-4 py-2 text-right font-mono">$68.00</td><td class="px-4 py-2 text-right font-mono text-gray-400">+$1.94</td><td class="px-4 py-2 text-right font-mono font-medium">$3.50</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-green-500 rounded-full inline-block"></span></td></tr>
+                <tr class="hover:bg-gray-50"><td class="px-4 py-2">3</td><td class="px-4 py-2 font-medium">Artisan Sourdough 750g</td><td class="px-4 py-2 text-center">15</td><td class="px-4 py-2 text-right font-mono">$3.20</td><td class="px-4 py-2 text-right font-mono">$48.00</td><td class="px-4 py-2 text-right font-mono text-gray-400">+$1.37</td><td class="px-4 py-2 text-right font-mono font-medium">$3.29</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-green-500 rounded-full inline-block"></span></td></tr>
+                <tr class="hover:bg-gray-50"><td class="px-4 py-2">4</td><td class="px-4 py-2 font-medium">Greek Yogurt Natural 1kg</td><td class="px-4 py-2 text-center">12</td><td class="px-4 py-2 text-right font-mono">$4.80</td><td class="px-4 py-2 text-right font-mono">$57.60</td><td class="px-4 py-2 text-right font-mono text-gray-400">+$1.64</td><td class="px-4 py-2 text-right font-mono font-medium">$4.94</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-green-500 rounded-full inline-block"></span></td></tr>
+                <tr class="hover:bg-gray-50 bg-amber-50/50"><td class="px-4 py-2">5</td><td class="px-4 py-2 font-medium">Bonsoy Organic Soy Milk 1L</td><td class="px-4 py-2 text-center">8</td><td class="px-4 py-2 text-right font-mono">$3.95</td><td class="px-4 py-2 text-right font-mono">$31.60</td><td class="px-4 py-2 text-right font-mono text-gray-400">+$0.90</td><td class="px-4 py-2 text-right font-mono font-medium">$4.06</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-amber-500 rounded-full inline-block" title="84% confidence"></span></td></tr>
+                <tr class="text-gray-400"><td class="px-4 py-2" colspan="8">... 7 more line items (all high confidence)</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex justify-between">
+            <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</button>
+            <button onclick="showStep(2)" class="px-6 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2">
+              Proceed to Matching & Pricing
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== STEP 2: MATCH & PRICE (THE CORE) ==================== -->
+    <div id="step-2" class="step-panel active p-6 space-y-4">
+      <!-- AI Matching Summary Bar -->
+      <div class="flex items-center gap-4 bg-white rounded-xl border border-gray-200 px-5 py-3">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold">Invoice #4521</span>
+          <span class="text-sm text-gray-500">Farm Fresh Supplies</span>
+        </div>
+        <div class="h-5 w-px bg-gray-200"></div>
+        <div class="flex items-center gap-4 text-xs">
+          <span class="flex items-center gap-1"><span class="w-2 h-2 bg-green-500 rounded-full"></span> 9 auto-matched</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 bg-amber-500 rounded-full"></span> 2 need review</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 bg-red-500 rounded-full"></span> 1 no match</span>
+        </div>
+        <div class="h-5 w-px bg-gray-200"></div>
+        <div class="flex items-center gap-3 text-xs">
+          <span class="flex items-center gap-1 text-blue-600"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span> Main St POS</span>
+          <span class="flex items-center gap-1 text-emerald-600"><span class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span> Online Store</span>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+          <button onclick="expandAll()" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">Expand All</button>
+          <button class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700">Approve All Matched</button>
+        </div>
+      </div>
+
+      <!-- LINE ITEMS -->
+      <div class="space-y-3">
+
+        <!-- ===== LINE 1: Auto-matched, High Confidence (Collapsed) ===== -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div onclick="toggleLine('line1')" class="px-5 py-3.5 flex items-center gap-4 cursor-pointer hover:bg-gray-50 transition">
+            <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-4 h-4">
+            <svg id="chev-line1" class="w-4 h-4 text-gray-400 chevron flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold">Free Range Eggs 700g</span>
+                <span class="text-xs text-gray-500">tray x10 · $5.80/unit</span>
+                <span class="text-xs font-mono text-gray-400">→ landed $5.97</span>
+              </div>
+              <div class="text-xs text-gray-500 mt-0.5">Matched → <span class="font-medium text-gray-700">Free Range Eggs 700g</span> (Product #142)</div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="w-2.5 h-2.5 bg-blue-500 rounded-full" title="Main St POS"></span>
+              <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full" title="Online Store"></span>
+            </div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium flex-shrink-0">98% · Learned</span>
+            <div class="flex items-center gap-1.5 flex-shrink-0 text-sm">
+              <span class="text-gray-500">$5.20</span>
+              <svg class="w-3 h-3 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25"/></svg>
+              <span class="font-semibold text-red-600">$5.97</span>
+              <span class="text-xs text-red-500">+14.8%</span>
+            </div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-medium flex-shrink-0">✓ Matched</span>
+          </div>
+
+          <!-- EXPANDED DETAIL -->
+          <div id="detail-line1" class="expand-detail border-t border-gray-200 bg-gray-50/50">
+            <!-- Pack Conversion -->
+            <div class="px-5 py-3 bg-blue-50/50 border-b border-gray-100 text-xs flex items-center gap-3">
+              <span class="font-medium text-blue-800">Pack Conversion:</span>
+              <span class="text-blue-700">Supplier: "tray x10" @ $5.80/unit → Base unit: 700g → Landed cost: <strong>$5.97</strong> per unit</span>
+              <span class="ml-auto text-blue-600">Previous cost: $5.20 → <span class="text-red-600 font-semibold">+$0.77 (+14.8%)</span></span>
+            </div>
+
+            <!-- Per-Store Pricing Table -->
+            <div class="px-5 py-4">
+              <!-- Store: Main St POS -->
+              <div class="mb-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="w-3 h-3 bg-blue-500 rounded-full"></span>
+                  <span class="text-sm font-semibold text-blue-800">Main Street Store</span>
+                  <span class="text-xs text-gray-400">POS · Square</span>
+                  <button class="ml-auto text-xs text-brand-600 hover:text-brand-700 font-medium">Change Match</button>
+                </div>
+                <table class="w-full text-xs">
+                  <thead><tr class="bg-white text-gray-500 uppercase">
+                    <th class="text-left px-3 py-2 font-medium">SKU</th>
+                    <th class="text-left px-3 py-2 font-medium">Product</th>
+                    <th class="text-left px-3 py-2 font-medium">Size</th>
+                    <th class="text-right px-3 py-2 font-medium">Prev Cost</th>
+                    <th class="text-center px-3 py-2 font-medium"></th>
+                    <th class="text-right px-3 py-2 font-medium">New Cost</th>
+                    <th class="text-right px-3 py-2 font-medium">Curr Price</th>
+                    <th class="text-right px-3 py-2 font-medium">Sugg Price</th>
+                    <th class="text-right px-3 py-2 font-medium">Margin %</th>
+                    <th class="text-center px-3 py-2 font-medium">Competitors</th>
+                    <th class="text-center px-3 py-2 font-medium">Demand</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr class="border-t border-gray-100 hover:bg-white">
+                      <td class="px-3 py-2 font-mono">EGG-FR-700</td>
+                      <td class="px-3 py-2 font-medium">Free Range Eggs 700g</td>
+                      <td class="px-3 py-2">700g</td>
+                      <td class="px-3 py-2 text-right font-mono">$5.20</td>
+                      <td class="px-3 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td>
+                      <td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$5.97</td>
+                      <td class="px-3 py-2 text-right font-mono">$6.50</td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="6.99" class="w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white"></td>
+                      <td class="px-3 py-2 text-right"><span class="font-semibold text-green-600">17.1%</span></td>
+                      <td class="px-3 py-2 text-center">
+                        <div class="inline-flex items-center gap-1" title="W:$7.00 C:$6.80 A:$5.99">
+                          <span class="w-4 h-4 bg-green-600 rounded text-white text-[8px] flex items-center justify-center font-bold">W</span>
+                          <span class="w-4 h-4 bg-red-600 rounded text-white text-[8px] flex items-center justify-center font-bold">C</span>
+                          <span class="w-4 h-4 bg-blue-600 rounded text-white text-[8px] flex items-center justify-center font-bold">A</span>
+                        </div>
+                      </td>
+                      <td class="px-3 py-2 text-center"><span class="text-green-600 font-medium">↑ High</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Store: Online Store -->
+              <div class="mb-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="w-3 h-3 bg-emerald-500 rounded-full"></span>
+                  <span class="text-sm font-semibold text-emerald-800">Online Store</span>
+                  <span class="text-xs text-gray-400">Ecommerce · Shopify</span>
+                  <button class="ml-auto text-xs text-brand-600 hover:text-brand-700 font-medium">Change Match</button>
+                </div>
+                <table class="w-full text-xs">
+                  <thead><tr class="bg-white text-gray-500 uppercase">
+                    <th class="text-left px-3 py-2 font-medium">SKU</th><th class="text-left px-3 py-2 font-medium">Product</th><th class="text-left px-3 py-2 font-medium">Size</th><th class="text-right px-3 py-2 font-medium">Prev Cost</th><th class="text-center px-3 py-2 font-medium"></th><th class="text-right px-3 py-2 font-medium">New Cost</th><th class="text-right px-3 py-2 font-medium">Curr Price</th><th class="text-right px-3 py-2 font-medium">Sugg Price</th><th class="text-right px-3 py-2 font-medium">Margin %</th><th class="text-center px-3 py-2 font-medium">Competitors</th><th class="text-center px-3 py-2 font-medium">Demand</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr class="border-t border-gray-100 hover:bg-white">
+                      <td class="px-3 py-2 font-mono">SHP-EGG-FR</td><td class="px-3 py-2 font-medium">Free Range Eggs 700g</td><td class="px-3 py-2">700g</td><td class="px-3 py-2 text-right font-mono">$5.20</td><td class="px-3 py-2 text-center"><svg class="w-3 h-3 text-red-500 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></td><td class="px-3 py-2 text-right font-mono text-red-600 font-semibold">$5.97</td><td class="px-3 py-2 text-right font-mono">$7.49</td>
+                      <td class="px-3 py-2 text-right"><input type="text" value="7.99" class="w-16 px-2 py-1 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded focus:ring-2 focus:ring-brand-500 focus:bg-white"></td>
+                      <td class="px-3 py-2 text-right"><span class="font-semibold text-green-600">25.3%</span></td>
+                      <td class="px-3 py-2 text-center"><span class="text-xs text-gray-400">Online</span></td>
+                      <td class="px-3 py-2 text-center"><span class="text-green-600 font-medium">↑ High</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- AI Pricing Insight -->
+              <div class="bg-gradient-to-r from-brand-50 to-emerald-50 border border-brand-200 rounded-lg p-3 flex items-start gap-3 mb-3">
+                <span class="text-lg flex-shrink-0">🤖</span>
+                <div class="text-xs text-brand-800">
+                  <strong>AI Insight:</strong> Cost increased 14.8% but all three major competitors remain higher (Woolworths $7.00, Coles $6.80, Aldi $5.99). Demand is strong with low elasticity (-0.3). Recommend POS $6.99 (+$0.49), Online $7.99 (+$0.50). Estimated weekly margin gain: <strong class="text-green-700">+$18.72 POS</strong>, <strong class="text-green-700">+$4.00 Online</strong>.
+                </div>
+              </div>
+
+              <!-- Line Actions -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <label class="flex items-center gap-1.5 text-xs text-gray-600">
+                    <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5">
+                    Save mapping for future Farm Fresh invoices
+                  </label>
+                </div>
+                <div class="flex gap-2">
+                  <button class="px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg text-xs font-medium">Flag</button>
+                  <button class="px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg text-xs font-medium">Hold</button>
+                  <button class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700">✓ Approve Line</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== LINE 2: Auto-matched, Collapsed ===== -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div onclick="toggleLine('line2')" class="px-5 py-3.5 flex items-center gap-4 cursor-pointer hover:bg-gray-50 transition">
+            <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-4 h-4">
+            <svg id="chev-line2" class="w-4 h-4 text-gray-400 chevron flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2"><span class="text-sm font-semibold">Organic Full Cream Milk 2L</span><span class="text-xs text-gray-500">× 20 · $3.40/unit → landed $3.50</span></div>
+              <div class="text-xs text-gray-500 mt-0.5">Matched → <span class="font-medium text-gray-700">Organic Milk 2L</span> (barcode match)</div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span><span class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span></div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium flex-shrink-0">99% · Barcode</span>
+            <div class="flex items-center gap-1.5 flex-shrink-0 text-sm">
+              <span class="text-gray-500">$3.20</span><span class="text-xs text-red-500">→</span><span class="font-semibold text-red-600">$3.50</span><span class="text-xs text-red-500">+9.4%</span>
+            </div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-medium flex-shrink-0">✓ Matched</span>
+          </div>
+          <div id="detail-line2" class="expand-detail border-t border-gray-200 bg-gray-50/50 px-5 py-3 text-xs text-gray-500">
+            <p class="italic">Click "Expand All" above or expand this row to see per-store pricing, competitor context, and AI recommendation.</p>
+          </div>
+        </div>
+
+        <!-- ===== LINE 3: Auto-matched, Collapsed ===== -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div class="px-5 py-3.5 flex items-center gap-4 cursor-pointer hover:bg-gray-50 transition">
+            <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-4 h-4">
+            <svg class="w-4 h-4 text-gray-400 chevron flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2"><span class="text-sm font-semibold">Artisan Sourdough 750g</span><span class="text-xs text-gray-500">× 15 · $3.20/unit → landed $3.29</span></div>
+              <div class="text-xs text-gray-500 mt-0.5">Matched → <span class="font-medium text-gray-700">Sourdough Loaf 750g</span> (learned mapping)</div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span><span class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span></div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium flex-shrink-0">96% · Learned</span>
+            <div class="flex items-center gap-1.5 flex-shrink-0 text-sm">
+              <span class="text-gray-500">$3.10</span><span class="text-xs text-red-500">→</span><span class="font-semibold text-red-600">$3.29</span><span class="text-xs text-red-500">+6.1%</span>
+            </div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-medium flex-shrink-0">✓ Matched</span>
+          </div>
+        </div>
+
+        <!-- ===== LINE 4: Auto-matched, Collapsed ===== -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div class="px-5 py-3.5 flex items-center gap-4 cursor-pointer hover:bg-gray-50 transition">
+            <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-4 h-4">
+            <svg class="w-4 h-4 text-gray-400 chevron flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2"><span class="text-sm font-semibold">Greek Yogurt Natural 1kg</span><span class="text-xs text-gray-500">× 12 · $4.80/unit → landed $4.94</span></div>
+              <div class="text-xs text-gray-500 mt-0.5">Matched → <span class="font-medium text-gray-700">Greek Yogurt 1kg</span> (learned mapping)</div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0"><span class="w-2.5 h-2.5 bg-blue-500 rounded-full"></span><span class="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span></div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-xs font-medium flex-shrink-0">95% · Learned</span>
+            <div class="flex items-center gap-1.5 flex-shrink-0 text-sm">
+              <span class="text-gray-500">$4.60</span><span class="text-xs text-red-500">→</span><span class="font-semibold text-red-600">$4.94</span><span class="text-xs text-red-500">+7.4%</span>
+            </div>
+            <span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-medium flex-shrink-0">✓ Matched</span>
+          </div>
+        </div>
+
+        <!-- ===== LINE 5: NEEDS HUMAN INTERVENTION — Low Confidence Match ===== -->
+        <div class="bg-white rounded-xl border-2 border-amber-400 shadow-md overflow-hidden slide-up">
+          <div class="px-5 py-3.5 flex items-center gap-4 bg-amber-50/50">
+            <input type="checkbox" class="rounded border-gray-300 text-brand-600 w-4 h-4">
+            <svg class="w-4 h-4 text-amber-500 chevron rotated flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold">Bonsoy Organic Soy Milk 1L</span>
+                <span class="text-xs text-gray-500">× 8 · $3.95/unit → landed $4.06</span>
+                <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold uppercase">Needs Your Input</span>
+              </div>
+              <div class="text-xs text-amber-700 mt-0.5 font-medium">⚠ AI found a probable match but confidence is below 90% — please confirm or select a different product</div>
+            </div>
+            <span class="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium flex-shrink-0">87% · AI fuzzy</span>
+            <span class="px-2 py-0.5 bg-red-50 text-red-700 rounded text-xs font-medium flex-shrink-0">⬤ Needs Review</span>
+          </div>
+
+          <!-- MATCH RESOLUTION PANEL (expanded by default) -->
+          <div class="border-t border-amber-200 bg-amber-50/30">
+            <div class="grid grid-cols-5 divide-x divide-gray-200">
+              <!-- LEFT: Invoice context + AI suggestions (2 cols) -->
+              <div class="col-span-2 p-5 space-y-4">
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice Line Context</h4>
+                <div class="bg-white rounded-lg border border-gray-200 p-3 space-y-1.5 text-xs">
+                  <div class="flex justify-between"><span class="text-gray-500">Description:</span><span class="font-medium">"Bonsoy Organic Soy Milk 1L"</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Pack / Unit:</span><span class="font-medium">1L × 8 units</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Unit Price:</span><span class="font-medium font-mono">$3.95</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Landed Cost:</span><span class="font-medium font-mono">$4.06</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Barcode:</span><span class="text-gray-400 italic">Not provided</span></div>
+                  <div class="flex justify-between"><span class="text-gray-500">Supplier SKU:</span><span class="font-medium">BSM-1L-ORG</span></div>
+                </div>
+
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">AI Suggestions</h4>
+                <div class="space-y-2">
+                  <!-- Suggestion 1 - Best match -->
+                  <label class="block bg-white rounded-lg border-2 border-amber-300 p-3 cursor-pointer hover:border-brand-500 transition shadow-sm">
+                    <div class="flex items-center gap-2">
+                      <input type="radio" name="match5" checked class="text-brand-600 w-4 h-4">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm font-medium">Soy Milk 1L</span>
+                          <span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-medium">87% match</span>
+                        </div>
+                        <div class="text-[11px] text-gray-500 mt-0.5">Product #231 · Category: Beverages · Base unit: 1L</div>
+                        <div class="flex items-center gap-3 mt-1 text-[11px]">
+                          <span class="flex items-center gap-1"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> POS: $4.29</span>
+                          <span class="flex items-center gap-1"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Online: $4.99</span>
+                        </div>
+                      </div>
+                      <span class="text-[10px] bg-brand-50 text-brand-700 px-1.5 py-0.5 rounded font-medium">Best Match</span>
+                    </div>
+                  </label>
+
+                  <!-- Suggestion 2 -->
+                  <label class="block bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-brand-400 transition">
+                    <div class="flex items-center gap-2">
+                      <input type="radio" name="match5" class="text-brand-600 w-4 h-4">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm font-medium">Organic Soy Milk 1L (Bonsoy)</span>
+                          <span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-medium">72% match</span>
+                        </div>
+                        <div class="text-[11px] text-gray-500 mt-0.5">Product #445 · Category: Beverages · Discontinued?</div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <!-- Suggestion 3 -->
+                  <label class="block bg-white rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-brand-400 transition">
+                    <div class="flex items-center gap-2">
+                      <input type="radio" name="match5" class="text-brand-600 w-4 h-4">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm font-medium">Soy Milk Organic 1L (Alt Dairy)</span>
+                          <span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-medium">65% match</span>
+                        </div>
+                        <div class="text-[11px] text-gray-500 mt-0.5">Product #312 · Category: Beverages · Different brand</div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- RIGHT: Product Search + Pricing Preview (3 cols) -->
+              <div class="col-span-3 p-5 space-y-4">
+                <div class="flex items-center gap-3">
+                  <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Search Products</h4>
+                  <div class="flex-1">
+                    <input type="text" value="soy milk 1L" placeholder="Search by name, SKU, barcode..." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                  </div>
+                  <select class="px-3 py-2 border border-gray-200 rounded-lg text-xs bg-white">
+                    <option>All Stores</option>
+                    <option>Main St POS</option>
+                    <option>Online Store</option>
+                  </select>
+                </div>
+
+                <div class="bg-white rounded-lg border border-gray-200 max-h-48 overflow-y-auto divide-y divide-gray-100">
+                  <!-- Search Result 1 (selected) -->
+                  <div class="px-4 py-3 flex items-center gap-3 bg-brand-50 border-l-4 border-brand-500">
+                    <svg class="w-5 h-5 text-brand-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div class="flex-1"><div class="text-sm font-medium">Soy Milk 1L</div><div class="text-[11px] text-gray-500">#231 · Beverages · SKU: SM-1L · Cost: $3.80</div></div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-blue-500 rounded-full"></span><span class="w-2 h-2 bg-emerald-500 rounded-full"></span></div>
+                  </div>
+                  <!-- Search Result 2 -->
+                  <div class="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer">
+                    <div class="w-5 flex-shrink-0"></div>
+                    <div class="flex-1"><div class="text-sm font-medium">Organic Soy Milk 1L (Bonsoy)</div><div class="text-[11px] text-gray-500">#445 · Beverages · SKU: BSM-1L · Cost: $4.10</div></div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-blue-500 rounded-full"></span></div>
+                  </div>
+                  <!-- Search Result 3 -->
+                  <div class="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer">
+                    <div class="w-5 flex-shrink-0"></div>
+                    <div class="flex-1"><div class="text-sm font-medium">Soy Milk Organic 1L (Alt Dairy Co)</div><div class="text-[11px] text-gray-500">#312 · Beverages · SKU: AD-SOY-1L · Cost: $3.60</div></div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-blue-500 rounded-full"></span><span class="w-2 h-2 bg-emerald-500 rounded-full"></span></div>
+                  </div>
+                  <!-- Create New -->
+                  <div class="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 cursor-pointer">
+                    <svg class="w-5 h-5 text-brand-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                    <div class="flex-1"><div class="text-sm font-medium text-brand-600">Create new product: "Bonsoy Organic Soy Milk 1L"</div></div>
+                  </div>
+                </div>
+
+                <!-- Pricing Preview for Selected Match -->
+                <div class="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                  <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Pricing Preview — If matched to "Soy Milk 1L"</h4>
+                  <table class="w-full text-xs">
+                    <thead><tr class="text-gray-500 uppercase">
+                      <th class="text-left px-2 py-1.5 font-medium">Store</th><th class="text-right px-2 py-1.5 font-medium">Prev Cost</th><th class="text-center px-2 py-1.5"></th><th class="text-right px-2 py-1.5 font-medium">New Cost</th><th class="text-right px-2 py-1.5 font-medium">Curr Price</th><th class="text-right px-2 py-1.5 font-medium">Sugg Price</th><th class="text-right px-2 py-1.5 font-medium">Margin</th><th class="text-center px-2 py-1.5 font-medium">Competitors</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-gray-100">
+                      <tr>
+                        <td class="px-2 py-1.5"><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> Main St POS</span></td>
+                        <td class="px-2 py-1.5 text-right font-mono">$3.80</td>
+                        <td class="px-2 py-1.5 text-center text-red-500">→</td>
+                        <td class="px-2 py-1.5 text-right font-mono text-red-600 font-semibold">$4.06</td>
+                        <td class="px-2 py-1.5 text-right font-mono">$4.29</td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="4.79" class="w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs"></td>
+                        <td class="px-2 py-1.5 text-right text-green-600 font-semibold">15.2%</td>
+                        <td class="px-2 py-1.5 text-center"><span class="text-gray-400 text-[10px]">W:$4.99 C:$4.50</span></td>
+                      </tr>
+                      <tr>
+                        <td class="px-2 py-1.5"><span class="flex items-center gap-1.5"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Online Store</span></td>
+                        <td class="px-2 py-1.5 text-right font-mono">$3.80</td>
+                        <td class="px-2 py-1.5 text-center text-red-500">→</td>
+                        <td class="px-2 py-1.5 text-right font-mono text-red-600 font-semibold">$4.06</td>
+                        <td class="px-2 py-1.5 text-right font-mono">$4.99</td>
+                        <td class="px-2 py-1.5 text-right"><input type="text" value="5.49" class="w-14 px-1.5 py-0.5 text-right font-mono font-semibold text-green-700 bg-green-50 border border-green-200 rounded text-xs"></td>
+                        <td class="px-2 py-1.5 text-right text-green-600 font-semibold">26.0%</td>
+                        <td class="px-2 py-1.5 text-center"><span class="text-gray-400 text-[10px]">Online only</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <!-- AI Insight -->
+                  <div class="mt-3 bg-brand-50 border border-brand-200 rounded p-2 flex items-start gap-2 text-[11px] text-brand-800">
+                    <span>🤖</span>
+                    <span><strong>AI:</strong> Cost rose 6.8%. Competitors are at $4.50-$4.99. Recommend $4.79 POS / $5.49 Online. Demand signal: stable. Estimated gain: +$32/wk.</span>
+                  </div>
+                </div>
+
+                <!-- Confirm Actions -->
+                <div class="flex items-center justify-between pt-2">
+                  <label class="flex items-center gap-2 text-xs text-gray-600">
+                    <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5">
+                    Save this mapping for future Farm Fresh invoices
+                  </label>
+                  <div class="flex gap-2">
+                    <button class="px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg text-xs font-medium">Skip Line</button>
+                    <button class="px-4 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700">Confirm Match & Pricing</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== LINE 6: NO MATCH — New Product ===== -->
+        <div class="bg-white rounded-xl border-2 border-red-300 shadow-md overflow-hidden">
+          <div class="px-5 py-3.5 flex items-center gap-4 bg-red-50/50">
+            <input type="checkbox" class="rounded border-gray-300 text-brand-600 w-4 h-4">
+            <svg class="w-4 h-4 text-red-500 chevron rotated flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold">Kombucha Ginger Lemon 330ml</span>
+                <span class="text-xs text-gray-500">× 24 · $2.80/unit → landed $2.88</span>
+                <span class="px-1.5 py-0.5 bg-red-100 text-red-800 rounded text-[10px] font-bold uppercase">New Product</span>
+              </div>
+              <div class="text-xs text-red-700 mt-0.5 font-medium">❌ No matching product found — create a new product or search your catalog</div>
+            </div>
+            <span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium flex-shrink-0">No match</span>
+            <span class="px-2 py-0.5 bg-red-50 text-red-700 rounded text-xs font-medium flex-shrink-0">⬤ Unmatched</span>
+          </div>
+
+          <!-- Expanded: Create new product or search -->
+          <div class="border-t border-red-200 bg-red-50/20 p-5">
+            <div class="grid grid-cols-2 gap-6">
+              <!-- Option A: Search existing -->
+              <div>
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Search Existing Products</h4>
+                <input type="text" value="kombucha" placeholder="Search..." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 mb-2">
+                <div class="bg-white rounded-lg border border-gray-200 p-4 text-center text-sm text-gray-500">
+                  <svg class="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                  No products matching "kombucha" found in your catalog.
+                </div>
+              </div>
+
+              <!-- Option B: Create new product -->
+              <div>
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Create New Product</h4>
+                <div class="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+                  <div><label class="text-xs text-gray-500 mb-1 block">Product Name</label><input type="text" value="Kombucha Ginger Lemon 330ml" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm"></div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-xs text-gray-500 mb-1 block">Category</label><select class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-white"><option>Beverages</option></select></div>
+                    <div><label class="text-xs text-gray-500 mb-1 block">Base Unit</label><input type="text" value="330ml" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm"></div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div><label class="text-xs text-gray-500 mb-1 block">Cost (landed)</label><input type="text" value="$2.88" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm font-mono"></div>
+                    <div><label class="text-xs text-gray-500 mb-1 block">Selling Price</label><input type="text" value="$4.99" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm font-mono"></div>
+                  </div>
+                  <div class="flex items-center justify-between pt-1">
+                    <label class="flex items-center gap-2 text-xs text-gray-600">
+                      <input type="checkbox" checked class="rounded border-gray-300 text-brand-600 w-3.5 h-3.5">
+                      Add to both stores
+                    </label>
+                    <button class="px-4 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-700">Create & Match</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== MORE LINES (collapsed summary) ===== -->
+        <div class="bg-white rounded-xl border border-gray-200 px-5 py-3">
+          <div class="flex items-center gap-3 text-sm text-gray-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            <span>6 more line items — all auto-matched with 93%+ confidence</span>
+            <button class="ml-auto text-xs text-brand-600 font-medium hover:text-brand-700">Show All</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- NAVIGATION -->
+      <div class="flex items-center justify-between pt-4">
+        <button onclick="showStep(1)" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+          Back to OCR
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="text-sm text-gray-500">
+            <span class="font-medium text-gray-900">9</span> of 12 lines approved · <span class="font-medium text-amber-600">2</span> need review · <span class="font-medium text-red-600">1</span> unmatched
+          </div>
+          <button onclick="showStep(3)" class="px-6 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2">
+            Continue to Approval
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== STEP 3: REVIEW & APPROVE ==================== -->
+    <div id="step-3" class="step-panel p-6 space-y-4">
+      <!-- Impact Summary -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="text-2xl font-bold">12</div><div class="text-xs text-gray-500 mt-1">Line Items</div>
+          <div class="text-xs text-green-600 mt-1">9 approved · 2 reviewed · 1 new</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="text-2xl font-bold">24</div><div class="text-xs text-gray-500 mt-1">SKUs Affected</div>
+          <div class="text-xs text-gray-500 mt-1">Across 2 stores</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="text-2xl font-bold text-red-600">+8.4%</div><div class="text-xs text-gray-500 mt-1">Avg Cost Change</div>
+          <div class="text-xs text-red-600 mt-1">Supplier cost increases</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <div class="text-2xl font-bold text-green-600">24.8%</div><div class="text-xs text-gray-500 mt-1">Projected Avg Margin</div>
+          <div class="text-xs text-green-600 mt-1">↑ From 22.1% before</div>
+        </div>
+      </div>
+
+      <!-- Approved Lines Summary -->
+      <div class="bg-white rounded-xl border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+          <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <h3 class="font-semibold">Approved Lines (12)</h3>
+          <span class="ml-auto text-xs text-gray-400">All lines matched and priced</span>
+        </div>
+        <table class="w-full text-xs">
+          <thead><tr class="bg-gray-50 text-gray-500 uppercase">
+            <th class="text-left px-4 py-2 font-medium">Invoice Item</th>
+            <th class="text-left px-4 py-2 font-medium">Matched Product</th>
+            <th class="text-right px-4 py-2 font-medium">Cost Change</th>
+            <th class="text-center px-4 py-2 font-medium">Stores</th>
+            <th class="text-right px-4 py-2 font-medium">POS Price</th>
+            <th class="text-right px-4 py-2 font-medium">Online Price</th>
+            <th class="text-right px-4 py-2 font-medium">Margin Impact</th>
+          </tr></thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr class="hover:bg-gray-50"><td class="px-4 py-2 font-medium">Free Range Eggs 700g</td><td class="px-4 py-2">Free Range Eggs 700g</td><td class="px-4 py-2 text-right text-red-600">+14.8%</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-blue-500 rounded-full inline-block"></span> <span class="w-2 h-2 bg-emerald-500 rounded-full inline-block"></span></td><td class="px-4 py-2 text-right font-mono text-green-600 font-semibold">$6.99</td><td class="px-4 py-2 text-right font-mono text-green-600 font-semibold">$7.99</td><td class="px-4 py-2 text-right text-green-600 font-semibold">+$22.72/wk</td></tr>
+            <tr class="hover:bg-gray-50"><td class="px-4 py-2 font-medium">Organic Milk 2L</td><td class="px-4 py-2">Organic Milk 2L</td><td class="px-4 py-2 text-right text-red-600">+9.4%</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-blue-500 rounded-full inline-block"></span> <span class="w-2 h-2 bg-emerald-500 rounded-full inline-block"></span></td><td class="px-4 py-2 text-right font-mono">$5.99</td><td class="px-4 py-2 text-right font-mono">$6.49</td><td class="px-4 py-2 text-right text-gray-500">No change</td></tr>
+            <tr class="hover:bg-gray-50"><td class="px-4 py-2 font-medium">Bonsoy Organic Soy Milk 1L</td><td class="px-4 py-2">Soy Milk 1L <span class="text-amber-600">(manual match)</span></td><td class="px-4 py-2 text-right text-red-600">+6.8%</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-blue-500 rounded-full inline-block"></span> <span class="w-2 h-2 bg-emerald-500 rounded-full inline-block"></span></td><td class="px-4 py-2 text-right font-mono text-green-600 font-semibold">$4.79</td><td class="px-4 py-2 text-right font-mono text-green-600 font-semibold">$5.49</td><td class="px-4 py-2 text-right text-green-600 font-semibold">+$32.00/wk</td></tr>
+            <tr class="hover:bg-gray-50"><td class="px-4 py-2 font-medium">Kombucha Ginger Lemon 330ml</td><td class="px-4 py-2 text-brand-600">NEW PRODUCT (created)</td><td class="px-4 py-2 text-right text-gray-400">New</td><td class="px-4 py-2 text-center"><span class="w-2 h-2 bg-blue-500 rounded-full inline-block"></span> <span class="w-2 h-2 bg-emerald-500 rounded-full inline-block"></span></td><td class="px-4 py-2 text-right font-mono">$4.99</td><td class="px-4 py-2 text-right font-mono">$5.49</td><td class="px-4 py-2 text-right text-gray-400">New listing</td></tr>
+            <tr class="text-gray-400"><td class="px-4 py-2" colspan="7">... 8 more items (margins within target, no price changes)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Total Impact -->
+      <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-5 flex items-center gap-4">
+        <div class="w-14 h-14 bg-green-600 rounded-xl flex items-center justify-center flex-shrink-0"><span class="text-white text-2xl">📈</span></div>
+        <div class="flex-1">
+          <h3 class="font-semibold text-green-900">Estimated Weekly Margin Impact</h3>
+          <p class="text-sm text-green-700 mt-0.5">Based on current sales velocity and projected price changes across 2 stores</p>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <div class="text-3xl font-bold text-green-700">+$72.40</div>
+          <div class="text-sm text-green-600">per week additional margin</div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center justify-between">
+        <button onclick="showStep(2)" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+          Back to Matching
+        </button>
+        <button onclick="showStep(4)" class="px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition flex items-center gap-2">
+          Approve All & Continue to Export
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== STEP 4: EXPORT & PUSH ==================== -->
+    <div id="step-4" class="step-panel p-6 space-y-4">
+      <!-- Success Banner -->
+      <div class="bg-green-600 rounded-xl p-5 text-white flex items-center gap-4">
+        <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0"><span class="text-3xl">✅</span></div>
+        <div>
+          <h2 class="text-lg font-bold">Invoice #4521 Approved — Ready to Push</h2>
+          <p class="text-green-100 mt-0.5">12 line items matched · 24 SKUs updated · 4 price changes across 2 stores</p>
+        </div>
+      </div>
+
+      <!-- Store Push Cards -->
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Main St POS -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div class="bg-blue-600 px-5 py-3 text-white flex items-center justify-between">
+            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-white/50 rounded-full"></span><span class="font-semibold">Main Street Store</span></div>
+            <span class="text-xs bg-white/20 px-2 py-0.5 rounded-full">12 products · Square POS</span>
+          </div>
+          <div class="p-5 space-y-3">
+            <div class="flex gap-2">
+              <button class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                Push to Square POS
+              </button>
+              <button class="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">CSV</button>
+            </div>
+            <p class="text-xs text-gray-500">Pushes cost and price updates directly to your Square catalog via API</p>
+          </div>
+        </div>
+
+        <!-- Online Store -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div class="bg-emerald-600 px-5 py-3 text-white flex items-center justify-between">
+            <div class="flex items-center gap-2"><span class="w-3 h-3 bg-white/50 rounded-full"></span><span class="font-semibold">Online Store</span></div>
+            <span class="text-xs bg-white/20 px-2 py-0.5 rounded-full">12 products · Shopify</span>
+          </div>
+          <div class="p-5 space-y-3">
+            <div class="flex gap-2">
+              <button class="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                Push to Shopify
+              </button>
+              <button class="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">CSV</button>
+            </div>
+            <p class="text-xs text-gray-500">Updates product prices on your Shopify store via API</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Push All -->
+      <div class="bg-brand-50 border border-brand-200 rounded-xl p-5 flex items-center justify-between">
+        <div>
+          <h3 class="font-semibold text-brand-900">Push to all connected stores at once</h3>
+          <p class="text-sm text-brand-700 mt-0.5">Updates prices on Square POS and Shopify simultaneously. Changes reflect within 30 seconds.</p>
+        </div>
+        <button class="px-6 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 transition flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+          Push All Stores Now
+        </button>
+      </div>
+
+      <!-- Audit Trail -->
+      <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 text-xs text-gray-500 flex items-center gap-3">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+        <span>Invoice #4521 · Processed by AI Agent at 10:32 AM · Reviewed by <strong>Sarah Singh</strong> at 10:45 AM · 12 lines approved · Audit ID: <span class="font-mono">AUD-2026031745</span></span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- BULK ACTION BAR (fixed footer) -->
+<div id="bulk-bar" class="bulk-bar visible fixed bottom-0 left-64 right-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-between z-20 shadow-lg">
+  <div class="flex items-center gap-3">
+    <input type="checkbox" class="rounded border-gray-300 text-brand-600 w-4 h-4">
+    <span class="text-sm text-gray-600"><strong>9</strong> of 12 lines selected</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <button class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">Hold Selected</button>
+    <button class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">Flag Selected</button>
+    <button class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">Export CSV</button>
+    <button class="px-4 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700">✓ Approve Selected (9)</button>
+  </div>
+</div>
+
+<script>
+function showStep(n) {
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('step-' + n).classList.add('active');
+  // Update step indicators visually
+  document.querySelectorAll('.step-indicator').forEach((el, i) => {
+    if (i + 1 < n) { el.className = 'step-indicator w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm'; el.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>'; }
+    else if (i + 1 === n) { el.className = 'step-indicator w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold'; el.textContent = n; }
+    else { el.className = 'step-indicator w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold'; el.textContent = i + 1; }
+  });
+}
+
+function toggleLine(id) {
+  const detail = document.getElementById('detail-' + id);
+  const chev = document.getElementById('chev-' + id);
+  if (detail) detail.classList.toggle('open');
+  if (chev) chev.classList.toggle('rotated');
+}
+
+function expandAll() {
+  document.querySelectorAll('.expand-detail').forEach(d => d.classList.add('open'));
+  document.querySelectorAll('.chevron').forEach(c => c.classList.add('rotated'));
+}
+</script>
+</body>
+</html>

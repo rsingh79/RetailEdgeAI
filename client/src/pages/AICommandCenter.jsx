@@ -175,15 +175,6 @@ const MOCK_ACTIVITY = [
   { time: '09:00', agent: 'Demand Agent', agentEmoji: '📊', agentBg: 'bg-indigo-50', message: 'Weekly analysis complete: Eggs ↑15%, Yogurt ↑8%, Rice ↓12%', badge: 'done' },
 ];
 
-const MOCK_USAGE = {
-  invoicesProcessed: 47,
-  linesMatched: 412,
-  aiCost: 8.40,
-  aiCostLimit: 25,
-  autoMatchRate: 93,
-  billingPeriod: 'Mar 1–31, 2026',
-};
-
 // ── Icons ──
 const icons = {
   lightning: (
@@ -346,7 +337,6 @@ export default function AICommandCenter() {
   const [agentStatuses, setAgentStatuses] = useState(MOCK_AGENT_STATUS);
   const [decisions, setDecisions] = useState(MOCK_DECISIONS);
   const [activity] = useState(MOCK_ACTIVITY);
-  const [usage] = useState(MOCK_USAGE);
   const [loading, setLoading] = useState(false);
   const [runningAll, setRunningAll] = useState(false);
 
@@ -493,31 +483,6 @@ export default function AICommandCenter() {
         </div>
       </div>
 
-      {/* ── AI Usage This Month ── */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold">AI Usage This Month</h2>
-          <span className="text-sm text-gray-500">Billing period: {usage.billingPeriod}</span>
-        </div>
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-gray-900">{usage.invoicesProcessed}</div>
-            <div className="text-xs text-gray-500 mt-1">Invoices Processed</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-gray-900">{usage.linesMatched}</div>
-            <div className="text-xs text-gray-500 mt-1">Lines Matched</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-green-600">${usage.aiCost.toFixed(2)}</div>
-            <div className="text-xs text-gray-500 mt-1">AI Cost (of ${usage.aiCostLimit} limit)</div>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-brand-600">{usage.autoMatchRate}%</div>
-            <div className="text-xs text-gray-500 mt-1">Auto-Match Rate</div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

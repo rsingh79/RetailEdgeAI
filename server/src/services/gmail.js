@@ -12,7 +12,7 @@ const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-const SUPPORTED_MIMETYPES = new Set([
+export const SUPPORTED_MIMETYPES = new Set([
   'application/pdf',
   'image/jpeg',
   'image/jpg',

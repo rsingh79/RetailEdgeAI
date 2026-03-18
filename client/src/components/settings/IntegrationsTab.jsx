@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import PollIntervalInput from '../ui/PollIntervalInput';
 
 export default function IntegrationsTab() {
   const [gmailStatus, setGmailStatus] = useState(null);
@@ -31,9 +32,17 @@ export default function IntegrationsTab() {
   });
   const [patternInput, setPatternInput] = useState('');
 
+  // ── Shopify state ──
+  const [shopifyStatus, setShopifyStatus] = useState(null);
+  const [shopifyShop, setShopifyShop] = useState('');
+  const [shopifyConnecting, setShopifyConnecting] = useState(false);
+  const [shopifySyncing, setShopifySyncing] = useState(false);
+  const [shopifyImportLogs, setShopifyImportLogs] = useState([]);
+
   useEffect(() => {
     loadStatus();
     loadFolderStatus();
+    loadShopifyStatus();
 
     // Handle OAuth redirect — check URL params set by the callback
     const params = new URLSearchParams(window.location.search);
@@ -43,6 +52,15 @@ export default function IntegrationsTab() {
     } else if (params.get('gmail') === 'error') {
       const reason = params.get('reason') || 'unknown error';
       alert(`Gmail connection failed: ${reason}`);
+      window.history.replaceState({}, '', '/settings');
+    }
+    // Handle Shopify OAuth redirect
+    if (params.get('shopify') === 'connected') {
+      window.history.replaceState({}, '', '/settings');
+      loadShopifyStatus();
+    } else if (params.get('shopify') === 'error') {
+      const reason = params.get('reason') || 'unknown error';
+      alert(`Shopify connection failed: ${reason}`);
       window.history.replaceState({}, '', '/settings');
     }
   }, []);
@@ -264,6 +282,70 @@ export default function IntegrationsTab() {
       ...prev,
       filePatterns: prev.filePatterns.filter((p) => p !== pattern),
     }));
+  };
+
+  // ── Shopify handlers ──
+
+  const loadShopifyStatus = async () => {
+    try {
+      const status = await api.shopify.getStatus();
+      setShopifyStatus(status);
+      if (status.connected) {
+        const logData = await api.shopify.getImportLogs();
+        setShopifyImportLogs(logData.logs || []);
+      }
+    } catch (err) {
+      // Plan-gated — 403 means feature not available (gracefully hide)
+      if (err.message?.includes('403') || err.message?.includes('requires')) {
+        setShopifyStatus({ unavailable: true });
+      } else {
+        console.error('Failed to load Shopify status:', err);
+      }
+    }
+  };
+
+  const handleShopifyConnect = async () => {
+    if (!shopifyShop.trim()) {
+      alert('Enter your Shopify shop domain.');
+      return;
+    }
+    setShopifyConnecting(true);
+    try {
+      const { url } = await api.shopify.getAuthUrl(shopifyShop.trim());
+      // Full-page redirect to Shopify consent screen
+      window.location.href = url;
+    } catch (err) {
+      alert(err.message);
+      setShopifyConnecting(false);
+    }
+  };
+
+  const handleShopifySync = async () => {
+    setShopifySyncing(true);
+    try {
+      const result = await api.shopify.sync();
+      alert(
+        result.message ||
+          `Synced: ${result.productsCreated} created, ${result.productsUpdated} updated, ${result.variantsCreated} variants`
+      );
+      await loadShopifyStatus();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setShopifySyncing(false);
+    }
+  };
+
+  const handleShopifyDisconnect = async () => {
+    if (!confirm('Are you sure you want to disconnect Shopify? Your synced products will be preserved.')) return;
+    try {
+      await api.shopify.disconnect();
+      setShopifyStatus({ connected: false });
+      setShopifyImportLogs([]);
+      setShopifyShop('');
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   if (loading) {
@@ -516,16 +598,10 @@ export default function IntegrationsTab() {
                 {/* Poll interval */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Poll Interval</label>
-                  <select
+                  <PollIntervalInput
                     value={config.pollIntervalMin}
-                    onChange={(e) => setConfig((p) => ({ ...p, pollIntervalMin: parseInt(e.target.value) }))}
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value={15}>Every 15 minutes</option>
-                    <option value={30}>Every 30 minutes</option>
-                    <option value={60}>Every hour</option>
-                    <option value={120}>Every 2 hours</option>
-                  </select>
+                    onChange={(val) => setConfig((p) => ({ ...p, pollIntervalMin: val }))}
+                  />
                 </div>
 
                 <button
@@ -665,16 +741,10 @@ export default function IntegrationsTab() {
                 {/* Poll interval */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Poll Interval</label>
-                  <select
+                  <PollIntervalInput
                     value={folderConfig.pollIntervalMin}
-                    onChange={(e) => setFolderConfig((p) => ({ ...p, pollIntervalMin: parseInt(e.target.value) }))}
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value={15}>Every 15 minutes</option>
-                    <option value={30}>Every 30 minutes</option>
-                    <option value={60}>Every hour</option>
-                    <option value={120}>Every 2 hours</option>
-                  </select>
+                    onChange={(val) => setFolderConfig((p) => ({ ...p, pollIntervalMin: val }))}
+                  />
                 </div>
 
                 {/* Test connection */}
@@ -784,16 +854,10 @@ export default function IntegrationsTab() {
                 {/* Poll interval */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Poll Interval</label>
-                  <select
+                  <PollIntervalInput
                     value={folderConfig.pollIntervalMin}
-                    onChange={(e) => setFolderConfig((p) => ({ ...p, pollIntervalMin: parseInt(e.target.value) }))}
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value={15}>Every 15 minutes</option>
-                    <option value={30}>Every 30 minutes</option>
-                    <option value={60}>Every hour</option>
-                    <option value={120}>Every 2 hours</option>
-                  </select>
+                    onChange={(val) => setFolderConfig((p) => ({ ...p, pollIntervalMin: val }))}
+                  />
                 </div>
 
                 <button
@@ -844,6 +908,185 @@ export default function IntegrationsTab() {
                   </td>
                   <td className="px-5 py-3 text-gray-500 text-xs">
                     {log.duplicateReason || '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* Shopify Integration Card                                       */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {!shopifyStatus?.unavailable && (
+        <div className="bg-white rounded-xl border border-gray-200">
+          <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+            {/* Shopify bag icon */}
+            <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-green-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.337 3.415c-.15-.082-.337-.012-.382.158l-.547 2.356c-.265 0-.537.032-.818.084a4.6 4.6 0 00-.932-1.64c-.517-.554-1.227-.834-2.1-.834-3.18 0-4.726 3.97-5.2 5.987L3.2 10.23c-.468.146-.483.16-.546.604L.96 22.45l11.68 2.063L21 22.572c0 0-3.885-17.86-3.905-17.97-.02-.11-.065-.158-.16-.197-.094-.038-1.593-.99-1.598-.99z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900">Shopify Integration</h3>
+              <p className="text-sm text-gray-500">Sync products from your Shopify store</p>
+            </div>
+            {shopifyStatus?.connected && (
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                Connected
+              </span>
+            )}
+          </div>
+
+          <div className="p-5">
+            {!shopifyStatus?.connected ? (
+              /* ── Not connected state ── */
+              <div className="space-y-6">
+                {/* Feature overview */}
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-gray-600">
+                    Connect your Shopify store to automatically sync products and pricing.
+                  </p>
+                  <ul className="text-sm text-gray-500 space-y-1">
+                    <li>One-click OAuth connection — no API keys needed</li>
+                    <li>Sync products, variants, and pricing from Shopify</li>
+                    <li>Push price updates back to Shopify (coming soon)</li>
+                  </ul>
+                </div>
+
+                {/* Connect form */}
+                <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Shop Domain</label>
+                    <input
+                      type="text"
+                      value={shopifyShop}
+                      onChange={(e) => setShopifyShop(e.target.value)}
+                      placeholder="mystore or mystore.myshopify.com"
+                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-mono"
+                      onKeyDown={(e) => e.key === 'Enter' && handleShopifyConnect()}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Enter your Shopify store name or full .myshopify.com domain
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleShopifyConnect}
+                    disabled={shopifyConnecting || !shopifyShop.trim()}
+                    className="px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    {shopifyConnecting ? 'Redirecting to Shopify...' : 'Connect Shopify'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ── Connected state ── */
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">{shopifyStatus.shop}</div>
+                    <div className="text-xs text-gray-500">
+                      Last synced: {shopifyStatus.lastSyncAt
+                        ? new Date(shopifyStatus.lastSyncAt).toLocaleString()
+                        : 'Never'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleShopifySync}
+                      disabled={shopifySyncing}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {shopifySyncing ? 'Syncing...' : 'Sync Now'}
+                    </button>
+                    <button
+                      onClick={handleShopifyDisconnect}
+                      className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sync stats */}
+                <div className="flex gap-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-900">{shopifyStatus.productCount || 0}</div>
+                    <div className="text-xs text-gray-500">Products Synced</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-900">{shopifyStatus.scopes?.split(',').length || 0}</div>
+                    <div className="text-xs text-gray-500">Permissions</div>
+                  </div>
+                </div>
+
+                {/* Connection details */}
+                <div className="pt-4 border-t border-gray-100 space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700">Connection Details</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-gray-500">Scopes:</div>
+                    <div className="text-gray-700">{shopifyStatus.scopes}</div>
+                    <div className="text-gray-500">Connected:</div>
+                    <div className="text-gray-700">
+                      {shopifyStatus.connectedAt ? new Date(shopifyStatus.connectedAt).toLocaleDateString() : '-'}
+                    </div>
+                    <div className="text-gray-500">Status:</div>
+                    <div className="text-gray-700">
+                      {shopifyStatus.isActive ? (
+                        <span className="text-emerald-600">Active</span>
+                      ) : (
+                        <span className="text-amber-600">Paused</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Shopify Sync History */}
+      {shopifyStatus?.connected && shopifyImportLogs.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200">
+          <div className="p-5 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900">Shopify Sync History</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr className="text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-5 py-3">Date</th>
+                <th className="px-5 py-3">Pulled</th>
+                <th className="px-5 py-3">Created</th>
+                <th className="px-5 py-3">Updated</th>
+                <th className="px-5 py-3">Variants</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">Duration</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {shopifyImportLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-gray-50">
+                  <td className="px-5 py-3 text-gray-500 text-xs">
+                    {new Date(log.createdAt).toLocaleString()}
+                  </td>
+                  <td className="px-5 py-3 text-gray-700">{log.productsPulled}</td>
+                  <td className="px-5 py-3 text-gray-700">{log.productsCreated}</td>
+                  <td className="px-5 py-3 text-gray-700">{log.productsUpdated}</td>
+                  <td className="px-5 py-3 text-gray-700">{log.variantsCreated}</td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      log.status === 'success' ? 'bg-emerald-100 text-emerald-700' :
+                      log.status === 'partial' ? 'bg-amber-100 text-amber-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {log.status}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-gray-500 text-xs">
+                    {log.durationMs ? `${(log.durationMs / 1000).toFixed(1)}s` : '-'}
                   </td>
                 </tr>
               ))}

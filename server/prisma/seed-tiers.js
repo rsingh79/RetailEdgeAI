@@ -1,0 +1,266 @@
+/**
+ * Seed script for Features, Plan Tiers, Tier Limits, and Tenant migration.
+ *
+ * Run:  node prisma/seed-tiers.js
+ *
+ * Safe to re-run — uses upsert for features and tiers.
+ */
+import { PrismaClient } from '../src/generated/prisma/index.js';
+
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL_ADMIN || process.env.DATABASE_URL,
+});
+
+// ── Feature definitions ──────────────────────────────────────────────
+
+const FEATURES = [
+  // Core features (always included in every tier)
+  { key: 'invoices',           name: 'Invoices',                category: 'core',          icon: '🧾', isCore: true,  sortOrder: 1 },
+  { key: 'products',           name: 'Products',                category: 'core',          icon: '📦', isCore: true,  sortOrder: 2 },
+  { key: 'review_match',       name: 'Review & Match',          category: 'core',          icon: '📋', isCore: true,  sortOrder: 3 },
+  { key: 'export',             name: 'Export',                   category: 'core',          icon: '📤', isCore: true,  sortOrder: 4 },
+  { key: 'ai_command_centre',  name: 'AI Command Centre',       category: 'core',          icon: '✨', isCore: true,  sortOrder: 5 },
+  { key: 'reports',            name: 'Reports',                  category: 'core',          icon: '📊', isCore: true,  sortOrder: 6 },
+
+  // Gatable features (can be toggled per tier)
+  { key: 'email_integration',        name: 'Email Integration',        category: 'integrations',  icon: '📧', isCore: false, sortOrder: 10 },
+  { key: 'folder_polling',           name: 'Folder Polling',           category: 'integrations',  icon: '📁', isCore: false, sortOrder: 11 },
+  { key: 'shopify_integration',     name: 'Shopify Integration',      category: 'integrations',  icon: '🛍️', isCore: false, sortOrder: 12 },
+  { key: 'pricing_rules',            name: 'Pricing Rules',            category: 'pricing',       icon: '💰', isCore: false, sortOrder: 20 },
+  { key: 'demand_analysis',          name: 'Demand Analysis',          category: 'intelligence',  icon: '📈', isCore: false, sortOrder: 30 },
+  { key: 'competitor_intelligence',  name: 'Competitor Intelligence',  category: 'intelligence',  icon: '🕵️', isCore: false, sortOrder: 31 },
+  { key: 'demand_forecasting',       name: 'Demand Forecasting',       category: 'intelligence',  icon: '🔮', isCore: false, sortOrder: 32 },
+  { key: 'supplier_comparison',      name: 'Supplier Comparison',      category: 'intelligence',  icon: '⚖️', isCore: false, sortOrder: 33 },
+];
+
+// ── Tier definitions ─────────────────────────────────────────────────
+
+const TIERS = [
+  {
+    slug: 'basic',
+    name: 'Basic',
+    description: 'Essential tools for small retailers — upload invoices, manage products, review & match, export, and AI insights.',
+    monthlyPrice: 29,
+    annualPrice: 290,
+    sortOrder: 1,
+    isDefault: true,
+    featureKeys: [
+      'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
+    ],
+    limits: {
+      max_users: 5,
+      max_stores: 2,
+      max_invoice_pages_per_month: 100,
+      max_products: 500,
+      max_pricing_rules: 5,
+      max_exports_per_month: 50,
+      max_email_imports_per_month: 0,
+      max_folder_imports_per_month: 0,
+      max_shopify_syncs_per_month: 0,
+      max_competitors_monitored: 0,
+      max_demand_products: 0,
+    },
+  },
+  {
+    slug: 'medium',
+    name: 'Medium',
+    description: 'Growing retailers — everything in Basic plus email/folder imports, pricing rules, and demand analysis.',
+    monthlyPrice: 79,
+    annualPrice: 790,
+    sortOrder: 2,
+    isDefault: false,
+    featureKeys: [
+      'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
+      'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis',
+    ],
+    limits: {
+      max_users: 15,
+      max_stores: 10,
+      max_invoice_pages_per_month: 500,
+      max_products: 2000,
+      max_pricing_rules: 20,
+      max_exports_per_month: 200,
+      max_email_imports_per_month: 100,
+      max_folder_imports_per_month: 100,
+      max_shopify_syncs_per_month: 100,
+      max_competitors_monitored: 0,
+      max_demand_products: 0,
+    },
+  },
+  {
+    slug: 'high',
+    name: 'High',
+    description: 'Full platform — everything in Medium plus competitor intelligence, demand forecasting, and supplier comparison.',
+    monthlyPrice: 199,
+    annualPrice: 1990,
+    sortOrder: 3,
+    isDefault: false,
+    featureKeys: [
+      'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
+      'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis',
+      'competitor_intelligence', 'demand_forecasting', 'supplier_comparison',
+    ],
+    limits: {
+      max_users: 999,
+      max_stores: 999,
+      max_invoice_pages_per_month: 2000,
+      max_products: 999999,
+      max_pricing_rules: 999,
+      max_exports_per_month: 999,
+      max_email_imports_per_month: 500,
+      max_folder_imports_per_month: 500,
+      max_shopify_syncs_per_month: 500,
+      max_competitors_monitored: 50,
+      max_demand_products: 100,
+    },
+  },
+];
+
+// ── Legacy plan → tier mapping ───────────────────────────────────────
+
+const LEGACY_PLAN_MAP = {
+  starter: 'basic',
+  professional: 'medium',
+  enterprise: 'high',
+};
+
+// ── Limit descriptions ───────────────────────────────────────────────
+
+const LIMIT_DESCRIPTIONS = {
+  max_users: 'Maximum team members',
+  max_stores: 'Maximum stores (POS + ecommerce)',
+  max_invoice_pages_per_month: 'Invoice pages processed per month (OCR)',
+  max_products: 'Maximum products in catalog',
+  max_pricing_rules: 'Maximum pricing rules',
+  max_exports_per_month: 'Exports per month',
+  max_email_imports_per_month: 'Email invoice imports per month',
+  max_folder_imports_per_month: 'Folder invoice imports per month',
+  max_competitors_monitored: 'Competitors monitored',
+  max_demand_products: 'Products with demand analysis',
+};
+
+// ── Main ─────────────────────────────────────────────────────────────
+
+async function main() {
+  console.log('🌱 Seeding features, tiers, and limits...\n');
+
+  // 1. Upsert all features
+  const featureMap = {};
+  for (const f of FEATURES) {
+    const feature = await prisma.feature.upsert({
+      where: { key: f.key },
+      create: {
+        key: f.key,
+        name: f.name,
+        category: f.category,
+        icon: f.icon,
+        isCore: f.isCore,
+        sortOrder: f.sortOrder,
+      },
+      update: {
+        name: f.name,
+        category: f.category,
+        icon: f.icon,
+        isCore: f.isCore,
+        sortOrder: f.sortOrder,
+      },
+    });
+    featureMap[f.key] = feature.id;
+    console.log(`  ✅ Feature: ${f.name} (${f.key}) — ${f.isCore ? 'CORE' : 'gatable'}`);
+  }
+
+  console.log('');
+
+  // 2. Upsert tiers with features and limits (in transaction)
+  const tierMap = {};
+  for (const t of TIERS) {
+    const tier = await prisma.$transaction(async (tx) => {
+      // Upsert the tier itself
+      const tier = await tx.planTier.upsert({
+        where: { slug: t.slug },
+        create: {
+          name: t.name,
+          slug: t.slug,
+          description: t.description,
+          monthlyPrice: t.monthlyPrice,
+          annualPrice: t.annualPrice,
+          sortOrder: t.sortOrder,
+          isDefault: t.isDefault,
+        },
+        update: {
+          name: t.name,
+          description: t.description,
+          monthlyPrice: t.monthlyPrice,
+          annualPrice: t.annualPrice,
+          sortOrder: t.sortOrder,
+          isDefault: t.isDefault,
+        },
+      });
+
+      // Delete existing features/limits and recreate (idempotent)
+      await tx.planTierFeature.deleteMany({ where: { planTierId: tier.id } });
+      await tx.planTierLimit.deleteMany({ where: { planTierId: tier.id } });
+
+      // Create tier features
+      for (const fKey of t.featureKeys) {
+        await tx.planTierFeature.create({
+          data: {
+            planTierId: tier.id,
+            featureId: featureMap[fKey],
+          },
+        });
+      }
+
+      // Create tier limits
+      for (const [limitKey, limitValue] of Object.entries(t.limits)) {
+        await tx.planTierLimit.create({
+          data: {
+            planTierId: tier.id,
+            limitKey,
+            limitValue,
+            description: LIMIT_DESCRIPTIONS[limitKey] || limitKey,
+          },
+        });
+      }
+
+      return tier;
+    });
+
+    tierMap[t.slug] = tier.id;
+    console.log(`  🏷️  Tier: ${t.name} ($${t.monthlyPrice}/mo) — ${t.featureKeys.length} features, ${Object.keys(t.limits).length} limits`);
+  }
+
+  console.log('');
+
+  // 3. Migrate existing tenants from legacy plan string to planTierId
+  const tenants = await prisma.tenant.findMany({
+    where: { planTierId: null },
+    select: { id: true, plan: true, name: true },
+  });
+
+  if (tenants.length > 0) {
+    console.log(`  🔄 Migrating ${tenants.length} tenant(s) from legacy plan field...\n`);
+    for (const tenant of tenants) {
+      const tierSlug = LEGACY_PLAN_MAP[tenant.plan] || 'basic';
+      const tierId = tierMap[tierSlug];
+      if (tierId) {
+        await prisma.tenant.update({
+          where: { id: tenant.id },
+          data: { planTierId: tierId },
+        });
+        console.log(`    ✅ ${tenant.name}: "${tenant.plan}" → "${tierSlug}" tier`);
+      }
+    }
+  } else {
+    console.log('  ℹ️  No tenants need migration (all already have planTierId).');
+  }
+
+  console.log('\n✅ Seed complete!\n');
+}
+
+main()
+  .catch((e) => {
+    console.error('❌ Seed failed:', e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

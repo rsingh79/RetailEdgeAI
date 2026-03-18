@@ -125,6 +125,8 @@ export const api = {
   // Pricing rules
   getPricingRules: () => request('/pricing-rules'),
   createPricingRule: (data) => request('/pricing-rules', { method: 'POST', body: JSON.stringify(data) }),
+  updatePricingRule: (id, data) => request(`/pricing-rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePricingRule: (id) => request(`/pricing-rules/${id}`, { method: 'DELETE' }),
 
   // ── Gmail Integration ──────────────────────────────────────────
   gmail: {
@@ -138,6 +140,9 @@ export const api = {
       return request(`/gmail/import-logs${qs}`);
     },
     disconnect: () => request('/gmail/disconnect', { method: 'DELETE' }),
+    // IMAP (App Password) methods
+    imapTestConnection: (data) => request('/gmail/imap/test-connection', { method: 'POST', body: JSON.stringify(data) }),
+    imapSaveCredentials: (data) => request('/gmail/imap/save-credentials', { method: 'POST', body: JSON.stringify(data) }),
   },
 
   // ── Folder Polling Integration ────────────────────────────────
@@ -151,6 +156,18 @@ export const api = {
       return request(`/folder-polling/import-logs${qs}`);
     },
     disconnect: () => request('/folder-polling/disconnect', { method: 'DELETE' }),
+  },
+
+  // ── Shopify Integration ─────────────────────────────────────────
+  shopify: {
+    getStatus: () => request('/shopify/status'),
+    getAuthUrl: (shop) => request('/shopify/auth-url', { method: 'POST', body: JSON.stringify({ shop }) }),
+    sync: () => request('/shopify/sync', { method: 'POST' }),
+    getImportLogs: (params) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return request(`/shopify/import-logs${qs}`);
+    },
+    disconnect: () => request('/shopify/disconnect', { method: 'DELETE' }),
   },
 
   // ── Competitor Intelligence ───────────────────────────────────
@@ -202,6 +219,27 @@ export const api = {
     // Settings
     getSettings: () => request('/admin/settings'),
     updateSettings: (data) => request('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+
+    // Features & Tiers
+    getFeatures: () => request('/admin/tiers/features'),
+    createFeature: (data) => request('/admin/tiers/features', { method: 'POST', body: JSON.stringify(data) }),
+    updateFeature: (id, data) => request(`/admin/tiers/features/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteFeature: (id) => request(`/admin/tiers/features/${id}`, { method: 'DELETE' }),
+    getTiers: () => request('/admin/tiers'),
+    getTier: (id) => request(`/admin/tiers/${id}`),
+    createTier: (data) => request('/admin/tiers', { method: 'POST', body: JSON.stringify(data) }),
+    updateTier: (id, data) => request(`/admin/tiers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteTier: (id) => request(`/admin/tiers/${id}`, { method: 'DELETE' }),
+  },
+
+  // POS / Ecommerce Connections
+  connect: {
+    getSystems: () => request('/connect/systems'),
+    getStatus: () => request('/connect/status'),
+    getAuthUrl: (system) => request(`/connect/${system}/auth-url`, { method: 'POST' }),
+    handleCallback: (system, code) => request(`/connect/${system}/callback`, { method: 'POST', body: JSON.stringify({ code }) }),
+    mapStores: (system, data) => request(`/connect/${system}/map-stores`, { method: 'POST', body: JSON.stringify(data) }),
+    disconnect: (system) => request(`/connect/${system}`, { method: 'DELETE' }),
   },
 
   // AI Agents
@@ -210,6 +248,10 @@ export const api = {
     getPendingDecisions: () => request('/agents/pending-decisions'),
     getActivity: (limit) => request(`/agents/activity${limit ? `?limit=${limit}` : ''}`),
     getUsage: () => request('/agents/usage'),
+    getEvents: (params) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return request(`/agents/events${qs}`);
+    },
     run: () => request('/agents/run', { method: 'POST' }),
   },
 };

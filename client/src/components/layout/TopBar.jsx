@@ -10,6 +10,7 @@ const titles = {
   '/reports': 'Reports & Analytics',
   '/settings': 'Settings',
   '/competitor': 'Competitor Intelligence',
+  '/connect': 'Connect & Integrate',
   '/export': 'Export',
 };
 

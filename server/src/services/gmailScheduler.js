@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { pollGmailForInvoices } from './gmail.js';
+import { pollImapForInvoices } from './imap.js';
 
 let isRunning = false;
 
@@ -45,11 +46,14 @@ export function startGmailScheduler(prisma) {
             continue;
           }
 
+          const isImap = integration.connectionType === 'imap';
+          const label = isImap ? integration.imapEmail : integration.email;
           console.log(
-            `[Gmail Scheduler] Polling tenant ${integration.tenantId} (${integration.email})`
+            `[Gmail Scheduler] Polling tenant ${integration.tenantId} (${label}) via ${isImap ? 'IMAP' : 'OAuth'}`
           );
 
-          const result = await pollGmailForInvoices(
+          const pollFn = isImap ? pollImapForInvoices : pollGmailForInvoices;
+          const result = await pollFn(
             prisma,
             integration,
             integration.tenantId,

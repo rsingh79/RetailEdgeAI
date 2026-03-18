@@ -1,8 +1,8 @@
 import { basePrisma } from '../lib/prisma.js';
-import { getPlanLimits } from '../config/plans.js';
 
 /**
  * Middleware that checks if the tenant has exceeded their monthly API call limit.
+ * Reads the limit from PlanTierLimit (DB-driven), with fallback to legacy tenant fields.
  * Returns 429 if the limit is reached.
  *
  * Place AFTER authenticate and tenantAccess. Only needed on routes that consume
@@ -20,14 +20,31 @@ export async function checkApiLimit(req, res, next) {
   try {
     const tenant = await basePrisma.tenant.findUnique({
       where: { id: req.user.tenantId },
-      select: { plan: true, maxApiCallsPerMonth: true },
+      select: {
+        plan: true,
+        planTierId: true,
+        maxApiCallsPerMonth: true,
+      },
     });
 
     if (!tenant) return res.status(404).json({ message: 'Tenant not found' });
 
-    const limits = getPlanLimits(tenant.plan);
-    // Use tenant-specific override if set, else plan default
-    const maxCalls = tenant.maxApiCallsPerMonth || limits.maxApiCallsPerMonth;
+    // Get the limit from DB tier, fallback to legacy tenant field
+    let maxCalls = tenant.maxApiCallsPerMonth || 100;
+
+    if (tenant.planTierId) {
+      const tierLimit = await basePrisma.planTierLimit.findUnique({
+        where: {
+          planTierId_limitKey: {
+            planTierId: tenant.planTierId,
+            limitKey: 'max_invoice_pages_per_month',
+          },
+        },
+      });
+      if (tierLimit) {
+        maxCalls = tierLimit.limitValue;
+      }
+    }
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -53,6 +70,7 @@ export async function checkApiLimit(req, res, next) {
     req.apiUsage = { used: callCount, limit: maxCalls };
     next();
   } catch (err) {
+    console.error('API limit check error:', err);
     res.status(500).json({ message: 'API limit check failed' });
   }
 }

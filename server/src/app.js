@@ -17,14 +17,18 @@ import storeRoutes from './routes/stores.js';
 import gmailRoutes from './routes/gmail.js';
 import folderRoutes from './routes/folder.js';
 import { handleOAuthCallback } from './services/gmail.js';
+import { handleOAuthCallback as handleShopifyCallback } from './services/shopify.js';
+import shopifyRoutes from './routes/shopify.js';
 import { startGmailScheduler } from './services/gmailScheduler.js';
 import { startFolderScheduler } from './services/folderScheduler.js';
 import competitorRoutes from './routes/competitor.js';
 import agentRoutes from './routes/agents.js';
+import connectRoutes from './routes/connect.js';
 import adminOverviewRoutes from './routes/admin/overview.js';
 import adminTenantRoutes from './routes/admin/tenants.js';
 import adminApiUsageRoutes from './routes/admin/apiUsage.js';
 import adminSettingsRoutes from './routes/admin/settings.js';
+import adminTierRoutes from './routes/admin/tiers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -58,6 +62,24 @@ app.get('/api/gmail/oauth/callback', async (req, res) => {
   }
 });
 
+// Shopify OAuth callback — unprotected (called by Shopify redirect, no JWT context)
+app.get('/api/connect/shopify/callback', async (req, res) => {
+  try {
+    const { error, error_description } = req.query;
+    if (error) {
+      return res.redirect(`/settings?shopify=error&reason=${encodeURIComponent(error_description || error)}`);
+    }
+    if (!req.query.code || !req.query.shop || !req.query.state) {
+      return res.redirect('/settings?shopify=error&reason=missing_params');
+    }
+    await handleShopifyCallback(req.query);
+    res.redirect('/settings?shopify=connected');
+  } catch (err) {
+    console.error('Shopify OAuth callback error:', err);
+    res.redirect(`/settings?shopify=error&reason=${encodeURIComponent(err.message)}`);
+  }
+});
+
 // Protected routes — authenticate + tenantAccess + tenantScope inject req.prisma
 // Every query via req.prisma is automatically scoped to the tenant
 app.use('/api/invoices', authenticate, tenantAccess, tenantScope, invoiceRoutes);
@@ -68,11 +90,15 @@ app.use('/api/stores', authenticate, tenantAccess, tenantScope, storeRoutes);
 // AI Agents — aggregates data from existing services
 app.use('/api/agents', authenticate, tenantAccess, tenantScope, agentRoutes);
 
-// Plan-gated routes — Professional+ plans
-app.use('/api/gmail', authenticate, tenantAccess, tenantScope, requirePlan('gmail_integration'), gmailRoutes);
-app.use('/api/folder-polling', authenticate, tenantAccess, tenantScope, requirePlan('folder_polling'), folderRoutes);
+// POS / Ecommerce connections
+app.use('/api/connect', authenticate, tenantAccess, tenantScope, connectRoutes);
 
-// Plan-gated routes — Enterprise plans only
+// Plan-gated routes — Medium+ tiers
+app.use('/api/gmail', authenticate, tenantAccess, tenantScope, requirePlan('email_integration'), gmailRoutes);
+app.use('/api/folder-polling', authenticate, tenantAccess, tenantScope, requirePlan('folder_polling'), folderRoutes);
+app.use('/api/shopify', authenticate, tenantAccess, tenantScope, requirePlan('shopify_integration'), shopifyRoutes);
+
+// Plan-gated routes — High tier only
 app.use('/api/competitor', authenticate, tenantAccess, tenantScope, requirePlan('competitor_intelligence'), competitorRoutes);
 
 // Admin routes — no tenantScope, requires SYSTEM_ADMIN
@@ -81,6 +107,7 @@ app.use('/api/admin/overview', ...requireAdmin, adminOverviewRoutes);
 app.use('/api/admin/tenants', ...requireAdmin, adminTenantRoutes);
 app.use('/api/admin/api-usage', ...requireAdmin, adminApiUsageRoutes);
 app.use('/api/admin/settings', ...requireAdmin, adminSettingsRoutes);
+app.use('/api/admin/tiers', ...requireAdmin, adminTierRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

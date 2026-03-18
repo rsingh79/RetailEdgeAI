@@ -10,7 +10,7 @@ export default function Settings() {
   const tabs = [
     { id: 'business', label: 'Business Profile' },
     { id: 'users', label: 'Users & Roles' },
-    { id: 'integrations', label: 'Integrations', requiredFeature: 'gmail_integration' },
+    { id: 'integrations', label: 'Integrations', requiredFeature: 'email_integration' },
     { id: 'notifications', label: 'Notifications' },
   ];
 
@@ -57,11 +57,11 @@ export default function Settings() {
       )}
 
       {activeTab === 'integrations' && (
-        hasFeature('gmail_integration') ? (
+        (hasFeature('email_integration') || hasFeature('shopify_integration')) ? (
           <IntegrationsTab />
         ) : (
           <UpgradePrompt
-            feature="gmail_integration"
+            feature="email_integration"
             currentPlan={plan?.plan}
             requiredPlan="professional"
           />

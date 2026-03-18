@@ -1,9 +1,7 @@
 /**
- * Plan configuration — single source of truth for product tiers.
- *
- * Starter ($29/mo)       — manual upload only
- * Professional ($79/mo)  — adds Gmail auto-import
- * Enterprise ($199/mo)   — adds Competitor Intelligence
+ * @deprecated Legacy plan configuration — kept for backward compatibility.
+ * The system now uses DB-driven Feature + PlanTier models.
+ * Use the database (Feature, PlanTier, PlanTierFeature, PlanTierLimit) instead.
  */
 export const PLAN_CONFIG = {
   starter: {
@@ -36,20 +34,14 @@ export const PLAN_CONFIG = {
 };
 
 /**
- * Check if a plan includes a specific feature.
- * @param {string} plan - Plan key (starter, professional, enterprise)
- * @param {string} feature - Feature key (e.g. 'gmail_integration')
- * @returns {boolean}
+ * @deprecated Use DB-driven feature checks via requirePlan middleware instead.
  */
 export function planHasFeature(plan, feature) {
   return PLAN_CONFIG[plan]?.features.includes(feature) ?? false;
 }
 
 /**
- * Get plan limits and config for a given plan.
- * Falls back to starter if plan is unknown.
- * @param {string} plan - Plan key
- * @returns {Object} Plan config object
+ * @deprecated Use PlanTierLimit DB queries instead.
  */
 export function getPlanLimits(plan) {
   return PLAN_CONFIG[plan] || PLAN_CONFIG.starter;

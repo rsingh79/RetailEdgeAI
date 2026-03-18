@@ -10,10 +10,11 @@ export default function AdminSubscriptions() {
   const [extendModal, setExtendModal] = useState(null);
   const [extendDays, setExtendDays] = useState(14);
   const [changingPlan, setChangingPlan] = useState(null); // tenant ID being updated
+  const [tiers, setTiers] = useState([]);
 
   useEffect(() => {
-    Promise.all([api.admin.getSettings(), api.admin.getTenants()])
-      .then(([s, t]) => {
+    Promise.all([api.admin.getSettings(), api.admin.getTenants(), api.admin.getTiers().catch(() => [])])
+      .then(([s, t, tiersList]) => {
         setSettings(s);
         setEditSettings({
           defaultTrialDays: s.defaultTrialDays,
@@ -21,6 +22,7 @@ export default function AdminSubscriptions() {
           gracePeriodDays: s.gracePeriodDays,
         });
         setTenants(t);
+        setTiers(tiersList);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -47,10 +49,10 @@ export default function AdminSubscriptions() {
     } catch (err) { console.error(err); }
   };
 
-  const handleChangePlan = async (tenantId, newPlan) => {
+  const handleChangePlan = async (tenantId, newTierId) => {
     setChangingPlan(tenantId);
     try {
-      await api.admin.updateSubscription(tenantId, { plan: newPlan });
+      await api.admin.updateSubscription(tenantId, { planTierId: newTierId });
       const updated = await api.admin.getTenants();
       setTenants(updated);
     } catch (err) {
@@ -170,20 +172,17 @@ export default function AdminSubscriptions() {
                   </td>
                   <td className="px-4 py-3">
                     <select
-                      value={t.plan}
+                      value={t.planTier?.id || ''}
                       onChange={(e) => handleChangePlan(t.id, e.target.value)}
                       disabled={changingPlan === t.id}
-                      className={`px-2 py-1 border border-gray-200 rounded text-xs font-medium capitalize cursor-pointer ${
+                      className={`px-2 py-1 border border-gray-200 rounded text-xs font-medium cursor-pointer ${
                         changingPlan === t.id ? 'opacity-50' : ''
-                      } ${
-                        t.plan === 'enterprise' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                        t.plan === 'professional' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                        'bg-gray-50 text-gray-700'
-                      }`}
+                      } bg-gray-50 text-gray-700`}
                     >
-                      <option value="starter">Starter</option>
-                      <option value="professional">Professional</option>
-                      <option value="enterprise">Enterprise</option>
+                      {!t.planTier && <option value="">No tier</option>}
+                      {tiers.filter((tier) => tier.isActive).map((tier) => (
+                        <option key={tier.id} value={tier.id}>{tier.name} (${tier.monthlyPrice}/mo)</option>
+                      ))}
                     </select>
                   </td>
                   <td className="px-4 py-3 text-gray-600">

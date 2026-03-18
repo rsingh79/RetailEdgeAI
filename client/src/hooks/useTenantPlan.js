@@ -4,22 +4,11 @@ import { api } from '../services/api';
 let cachedPlan = null;
 
 /**
- * Feature lists per plan — mirrors server-side PLAN_CONFIG in config/plans.js.
- */
-const PLAN_FEATURES = {
-  starter: ['invoices', 'products', 'pricing', 'reports'],
-  professional: ['invoices', 'products', 'pricing', 'reports', 'gmail_integration'],
-  enterprise: [
-    'invoices', 'products', 'pricing', 'reports',
-    'gmail_integration', 'competitor_intelligence',
-  ],
-};
-
-/**
  * Hook to access the current tenant's plan info.
- * Fetches from /api/auth/me on first call, then caches module-level.
+ * Fetches enabledFeatures and limits from /api/auth/me (DB-driven).
+ * No hardcoded feature lists — everything comes from the server.
  *
- * @returns {{ plan: Object|null, loading: boolean, hasFeature: (feature: string) => boolean }}
+ * @returns {{ plan: Object|null, loading: boolean, hasFeature: (feature: string) => boolean, getLimit: (limitKey: string) => number|null }}
  */
 export function useTenantPlan() {
   const [plan, setPlan] = useState(cachedPlan);
@@ -31,28 +20,42 @@ export function useTenantPlan() {
     api.me()
       .then((user) => {
         cachedPlan = {
-          plan: user.tenant?.plan || 'starter',
+          plan: user.tierSlug || user.tenant?.plan || 'starter',
+          tierName: user.tierName || null,
           tenantName: user.tenant?.name,
           maxUsers: user.tenant?.maxUsers,
           maxStores: user.tenant?.maxStores,
           maxApiCalls: user.tenant?.maxApiCallsPerMonth,
           subscriptionStatus: user.tenant?.subscriptionStatus,
+          enabledFeatures: user.enabledFeatures || [],
+          limits: user.limits || {},
         };
         setPlan(cachedPlan);
       })
       .catch(() => {
-        cachedPlan = { plan: 'starter' };
+        cachedPlan = { plan: 'starter', enabledFeatures: [], limits: {} };
         setPlan(cachedPlan);
       })
       .finally(() => setLoading(false));
   }, []);
 
+  /**
+   * Check if a feature is enabled for the current tenant's tier.
+   * Uses the enabledFeatures array from the /me endpoint.
+   */
   const hasFeature = (feature) => {
-    const planKey = plan?.plan || 'starter';
-    return PLAN_FEATURES[planKey]?.includes(feature) ?? false;
+    return plan?.enabledFeatures?.includes(feature) ?? false;
   };
 
-  return { plan, loading, hasFeature };
+  /**
+   * Get a usage limit value by key (e.g. 'max_users', 'max_invoice_pages_per_month').
+   * Returns null if no limit is set.
+   */
+  const getLimit = (limitKey) => {
+    return plan?.limits?.[limitKey] ?? null;
+  };
+
+  return { plan, loading, hasFeature, getLimit };
 }
 
 /**

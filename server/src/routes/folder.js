@@ -62,6 +62,10 @@ router.post('/configure', async (req, res) => {
       return res.status(400).json({ message: 'Folder path is required.' });
     }
 
+    if (pollIntervalMin !== undefined && pollIntervalMin < 15) {
+      return res.status(400).json({ message: 'Poll interval must be at least 15 minutes.' });
+    }
+
     // Validate the folder path
     const validation = await validateFolderPath(folderPath);
     if (!validation.valid) {

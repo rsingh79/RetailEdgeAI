@@ -21,6 +21,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
+    "imapflow": "^1.2.15",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.1",
     "node-cron": "^4.2.1",

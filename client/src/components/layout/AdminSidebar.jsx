@@ -5,6 +5,7 @@ const navItems = [
   { to: '/admin/tenants', label: 'Tenants', icon: 'building' },
   { to: '/admin/api-usage', label: 'API Usage & Costs', icon: 'chart' },
   { to: '/admin/subscriptions', label: 'Subscriptions', icon: 'credit' },
+  { to: '/admin/product-setup', label: 'Product Setup', icon: 'layers' },
 ];
 
 const icons = {
@@ -26,6 +27,11 @@ const icons = {
   credit: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
       <path d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+    </svg>
+  ),
+  layers: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+      <path d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L12 12.75 6.429 9.75m11.142 0l4.179 2.25-9.75 5.25-9.75-5.25 4.179-2.25" />
     </svg>
   ),
 };

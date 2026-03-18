@@ -61,11 +61,50 @@ router.get('/me', authenticate, async (req, res) => {
             maxStores: true,
             maxApiCallsPerMonth: true,
             subscriptionStatus: true,
+            planTierId: true,
+            planTier: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                monthlyPrice: true,
+                features: {
+                  select: {
+                    feature: {
+                      select: { key: true, name: true, isCore: true },
+                    },
+                  },
+                },
+                limits: {
+                  select: { limitKey: true, limitValue: true, description: true },
+                },
+              },
+            },
           },
         },
       },
     });
-    res.json(user);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Build flat enabledFeatures array and limits object for client convenience
+    const enabledFeatures = user.tenant?.planTier?.features.map((f) => f.feature.key) || [];
+    const limits = {};
+    if (user.tenant?.planTier?.limits) {
+      for (const l of user.tenant.planTier.limits) {
+        limits[l.limitKey] = l.limitValue;
+      }
+    }
+
+    res.json({
+      ...user,
+      enabledFeatures,
+      limits,
+      tierName: user.tenant?.planTier?.name || null,
+      tierSlug: user.tenant?.planTier?.slug || user.tenant?.plan || null,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

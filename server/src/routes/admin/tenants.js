@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { basePrisma } from '../../lib/prisma.js';
-import { getPlanLimits } from '../../config/plans.js';
 
 const router = Router();
 
@@ -40,6 +39,7 @@ router.get('/', async (req, res) => {
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { users: true, stores: true } },
+        planTier: { select: { id: true, name: true, slug: true } },
       },
     });
 
@@ -90,6 +90,16 @@ router.get('/:id', async (req, res) => {
         },
         _count: {
           select: { stores: true, products: true, invoices: true },
+        },
+        planTier: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            monthlyPrice: true,
+            features: { select: { feature: { select: { key: true, name: true } } } },
+            limits: { select: { limitKey: true, limitValue: true } },
+          },
         },
       },
     });
@@ -167,6 +177,11 @@ router.post('/', async (req, res) => {
       ? new Date(Date.now() + trialDays * 86400000)
       : new Date(Date.now() + 14 * 86400000); // default 14 days
 
+    // Find default tier
+    const defaultTier = await basePrisma.planTier.findFirst({
+      where: { isDefault: true, isActive: true },
+    });
+
     // Create tenant
     const tenant = await basePrisma.tenant.create({
       data: {
@@ -178,7 +193,8 @@ router.post('/', async (req, res) => {
         contactPhone: contactPhone || null,
         trialEndsAt,
         subscriptionStatus: 'trial',
-        plan: 'starter',
+        plan: defaultTier?.slug || 'starter',
+        planTierId: defaultTier?.id || null,
       },
     });
 
@@ -315,6 +331,7 @@ router.patch('/:id/subscription', async (req, res) => {
   try {
     const {
       plan,
+      planTierId,
       subscriptionStatus,
       trialEndsAt,
       maxUsers,
@@ -322,14 +339,49 @@ router.patch('/:id/subscription', async (req, res) => {
     } = req.body;
     const updateData = {};
 
-    if (plan !== undefined) {
+    // DB-driven tier change
+    if (planTierId !== undefined) {
+      // Verify the tier exists
+      const tier = await basePrisma.planTier.findUnique({
+        where: { id: planTierId },
+        include: {
+          limits: true,
+        },
+      });
+      if (!tier) {
+        return res.status(400).json({ message: 'Invalid plan tier ID' });
+      }
+      updateData.planTierId = planTierId;
+      // Sync legacy plan field for backward compat
+      updateData.plan = tier.slug;
+
+      // Sync legacy limit columns from tier limits
+      const limitMap = {};
+      for (const l of tier.limits) {
+        limitMap[l.limitKey] = l.limitValue;
+      }
+      if (limitMap.max_users) updateData.maxUsers = limitMap.max_users;
+      if (limitMap.max_stores) updateData.maxStores = limitMap.max_stores;
+      if (limitMap.max_invoice_pages_per_month) updateData.maxApiCallsPerMonth = limitMap.max_invoice_pages_per_month;
+    } else if (plan !== undefined) {
+      // Legacy: look up tier by slug and assign
+      const tier = await basePrisma.planTier.findUnique({
+        where: { slug: plan },
+        include: { limits: true },
+      });
       updateData.plan = plan;
-      // Auto-apply plan limits when plan changes
-      const limits = getPlanLimits(plan);
-      updateData.maxUsers = limits.maxUsers === Infinity ? 999 : limits.maxUsers;
-      updateData.maxStores = limits.maxStores === Infinity ? 999 : limits.maxStores;
-      updateData.maxApiCallsPerMonth = limits.maxApiCallsPerMonth;
+      if (tier) {
+        updateData.planTierId = tier.id;
+        const limitMap = {};
+        for (const l of tier.limits) {
+          limitMap[l.limitKey] = l.limitValue;
+        }
+        if (limitMap.max_users) updateData.maxUsers = limitMap.max_users;
+        if (limitMap.max_stores) updateData.maxStores = limitMap.max_stores;
+        if (limitMap.max_invoice_pages_per_month) updateData.maxApiCallsPerMonth = limitMap.max_invoice_pages_per_month;
+      }
     }
+
     if (subscriptionStatus !== undefined)
       updateData.subscriptionStatus = subscriptionStatus;
     if (trialEndsAt !== undefined)
@@ -343,13 +395,13 @@ router.patch('/:id/subscription', async (req, res) => {
       data: updateData,
     });
 
-    // Log plan change
-    if (plan !== undefined) {
+    // Log plan/tier change
+    if (planTierId !== undefined || plan !== undefined) {
       await basePrisma.tenantAccessLog.create({
         data: {
           tenantId: tenant.id,
           action: 'PLAN_CHANGED',
-          reason: `Plan changed to ${plan} by admin`,
+          reason: `Plan changed to ${updateData.plan || plan} by admin`,
           performedBy: req.user.userId,
         },
       });

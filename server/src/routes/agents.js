@@ -165,7 +165,7 @@ router.get('/activity', async (req, res) => {
       select: {
         id: true,
         action: true,
-        details: true,
+        metadata: true,
         createdAt: true,
       },
     });
@@ -186,7 +186,7 @@ router.get('/activity', async (req, res) => {
       return {
         time,
         ...mapped,
-        message: log.details || log.action.replace(/_/g, ' ').toLowerCase(),
+        message: (log.metadata && typeof log.metadata === 'object' && log.metadata.summary) || log.action.replace(/_/g, ' ').toLowerCase(),
       };
     });
 
@@ -267,6 +267,157 @@ router.post('/run', async (req, res) => {
   } catch (err) {
     console.error('Agent run error:', err);
     res.status(500).json({ message: 'Failed to trigger agent run' });
+  }
+});
+
+// GET /api/agents/events — Unified event feed from Gmail, Folder, and Audit logs
+router.get('/events', async (req, res) => {
+  try {
+    const prisma = req.prisma;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const source = req.query.source; // 'gmail', 'folder', 'user'
+    const status = req.query.status; // 'imported', 'duplicate', 'failed', 'skipped'
+    const skip = (page - 1) * limit;
+
+    // Build parallel queries based on source filter
+    const queries = [];
+
+    // Gmail import logs
+    if (!source || source === 'gmail') {
+      const gmailWhere = {};
+      if (status) gmailWhere.status = status;
+
+      queries.push(
+        prisma.gmailImportLog.findMany({
+          where: gmailWhere,
+          orderBy: { createdAt: 'desc' },
+          take: limit * 3, // Over-fetch for merge-sort
+        }).then((logs) =>
+          logs.map((log) => ({
+            id: log.id,
+            source: 'gmail',
+            time: log.createdAt,
+            status: log.status,
+            message: `${log.attachmentName} from ${log.senderEmail}`,
+            agent: 'Email Agent',
+            agentEmoji: '📧',
+            agentBg: 'bg-red-50',
+            details: {
+              sender: log.senderEmail,
+              subject: log.subject,
+              attachment: log.attachmentName,
+              duplicateReason: log.duplicateReason,
+              invoiceId: log.invoiceId,
+            },
+          }))
+        )
+      );
+    }
+
+    // Folder import logs
+    if (!source || source === 'folder') {
+      const folderWhere = {};
+      if (status) folderWhere.status = status;
+
+      queries.push(
+        prisma.folderImportLog.findMany({
+          where: folderWhere,
+          orderBy: { createdAt: 'desc' },
+          take: limit * 3,
+        }).then((logs) =>
+          logs.map((log) => ({
+            id: log.id,
+            source: 'folder',
+            time: log.createdAt,
+            status: log.status,
+            message: `${log.fileName} (${log.fileSize >= 1024 * 1024 ? `${(log.fileSize / 1024 / 1024).toFixed(1)} MB` : `${Math.round(log.fileSize / 1024)} KB`})`,
+            agent: 'Folder Agent',
+            agentEmoji: '📁',
+            agentBg: 'bg-amber-50',
+            details: {
+              filePath: log.filePath,
+              fileName: log.fileName,
+              fileSize: log.fileSize,
+              duplicateReason: log.duplicateReason,
+              invoiceId: log.invoiceId,
+            },
+          }))
+        )
+      );
+    }
+
+    // Audit logs (user/system actions)
+    if (!source || source === 'user') {
+      const AUDIT_AGENT_MAP = {
+        INVOICE_UPLOADED: { agent: 'Ingestion Agent', agentEmoji: '📥', agentBg: 'bg-blue-50' },
+        INVOICE_OCR: { agent: 'OCR Agent', agentEmoji: '🔍', agentBg: 'bg-purple-50' },
+        MATCH_CONFIRMED: { agent: 'Matching Agent', agentEmoji: '🔗', agentBg: 'bg-purple-50' },
+        MATCH_CREATED: { agent: 'Matching Agent', agentEmoji: '🔗', agentBg: 'bg-purple-50' },
+        PRICE_UPDATED: { agent: 'Pricing Agent', agentEmoji: '💰', agentBg: 'bg-green-50' },
+        INVOICE_APPROVED: { agent: 'Review Agent', agentEmoji: '✅', agentBg: 'bg-green-50' },
+        INVOICE_EXPORTED: { agent: 'Export Agent', agentEmoji: '📤', agentBg: 'bg-teal-50' },
+      };
+
+      queries.push(
+        prisma.auditLog.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: limit * 3,
+        }).then((logs) =>
+          logs.map((log) => {
+            const mapped = AUDIT_AGENT_MAP[log.action] || { agent: 'System', agentEmoji: '⚙️', agentBg: 'bg-gray-50' };
+            const statusVal = log.action.includes('APPROVED') ? 'done'
+              : log.action.includes('REVIEW') ? 'review'
+                : 'done';
+            return {
+              id: log.id,
+              source: 'user',
+              time: log.createdAt,
+              status: statusVal,
+              message: (log.metadata && typeof log.metadata === 'object' && log.metadata.summary) || log.action.replace(/_/g, ' ').toLowerCase(),
+              ...mapped,
+              details: {
+                action: log.action,
+                entityType: log.entityType,
+                entityId: log.entityId,
+              },
+            };
+          })
+        )
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const allEvents = results.flat();
+
+    // Sort by time descending
+    allEvents.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    // Get total count and paginate
+    const total = allEvents.length;
+    const events = allEvents.slice(skip, skip + limit);
+
+    // Count by source (from full result set, not paginated)
+    const fullResults = await Promise.all([
+      prisma.gmailImportLog.count(),
+      prisma.folderImportLog.count(),
+      prisma.auditLog.count(),
+    ]);
+
+    res.json({
+      events,
+      total,
+      counts: {
+        gmail: fullResults[0],
+        folder: fullResults[1],
+        user: fullResults[2],
+      },
+      page,
+      limit,
+    });
+  } catch (err) {
+    console.error('Agent events error:', err);
+    res.status(500).json({ message: 'Failed to fetch agent events' });
   }
 });
 

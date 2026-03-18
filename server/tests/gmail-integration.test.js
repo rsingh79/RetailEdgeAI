@@ -62,7 +62,7 @@ describe('Gmail Integration', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('PLAN_UPGRADE_REQUIRED');
-      expect(res.body.requiredFeature).toBe('gmail_integration');
+      expect(res.body.requiredFeature).toBe('email_integration');
     });
 
     it('returns 403 for starter plan configuring Gmail', async () => {

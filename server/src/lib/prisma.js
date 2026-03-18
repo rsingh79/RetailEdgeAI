@@ -27,6 +27,8 @@ const TENANT_SCOPED_MODELS = new Set([
   'ImportTemplate',
   'GmailIntegration',
   'GmailImportLog',
+  'ShopifyIntegration',
+  'ShopifyImportLog',
   'CompetitorMonitor',
   'CompetitorPrice',
   'PriceAlert',

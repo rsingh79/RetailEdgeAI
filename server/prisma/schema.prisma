@@ -49,6 +49,10 @@ model Tenant {
   competitorMonitors  CompetitorMonitor[]
   competitorPrices    CompetitorPrice[]
   priceAlerts         PriceAlert[]
+  shopifyIntegration  ShopifyIntegration?
+  shopifyImportLogs   ShopifyImportLog[]
+  planTierId          String?
+  planTier            PlanTier?  @relation(fields: [planTierId], references: [id])
 }
 
 // ── Auth ──
@@ -438,6 +442,13 @@ model GmailIntegration {
   accessTokenEnc        String?                      // AES-256-GCM encrypted (set after OAuth)
   refreshTokenEnc       String?                      // AES-256-GCM encrypted (set after OAuth)
   tokenExpiresAt        DateTime?
+  connectionType        String    @default("oauth")   // "oauth" | "imap"
+  imapHost              String?                      // e.g. "imap.gmail.com"
+  imapPort              Int?      @default(993)
+  imapEmail             String?                      // email address for IMAP login
+  imapPasswordEnc       String?                      // AES-256-GCM encrypted App Password
+  imapUseSsl            Boolean   @default(true)
+  imapLastUid           Int?      @default(0)        // last processed UID for incremental fetch
   historyId             String?                      // Gmail history ID for incremental sync
   lastPollAt            DateTime?
   pollIntervalMin       Int       @default(30)
@@ -518,6 +529,44 @@ model FolderImportLog {
   @@index([tenantId, invoiceNumber, invoiceDate])
 }
 
+// ── Shopify Integration ──
+
+model ShopifyIntegration {
+  id              String    @id @default(cuid())
+  tenantId        String    @unique
+  shop            String                          // e.g. "mystore.myshopify.com"
+  accessTokenEnc  String?                         // AES-256-GCM encrypted Shopify access token
+  scopes          String    @default("read_products,write_products")
+  lastSyncAt      DateTime?
+  syncIntervalMin Int       @default(60)
+  isActive        Boolean   @default(true)
+  productCount    Int       @default(0)           // cached count of synced products
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+model ShopifyImportLog {
+  id              String   @id @default(cuid())
+  tenantId        String
+  status          String   @default("success")    // success, partial, failed
+  productsPulled  Int      @default(0)
+  productsCreated Int      @default(0)
+  productsUpdated Int      @default(0)
+  variantsCreated Int      @default(0)
+  errors          Json?                           // array of error details
+  durationMs      Int?
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
 // ── Competitor Intelligence ──
 
 model CompetitorMonitor {
@@ -581,4 +630,64 @@ model PriceAlert {
   @@index([tenantId, isRead])
   @@index([productId])
   @@index([createdAt])
+}
+
+// ── Feature & Plan Tier Management ──
+
+model Feature {
+  id          String   @id @default(cuid())
+  key         String   @unique             // unique slug e.g. "invoices", "email_integration"
+  name        String                       // display name e.g. "Email Integration"
+  description String?
+  icon        String?                      // emoji or icon name
+  category    String   @default("general") // "core", "integrations", "pricing", "intelligence"
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  isCore      Boolean  @default(false)     // core features cannot be removed from any tier
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tiers PlanTierFeature[]
+}
+
+model PlanTier {
+  id           String   @id @default(cuid())
+  name         String                       // "Basic", "Medium", "High"
+  slug         String   @unique             // "basic", "medium", "high"
+  description  String?
+  monthlyPrice Float    @default(0)
+  annualPrice  Float    @default(0)
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  isDefault    Boolean  @default(false)     // new tenants get this tier
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  features PlanTierFeature[]
+  limits   PlanTierLimit[]
+  tenants  Tenant[]
+}
+
+model PlanTierFeature {
+  planTierId String
+  featureId  String
+
+  planTier PlanTier @relation(fields: [planTierId], references: [id], onDelete: Cascade)
+  feature  Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@id([planTierId, featureId])
+  @@index([featureId])
+}
+
+model PlanTierLimit {
+  id          String  @id @default(cuid())
+  planTierId  String
+  limitKey    String                        // e.g. "max_users", "max_invoice_pages_per_month"
+  limitValue  Int
+  description String?
+
+  planTier PlanTier @relation(fields: [planTierId], references: [id], onDelete: Cascade)
+
+  @@unique([planTierId, limitKey])
+  @@index([planTierId])
 }

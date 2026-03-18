@@ -60,8 +60,8 @@ describe('Plan Gating', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('PLAN_UPGRADE_REQUIRED');
-      expect(res.body.requiredFeature).toBe('gmail_integration');
-      expect(res.body.currentPlan).toBe('starter');
+      expect(res.body.requiredFeature).toBe('email_integration');
+      expect(res.body.currentPlan).toBe('basic');
     });
 
     it('returns 403 for starter user accessing competitor routes', async () => {
@@ -82,7 +82,7 @@ describe('Plan Gating', () => {
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('PLAN_UPGRADE_REQUIRED');
       expect(res.body.requiredFeature).toBe('competitor_intelligence');
-      expect(res.body.currentPlan).toBe('professional');
+      expect(res.body.currentPlan).toBe('medium');
     });
 
     it('allows professional user to access Gmail routes', async () => {

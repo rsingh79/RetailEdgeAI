@@ -70,110 +70,38 @@ const ACTIVITY_BADGE = {
   done: { bg: 'bg-green-50', text: 'text-green-700' },
 };
 
-// ── Mock Data (will be replaced with API calls) ──
-const MOCK_AGENT_STATUS = {
-  ingestion: {
-    status: 'active',
-    metrics: [
-      { label: 'Last scan', value: '2 min ago' },
-      { label: 'Today', value: '4 invoices processed' },
-      { label: 'Sources', value: 'Gmail ✓ Folder ✓' },
-    ],
-  },
-  matching: {
-    status: 'running',
-    metrics: [
-      { label: 'Processing', value: 'Invoice #4523' },
-      { label: 'Progress', value: '8 / 12 lines' },
-    ],
-    progress: 67,
-    extraMetrics: [
-      { label: 'Auto-match rate', value: '91%', valueClass: 'text-green-600' },
-    ],
-  },
-  pricing: {
-    status: 'ready',
-    metrics: [
-      { label: 'Recommendations', value: '7 pending', valueClass: 'text-amber-600' },
-      { label: 'Potential gain', value: '+$142/wk', valueClass: 'text-green-600' },
-      { label: 'Avg margin', value: '28.4%' },
-    ],
-  },
-  competitor: {
-    status: 'scheduled',
-    scheduledLabel: 'Next: 2h',
-    metrics: [
-      { label: 'Last scan', value: '6:00 AM' },
-      { label: 'Tracked products', value: '48 across 4 competitors' },
-      { label: 'Alerts', value: '2 undercuts detected', valueClass: 'text-red-600' },
-    ],
-  },
-  demand: {
-    status: 'analyzed',
-    metrics: [
-      { label: 'Period', value: 'Week 11, 2026' },
-      { label: 'Trending up', value: 'Eggs, Yogurt, Bread', valueClass: 'text-green-600' },
-      { label: 'Dead stock', value: '3 items flagged', valueClass: 'text-red-600' },
-    ],
-  },
-  export: {
-    status: 'synced',
-    metrics: [
-      { label: 'Last push', value: '10:31 AM' },
-      { label: 'Stores', value: 'Shopify ✓ Square ✓' },
-      { label: 'Queued', value: '4 price updates', valueClass: 'text-amber-600' },
-    ],
-  },
+const EVENT_STATUS_BADGE = {
+  imported: { bg: 'bg-green-50', text: 'text-green-700', label: 'Imported' },
+  duplicate: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Duplicate' },
+  failed: { bg: 'bg-red-50', text: 'text-red-700', label: 'Failed' },
+  skipped: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Skipped' },
+  done: { bg: 'bg-green-50', text: 'text-green-700', label: 'Done' },
+  review: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Review' },
+  alert: { bg: 'bg-orange-50', text: 'text-orange-700', label: 'Alert' },
 };
 
-const MOCK_DECISIONS = [
-  {
-    id: 1,
-    type: 'pricing',
-    title: 'Price increase recommended',
-    badge: '+$18.72/wk',
-    badgeClass: 'bg-green-50 text-green-700',
-    description: 'Free Range Eggs 700g — Cost ↑11.5%, competitors higher, demand strong',
-    detail: { from: '$6.50', to: '$6.99', sub: 'Margin: 10.8% → 17.1%' },
-    actions: 'accept-edit-dismiss',
-  },
-  {
-    id: 2,
-    type: 'matching',
-    title: 'New product match needs confirmation',
-    badge: '87% confidence',
-    badgeClass: 'bg-purple-50 text-purple-700',
-    description: '"Bonsoy Organic Soy Milk 1L" → Soy Milk 1L (existing product)',
-    actions: 'confirm-choose',
-  },
-  {
-    id: 3,
-    type: 'reorder',
-    title: 'Reorder alert',
-    badge: 'Critical',
-    badgeClass: 'bg-red-50 text-red-700',
-    description: 'Barista Oat Milk 1L — 2 days of stock remaining (selling 8 units/day)',
-    actions: 'remind-dismiss',
-  },
-  {
-    id: 4,
-    type: 'competitor',
-    title: 'Competitor price alert',
-    badge: 'Opportunity',
-    badgeClass: 'bg-orange-50 text-orange-700',
-    description: 'Coles raised Organic Milk 2L to $6.89 (+12%) — you\'re at $5.99, room to increase',
-    actions: 'view-dismiss',
-  },
+const SOURCE_BADGE = {
+  gmail: { bg: 'bg-red-50', text: 'text-red-700', label: 'Gmail' },
+  folder: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Folder' },
+  user: { bg: 'bg-blue-50', text: 'text-blue-700', label: 'System' },
+};
+
+const EVENT_FILTER_TABS = [
+  { key: null, label: 'All' },
+  { key: 'gmail', label: 'Gmail' },
+  { key: 'folder', label: 'Folder' },
+  { key: 'user', label: 'System' },
 ];
 
-const MOCK_ACTIVITY = [
-  { time: '10:34', agent: 'Competitor Agent', agentEmoji: '🕵️', agentBg: 'bg-orange-50', message: 'Coles raised Organic Milk 2L price by 12%', badge: 'alert' },
-  { time: '10:33', agent: 'Pricing Agent', agentEmoji: '💰', agentBg: 'bg-green-50', message: '3 price increase recommendations generated for Invoice #4521', badge: 'review' },
-  { time: '10:33', agent: 'Matching Agent', agentEmoji: '🔍', agentBg: 'bg-purple-50', message: '11/12 lines matched (92% auto-match rate) for Invoice #4521', badge: 'done' },
-  { time: '10:32', agent: 'Ingestion Agent', agentEmoji: '📥', agentBg: 'bg-blue-50', message: 'Processed invoice #4521 from Gmail (Farm Fresh Supplies)', badge: 'done' },
-  { time: '10:31', agent: 'Export Agent', agentEmoji: '📤', agentBg: 'bg-teal-50', message: 'Pushed 6 price updates to Shopify & Square POS', badge: 'done' },
-  { time: '09:00', agent: 'Demand Agent', agentEmoji: '📊', agentBg: 'bg-indigo-50', message: 'Weekly analysis complete: Eggs ↑15%, Yogurt ↑8%, Rice ↓12%', badge: 'done' },
-];
+// Default empty agent status (used when no data is available)
+const EMPTY_AGENT_STATUS = {
+  ingestion: { status: 'ready', metrics: [{ label: 'Status', value: 'Data not available', valueClass: 'text-gray-400' }] },
+  matching: { status: 'ready', metrics: [{ label: 'Status', value: 'Data not available', valueClass: 'text-gray-400' }] },
+  pricing: { status: 'ready', metrics: [{ label: 'Status', value: 'Data not available', valueClass: 'text-gray-400' }] },
+  competitor: { status: 'ready', metrics: [{ label: 'Status', value: 'Data not available', valueClass: 'text-gray-400' }] },
+  demand: { status: 'ready', metrics: [{ label: 'Status', value: 'Data not available', valueClass: 'text-gray-400' }] },
+  export: { status: 'ready', metrics: [{ label: 'Status', value: 'Data not available', valueClass: 'text-gray-400' }] },
+};
 
 // ── Icons ──
 const icons = {
@@ -334,33 +262,78 @@ function DecisionActions({ decision, onDismiss }) {
 
 export default function AICommandCenter() {
   const navigate = useNavigate();
-  const [agentStatuses, setAgentStatuses] = useState(MOCK_AGENT_STATUS);
-  const [decisions, setDecisions] = useState(MOCK_DECISIONS);
-  const [activity] = useState(MOCK_ACTIVITY);
-  const [loading, setLoading] = useState(false);
+  const [agentStatuses, setAgentStatuses] = useState(EMPTY_AGENT_STATUS);
+  const [decisions, setDecisions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [runningAll, setRunningAll] = useState(false);
 
-  // Try to load real data, fall back to mock
+  // Events state
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsPage, setEventsPage] = useState(1);
+  const [eventsTotal, setEventsTotal] = useState(0);
+  const [eventsCounts, setEventsCounts] = useState({ gmail: 0, folder: 0, user: 0 });
+  const [eventsFilter, setEventsFilter] = useState(null); // null = all, 'gmail', 'folder', 'user'
+  const [showAllEvents, setShowAllEvents] = useState(false);
+
+  // Load real agent data
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       try {
-        if (api.agents) {
-          const [statusData, decisionsData] = await Promise.all([
-            api.agents.getStatus(),
-            api.agents.getPendingDecisions(),
-          ]);
-          if (!cancelled) {
-            if (statusData) setAgentStatuses(statusData);
-            if (decisionsData) setDecisions(decisionsData);
+        const [statusData, decisionsData] = await Promise.all([
+          api.agents.getStatus().catch(() => null),
+          api.agents.getPendingDecisions().catch(() => null),
+        ]);
+        if (!cancelled) {
+          if (statusData && Object.keys(statusData).length > 0) {
+            // Merge with empty defaults — show "Data not available" for missing agents
+            setAgentStatuses((prev) => {
+              const merged = { ...EMPTY_AGENT_STATUS };
+              for (const [key, val] of Object.entries(statusData)) {
+                if (val && val.metrics && val.metrics.length > 0) {
+                  merged[key] = val;
+                }
+              }
+              return merged;
+            });
+          }
+          if (decisionsData && Array.isArray(decisionsData) && decisionsData.length > 0) {
+            setDecisions(decisionsData);
           }
         }
       } catch {
-        // Fall back to mock data silently
+        // Keep empty defaults — shows "Data not available"
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Load events
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setEventsLoading(true);
+      try {
+        const params = { page: eventsPage, limit: showAllEvents ? 20 : 6 };
+        if (eventsFilter) params.source = eventsFilter;
+        const data = await api.agents.getEvents(params);
+        if (!cancelled) {
+          setEvents(data.events || []);
+          setEventsTotal(data.total || 0);
+          setEventsCounts(data.counts || { gmail: 0, folder: 0, user: 0 });
+        }
+      } catch {
+        // API not available
+      } finally {
+        if (!cancelled) setEventsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [eventsFilter, eventsPage, showAllEvents]);
 
   function handleDismiss(decisionId) {
     setDecisions((prev) => prev.filter((d) => d.id !== decisionId));
@@ -460,27 +433,123 @@ export default function AICommandCenter() {
         )}
       </div>
 
-      {/* ── Recent Agent Activity ── */}
+      {/* ── Events Log ── */}
       <div className="bg-white rounded-xl border border-gray-200">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold">Recent Agent Activity</h2>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📋</span>
+            <h2 className="font-semibold">Events Log</h2>
+            <span className="bg-gray-100 text-gray-600 text-xs font-medium px-2 py-0.5 rounded-full">
+              {eventsCounts.gmail + eventsCounts.folder + eventsCounts.user} total
+            </span>
+          </div>
+          {!showAllEvents && events.length > 0 && (
+            <button
+              onClick={() => { setShowAllEvents(true); setEventsPage(1); }}
+              className="text-sm text-brand-600 hover:text-brand-700 font-medium"
+            >
+              View All →
+            </button>
+          )}
         </div>
-        <div className="divide-y divide-gray-50">
-          {activity.map((item, i) => {
-            const badge = ACTIVITY_BADGE[item.badge] || ACTIVITY_BADGE.done;
+
+        {/* Filter tabs */}
+        <div className="px-5 py-2 border-b border-gray-100 flex gap-1">
+          {EVENT_FILTER_TABS.map((tab) => {
+            const isActive = eventsFilter === tab.key;
+            const count = tab.key ? eventsCounts[tab.key] || 0 : eventsCounts.gmail + eventsCounts.folder + eventsCounts.user;
             return (
-              <div key={i} className="px-5 py-3 flex items-center gap-3 text-sm">
-                <span className="text-xs text-gray-400 w-16">{item.time}</span>
-                <span className={`w-6 h-6 ${item.agentBg} rounded flex items-center justify-center text-xs`}>{item.agentEmoji}</span>
-                <span className="font-medium text-gray-700">{item.agent}</span>
-                <span className="text-gray-500">{item.message}</span>
-                <span className={`ml-auto px-2 py-0.5 ${badge.bg} ${badge.text} text-xs rounded`}>
-                  {item.badge.charAt(0).toUpperCase() + item.badge.slice(1)}
-                </span>
-              </div>
+              <button
+                key={tab.label}
+                onClick={() => { setEventsFilter(tab.key); setEventsPage(1); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                  isActive
+                    ? 'bg-brand-50 text-brand-700'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+              >
+                {tab.label}
+                <span className={`ml-1 ${isActive ? 'text-brand-500' : 'text-gray-400'}`}>({count})</span>
+              </button>
             );
           })}
         </div>
+
+        {/* Events list */}
+        {eventsLoading ? (
+          <div className="px-5 py-10 text-center text-gray-400">
+            <div className="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+            Loading events...
+          </div>
+        ) : events.length === 0 ? (
+          <div className="px-5 py-10 text-center text-gray-400">
+            <p className="text-sm">No events recorded yet.</p>
+            <p className="text-xs mt-1">Events will appear here when invoices are imported via Gmail, Folder Watch, or processed by AI agents.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {events.map((event) => {
+              const statusBadge = EVENT_STATUS_BADGE[event.status] || EVENT_STATUS_BADGE.done;
+              const sourceBadge = SOURCE_BADGE[event.source] || SOURCE_BADGE.user;
+              const timeStr = new Date(event.time).toLocaleString('en-AU', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+              });
+              return (
+                <div key={event.id} className="px-5 py-3 flex items-center gap-3 text-sm hover:bg-gray-50 transition">
+                  <span className="text-xs text-gray-400 w-24 shrink-0">{timeStr}</span>
+                  <span className={`px-1.5 py-0.5 ${sourceBadge.bg} ${sourceBadge.text} text-xs rounded font-medium shrink-0`}>
+                    {sourceBadge.label}
+                  </span>
+                  <span className={`w-6 h-6 ${event.agentBg} rounded flex items-center justify-center text-xs shrink-0`}>
+                    {event.agentEmoji}
+                  </span>
+                  <span className="font-medium text-gray-700 shrink-0">{event.agent}</span>
+                  <span className="text-gray-500 truncate min-w-0">{event.message}</span>
+                  <span className={`ml-auto px-2 py-0.5 ${statusBadge.bg} ${statusBadge.text} text-xs rounded font-medium shrink-0`}>
+                    {statusBadge.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {showAllEvents && eventsTotal > 20 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-sm">
+            <span className="text-gray-500">
+              Showing {(eventsPage - 1) * 20 + 1}–{Math.min(eventsPage * 20, eventsTotal)} of {eventsTotal}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEventsPage((p) => Math.max(1, p - 1))}
+                disabled={eventsPage <= 1}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                ← Previous
+              </button>
+              <button
+                onClick={() => setEventsPage((p) => p + 1)}
+                disabled={eventsPage * 20 >= eventsTotal}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Collapse button */}
+        {showAllEvents && (
+          <div className="px-5 py-2 border-t border-gray-100 text-center">
+            <button
+              onClick={() => { setShowAllEvents(false); setEventsPage(1); }}
+              className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Show Less
+            </button>
+          </div>
+        )}
       </div>
 
     </div>

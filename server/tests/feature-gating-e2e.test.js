@@ -8,6 +8,7 @@ import {
   createTestUser,
   createTestSystemAdmin,
   createTestProduct,
+  ensureTiersSeeded,
 } from './helpers/fixtures.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-vitest';
@@ -23,11 +24,18 @@ describe('Feature Gating E2E', () => {
   let tenant, user, token;
   let adminUser, adminToken;
   let product;
+  let tiers; // { basic, medium, high } tier IDs
 
   beforeAll(async () => {
     await cleanDatabase();
+    await ensureTiersSeeded();
 
-    // Start with a starter plan tenant
+    // Get tier IDs for plan changes
+    const allTiers = await testPrisma.planTier.findMany();
+    tiers = {};
+    for (const t of allTiers) tiers[t.slug] = t.id;
+
+    // Start with a starter (basic) plan tenant
     tenant = await createTestTenantWithPlan('E2E Test Biz', 'starter');
     user = await createTestUser(tenant.id, { role: 'OWNER' });
     token = makeToken(user);
@@ -52,9 +60,9 @@ describe('Feature Gating E2E', () => {
     await testPrisma.$disconnect();
   });
 
-  // ── Phase 1: Starter Plan ──
+  // ── Phase 1: Basic Tier (starter) ──
 
-  describe('Phase 1: Starter plan — core features only', () => {
+  describe('Phase 1: Basic tier — core features only', () => {
     it('can access invoice routes (core feature)', async () => {
       const res = await request(app)
         .get('/api/invoices')
@@ -72,15 +80,15 @@ describe('Feature Gating E2E', () => {
       expect(res.status).toBe(200);
     });
 
-    it('BLOCKED from Gmail routes', async () => {
+    it('BLOCKED from Gmail routes (email_integration not in basic)', async () => {
       const res = await request(app)
         .get('/api/gmail/status')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('PLAN_UPGRADE_REQUIRED');
-      expect(res.body.requiredFeature).toBe('gmail_integration');
-      expect(res.body.currentPlan).toBe('starter');
+      expect(res.body.requiredFeature).toBe('email_integration');
+      expect(res.body.currentPlan).toBe('basic');
     });
 
     it('BLOCKED from Competitor routes', async () => {
@@ -93,29 +101,33 @@ describe('Feature Gating E2E', () => {
       expect(res.body.requiredFeature).toBe('competitor_intelligence');
     });
 
-    it('/me returns starter plan info', async () => {
+    it('/me returns basic tier info with enabledFeatures', async () => {
       const res = await request(app)
         .get('/api/auth/me')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.tenant.plan).toBe('starter');
-      expect(res.body.tenant.maxStores).toBe(2);
-      expect(res.body.tenant.maxApiCallsPerMonth).toBe(100);
+      expect(res.body.tierSlug).toBe('basic');
+      expect(res.body.enabledFeatures).toContain('invoices');
+      expect(res.body.enabledFeatures).toContain('products');
+      expect(res.body.enabledFeatures).not.toContain('email_integration');
+      expect(res.body.enabledFeatures).not.toContain('competitor_intelligence');
+      expect(res.body.limits.max_stores).toBe(2);
+      expect(res.body.limits.max_invoice_pages_per_month).toBe(100);
     });
   });
 
-  // ── Phase 2: Admin Upgrades to Professional ──
+  // ── Phase 2: Admin Upgrades to Medium ──
 
-  describe('Phase 2: Admin upgrades to professional', () => {
-    it('admin can change plan to professional', async () => {
+  describe('Phase 2: Admin upgrades to medium tier', () => {
+    it('admin can change plan to medium via planTierId', async () => {
       const res = await request(app)
         .patch(`/api/admin/tenants/${tenant.id}/subscription`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ plan: 'professional' });
+        .send({ planTierId: tiers.medium });
 
       expect(res.status).toBe(200);
-      expect(res.body.plan).toBe('professional');
+      expect(res.body.plan).toBe('medium');
       expect(res.body.maxUsers).toBe(15);
       expect(res.body.maxStores).toBe(10);
       expect(res.body.maxApiCallsPerMonth).toBe(500);
@@ -128,17 +140,19 @@ describe('Feature Gating E2E', () => {
       });
 
       expect(logs.length).toBeGreaterThanOrEqual(1);
-      expect(logs[0].reason).toContain('professional');
+      expect(logs[0].reason).toContain('medium');
     });
 
-    it('/me now shows professional plan', async () => {
+    it('/me now shows medium tier with email_integration', async () => {
       const res = await request(app)
         .get('/api/auth/me')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.tenant.plan).toBe('professional');
-      expect(res.body.tenant.maxApiCallsPerMonth).toBe(500);
+      expect(res.body.tierSlug).toBe('medium');
+      expect(res.body.enabledFeatures).toContain('email_integration');
+      expect(res.body.enabledFeatures).toContain('folder_polling');
+      expect(res.body.enabledFeatures).not.toContain('competitor_intelligence');
     });
 
     it('Gmail routes now ALLOWED', async () => {
@@ -158,7 +172,7 @@ describe('Feature Gating E2E', () => {
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('PLAN_UPGRADE_REQUIRED');
       expect(res.body.requiredFeature).toBe('competitor_intelligence');
-      expect(res.body.currentPlan).toBe('professional');
+      expect(res.body.currentPlan).toBe('medium');
     });
 
     it('core invoice routes still work', async () => {
@@ -170,30 +184,32 @@ describe('Feature Gating E2E', () => {
     });
   });
 
-  // ── Phase 3: Admin Upgrades to Enterprise ──
+  // ── Phase 3: Admin Upgrades to High ──
 
-  describe('Phase 3: Admin upgrades to enterprise', () => {
-    it('admin can change plan to enterprise', async () => {
+  describe('Phase 3: Admin upgrades to high tier', () => {
+    it('admin can change plan to high via planTierId', async () => {
       const res = await request(app)
         .patch(`/api/admin/tenants/${tenant.id}/subscription`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ plan: 'enterprise' });
+        .send({ planTierId: tiers.high });
 
       expect(res.status).toBe(200);
-      expect(res.body.plan).toBe('enterprise');
-      expect(res.body.maxUsers).toBe(999); // Infinity capped at 999
+      expect(res.body.plan).toBe('high');
+      expect(res.body.maxUsers).toBe(999);
       expect(res.body.maxStores).toBe(999);
       expect(res.body.maxApiCallsPerMonth).toBe(2000);
     });
 
-    it('/me now shows enterprise plan', async () => {
+    it('/me now shows high tier with all features', async () => {
       const res = await request(app)
         .get('/api/auth/me')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.tenant.plan).toBe('enterprise');
-      expect(res.body.tenant.maxApiCallsPerMonth).toBe(2000);
+      expect(res.body.tierSlug).toBe('high');
+      expect(res.body.enabledFeatures).toContain('email_integration');
+      expect(res.body.enabledFeatures).toContain('competitor_intelligence');
+      expect(res.body.enabledFeatures).toContain('demand_forecasting');
     });
 
     it('Gmail routes still ALLOWED', async () => {
@@ -246,17 +262,17 @@ describe('Feature Gating E2E', () => {
     });
   });
 
-  // ── Phase 4: Downgrade Back to Starter ──
+  // ── Phase 4: Downgrade Back to Basic ──
 
-  describe('Phase 4: Downgrade back to starter', () => {
-    it('admin can downgrade to starter', async () => {
+  describe('Phase 4: Downgrade back to basic', () => {
+    it('admin can downgrade to basic via planTierId', async () => {
       const res = await request(app)
         .patch(`/api/admin/tenants/${tenant.id}/subscription`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ plan: 'starter' });
+        .send({ planTierId: tiers.basic });
 
       expect(res.status).toBe(200);
-      expect(res.body.plan).toBe('starter');
+      expect(res.body.plan).toBe('basic');
       expect(res.body.maxUsers).toBe(5);
       expect(res.body.maxStores).toBe(2);
       expect(res.body.maxApiCallsPerMonth).toBe(100);
@@ -288,14 +304,15 @@ describe('Feature Gating E2E', () => {
       expect(res.status).toBe(200);
     });
 
-    it('/me shows reverted plan info', async () => {
+    it('/me shows reverted tier info', async () => {
       const res = await request(app)
         .get('/api/auth/me')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.tenant.plan).toBe('starter');
-      expect(res.body.tenant.maxApiCallsPerMonth).toBe(100);
+      expect(res.body.tierSlug).toBe('basic');
+      expect(res.body.enabledFeatures).not.toContain('email_integration');
+      expect(res.body.limits.max_invoice_pages_per_month).toBe(100);
     });
   });
 });

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getAuthUrl, pollGmailForInvoices } from '../services/gmail.js';
+import { testImapConnection, pollImapForInvoices } from '../services/imap.js';
 import { encrypt } from '../lib/encryption.js';
 
 const router = Router();
@@ -11,6 +12,7 @@ router.get('/status', async (req, res) => {
       where: { tenantId: req.user.tenantId },
       select: {
         id: true,
+        connectionType: true,
         googleClientId: true,
         email: true,
         isActive: true,
@@ -19,6 +21,7 @@ router.get('/status', async (req, res) => {
         senderWhitelist: true,
         labelFilter: true,
         createdAt: true,
+        imapEmail: true,
       },
     });
 
@@ -26,16 +29,25 @@ router.get('/status', async (req, res) => {
       return res.json({ connected: false, hasCredentials: false });
     }
 
-    // Has credentials but not yet connected via OAuth?
-    const hasCredentials = !!integration.googleClientId;
-    const connected = hasCredentials && !!integration.email;
+    // IMAP connection check
+    if (integration.connectionType === 'imap') {
+      const connected = !!integration.imapEmail;
+      if (!connected) {
+        return res.json({ connected: false, hasCredentials: false, connectionType: 'imap' });
+      }
+    } else {
+      // OAuth connection check
+      const hasCredentials = !!integration.googleClientId;
+      const connected = hasCredentials && !!integration.email;
 
-    if (!connected) {
-      return res.json({
-        connected: false,
-        hasCredentials,
-        googleClientId: integration.googleClientId || null,
-      });
+      if (!connected) {
+        return res.json({
+          connected: false,
+          hasCredentials,
+          connectionType: 'oauth',
+          googleClientId: integration.googleClientId || null,
+        });
+      }
     }
 
     // Get import stats
@@ -52,6 +64,7 @@ router.get('/status', async (req, res) => {
     res.json({
       connected: true,
       hasCredentials: true,
+      connectionType: integration.connectionType || 'oauth',
       integration: {
         ...integration,
         stats: statsSummary,
@@ -119,6 +132,10 @@ router.post('/configure', async (req, res) => {
   try {
     const { senderWhitelist, labelFilter, pollIntervalMin } = req.body;
 
+    if (pollIntervalMin !== undefined && pollIntervalMin < 15) {
+      return res.status(400).json({ message: 'Poll interval must be at least 15 minutes.' });
+    }
+
     const integration = await req.prisma.gmailIntegration.findUnique({
       where: { tenantId: req.user.tenantId },
     });
@@ -157,7 +174,12 @@ router.post('/poll', async (req, res) => {
       return res.status(400).json({ message: 'Gmail integration is paused' });
     }
 
-    const result = await pollGmailForInvoices(
+    // Dispatch to the correct poller based on connection type
+    const pollFn = integration.connectionType === 'imap'
+      ? pollImapForInvoices
+      : pollGmailForInvoices;
+
+    const result = await pollFn(
       req.prisma,
       integration,
       req.user.tenantId,
@@ -190,6 +212,85 @@ router.get('/import-logs', async (req, res) => {
     ]);
 
     res.json({ logs, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── IMAP (App Password) Routes ────────────────────────────────
+
+// POST /api/gmail/imap/test-connection — Test IMAP login with email + App Password
+router.post('/imap/test-connection', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and App Password are required.' });
+    }
+
+    if (password.replace(/\s/g, '').length !== 16) {
+      return res.status(400).json({ message: 'App Password should be 16 characters (spaces are ignored).' });
+    }
+
+    const result = await testImapConnection(email, password.replace(/\s/g, ''));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/gmail/imap/save-credentials — Save IMAP email + encrypted App Password
+router.post('/imap/save-credentials', async (req, res) => {
+  try {
+    const { email, password, senderWhitelist, labelFilter, pollIntervalMin } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and App Password are required.' });
+    }
+
+    const cleanPassword = password.replace(/\s/g, '');
+    if (cleanPassword.length !== 16) {
+      return res.status(400).json({ message: 'App Password should be 16 characters (spaces are ignored).' });
+    }
+
+    if (pollIntervalMin !== undefined && pollIntervalMin < 15) {
+      return res.status(400).json({ message: 'Poll interval must be at least 15 minutes.' });
+    }
+
+    const integration = await req.prisma.gmailIntegration.upsert({
+      where: { tenantId: req.user.tenantId },
+      create: {
+        tenantId: req.user.tenantId,
+        connectionType: 'imap',
+        imapEmail: email,
+        imapPasswordEnc: encrypt(cleanPassword),
+        imapHost: 'imap.gmail.com',
+        imapPort: 993,
+        imapUseSsl: true,
+        isActive: true,
+        ...(senderWhitelist && { senderWhitelist }),
+        ...(labelFilter && { labelFilter }),
+        ...(pollIntervalMin && { pollIntervalMin }),
+      },
+      update: {
+        connectionType: 'imap',
+        imapEmail: email,
+        imapPasswordEnc: encrypt(cleanPassword),
+        imapHost: 'imap.gmail.com',
+        imapPort: 993,
+        imapUseSsl: true,
+        isActive: true,
+        ...(senderWhitelist !== undefined && { senderWhitelist }),
+        ...(labelFilter !== undefined && { labelFilter }),
+        ...(pollIntervalMin !== undefined && { pollIntervalMin }),
+      },
+    });
+
+    res.json({
+      saved: true,
+      connectionType: 'imap',
+      imapEmail: integration.imapEmail,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

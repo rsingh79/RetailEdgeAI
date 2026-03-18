@@ -51,7 +51,7 @@ export default function AdminSidebar() {
           </svg>
         </div>
         <div>
-          <div className="font-semibold text-sm">RetailEdge</div>
+          <div className="font-semibold text-sm">RetailEdge <span className="text-brand-400 text-xs font-bold">AI</span></div>
           <span className="inline-block text-xs bg-red-500 text-white px-1.5 py-0.5 rounded font-medium">Admin</span>
         </div>
       </div>

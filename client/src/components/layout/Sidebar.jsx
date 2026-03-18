@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useTenantPlan } from '../../hooks/useTenantPlan';
 import { api } from '../../services/api';
 
@@ -66,13 +66,31 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.044a4.5 4.5 0 00-1.242-7.244l4.5-4.5a4.5 4.5 0 016.364 6.364l-1.757 1.757" />
     </svg>
   ),
+  chevron: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+    </svg>
+  ),
 };
 
 const POLL_INTERVAL = 15_000; // refresh counts every 15 seconds
 
 export default function Sidebar() {
   const { hasFeature, loading } = useTenantPlan();
+  const location = useLocation();
   const [counts, setCounts] = useState({ totalInvoices: 0, reviewInvoices: 0 });
+
+  // Auto-expand when on a workflow child route
+  const workflowPaths = ['/', '/invoices', '/review', '/export'];
+  const isOnWorkflowRoute = workflowPaths.some((p) =>
+    p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)
+  );
+  const [workflowOpen, setWorkflowOpen] = useState(isOnWorkflowRoute);
+
+  // Keep expanded when navigating to a workflow child
+  useEffect(() => {
+    if (isOnWorkflowRoute) setWorkflowOpen(true);
+  }, [isOnWorkflowRoute]);
 
   const fetchCounts = useCallback(async () => {
     try {
@@ -89,14 +107,16 @@ export default function Sidebar() {
     return () => clearInterval(interval);
   }, [fetchCounts]);
 
-  const navItems = [
-    // Core features — always accessible
-    { to: '/ai', label: 'AI Command Center', icon: 'sparkle', iconActiveClass: 'text-brand-400' },
-    { to: '/', label: 'Dashboard', icon: 'grid' },
+  // Workflow children (nested under Invoice Workflow)
+  const workflowChildren = [
     { to: '/invoices', label: 'Invoices', icon: 'file', badge: counts.reviewInvoices || null, badgeColor: 'amber' },
     { to: '/review', label: 'Review', icon: 'clipboard', badge: counts.reviewInvoices || null, badgeColor: 'amber' },
-    { to: '/products', label: 'Products', icon: 'box' },
     { to: '/export', label: 'Export', icon: 'exportIcon' },
+  ];
+
+  // Flat nav items (rendered after the workflow group)
+  const navItems = [
+    { to: '/products', label: 'Products', icon: 'box' },
     { to: '/reports', label: 'Reports', icon: 'chart' },
     // Gatable features — locked when not in tier
     { to: '/pricing', label: 'Pricing Rules', icon: 'dollar', requiredFeature: 'pricing_rules' },
@@ -104,6 +124,49 @@ export default function Sidebar() {
     // Always accessible
     { to: '/connect', label: 'Connect', icon: 'link' },
   ];
+
+  const renderNavLink = (item) => {
+    const isLocked = item.requiredFeature && !loading && !hasFeature(item.requiredFeature);
+
+    if (isLocked) {
+      return (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-slate-500 hover:bg-sidebar-hover opacity-60"
+        >
+          <span className="text-slate-600">{icons[item.icon]}</span>
+          {item.label}
+          <span className="ml-auto text-slate-500">{icons.lock}</span>
+        </NavLink>
+      );
+    }
+
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        end={item.to === '/'}
+        className={({ isActive }) =>
+          `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+            isActive ? 'bg-sidebar-active text-white' : 'text-slate-300 hover:bg-sidebar-hover'
+          }`
+        }
+      >
+        <span className={item.iconColor || 'text-slate-400'}>{icons[item.icon]}</span>
+        {item.label}
+        {item.badge != null && item.badge > 0 && (
+          <span
+            className={`ml-auto text-white text-xs px-2 py-0.5 rounded-full ${
+              item.badgeColor === 'amber' ? 'bg-amber-500' : 'bg-brand-600'
+            }`}
+          >
+            {item.badge}
+          </span>
+        )}
+      </NavLink>
+    );
+  };
 
   return (
     <aside className="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full z-30">
@@ -120,48 +183,79 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 p-3 space-y-1">
-        {navItems.map((item) => {
-          const isLocked = item.requiredFeature && !loading && !hasFeature(item.requiredFeature);
-
-          if (isLocked) {
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition text-slate-500 hover:bg-sidebar-hover opacity-60"
-              >
-                <span className="text-slate-600">{icons[item.icon]}</span>
-                {item.label}
-                <span className="ml-auto text-slate-500">{icons.lock}</span>
-              </NavLink>
-            );
+        {/* AI Command Center — top of nav */}
+        <NavLink
+          to="/ai"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+              isActive ? 'bg-sidebar-active text-white' : 'text-slate-300 hover:bg-sidebar-hover'
+            }`
           }
+        >
+          <span className="text-slate-400">{icons.sparkle}</span>
+          AI Command Center
+        </NavLink>
 
-          return (
+        {/* Invoice Workflow — collapsible group */}
+        <div>
+          <div className="flex items-center">
             <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
+              to="/"
+              end
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+                `flex-1 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
                   isActive ? 'bg-sidebar-active text-white' : 'text-slate-300 hover:bg-sidebar-hover'
                 }`
               }
             >
-              <span className="text-slate-400">{icons[item.icon]}</span>
-              {item.label}
-              {item.badge != null && item.badge > 0 && (
-                <span
-                  className={`ml-auto text-white text-xs px-2 py-0.5 rounded-full ${
-                    item.badgeColor === 'amber' ? 'bg-amber-500' : 'bg-brand-600'
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
+              <span className="text-slate-400">{icons.grid}</span>
+              Invoice Workflow
             </NavLink>
-          );
-        })}
+            <button
+              onClick={() => setWorkflowOpen((prev) => !prev)}
+              className="p-1 mr-1 text-slate-400 hover:text-white transition rounded"
+              aria-label={workflowOpen ? 'Collapse workflow' : 'Expand workflow'}
+            >
+              <span className={`block transition-transform duration-200 ${workflowOpen ? 'rotate-90' : ''}`}>
+                {icons.chevron}
+              </span>
+            </button>
+          </div>
+
+          {/* Workflow children */}
+          <div
+            className={`overflow-hidden transition-all duration-200 ${
+              workflowOpen ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0'
+            }`}
+          >
+            {workflowChildren.map((child) => (
+              <NavLink
+                key={child.to}
+                to={child.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 pl-9 pr-3 py-2 rounded-lg text-sm font-medium transition ${
+                    isActive ? 'bg-sidebar-active text-white' : 'text-slate-300 hover:bg-sidebar-hover'
+                  }`
+                }
+              >
+                <span className="text-slate-400">{icons[child.icon]}</span>
+                {child.label}
+                {child.badge != null && child.badge > 0 && (
+                  <span
+                    className={`ml-auto text-white text-xs px-2 py-0.5 rounded-full ${
+                      child.badgeColor === 'amber' ? 'bg-amber-500' : 'bg-brand-600'
+                    }`}
+                  >
+                    {child.badge}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+
+        {/* Remaining flat nav items */}
+        {navItems.map(renderNavLink)}
 
         <div className="mt-4 pt-4 border-t border-slate-700/50">
           <NavLink

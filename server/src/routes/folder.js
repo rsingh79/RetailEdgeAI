@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 import { validateFolderPath, scanFolder, pollFolderForInvoices } from '../services/folder.js';
 
 const router = Router();
@@ -48,6 +51,109 @@ router.get('/status', async (req, res) => {
         stats: statsSummary,
       },
     });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/folder-polling/browse — Browse server directories for folder selection
+router.post('/browse', async (req, res) => {
+  try {
+    const { path: browsePath } = req.body;
+    const entries = [];
+
+    if (!browsePath) {
+      // Detect quick-access locations (OneDrive, Dropbox, Google Drive, etc.)
+      const quickAccess = [];
+      const homeDir = os.homedir();
+      const candidates = [
+        { label: 'Desktop', dir: path.join(homeDir, 'Desktop'), icon: 'desktop' },
+        { label: 'Documents', dir: path.join(homeDir, 'Documents'), icon: 'documents' },
+        { label: 'Downloads', dir: path.join(homeDir, 'Downloads'), icon: 'downloads' },
+      ];
+
+      // Scan for OneDrive folders (can be "OneDrive", "OneDrive - CompanyName", etc.)
+      try {
+        const homeItems = await fs.readdir(homeDir, { withFileTypes: true });
+        for (const item of homeItems) {
+          if (!item.isDirectory()) continue;
+          const name = item.name;
+          if (name.startsWith('OneDrive')) {
+            candidates.push({ label: name, dir: path.join(homeDir, name), icon: 'cloud' });
+          } else if (name === 'Dropbox') {
+            candidates.push({ label: 'Dropbox', dir: path.join(homeDir, name), icon: 'cloud' });
+          } else if (name === 'Google Drive' || name === 'My Drive') {
+            candidates.push({ label: name, dir: path.join(homeDir, name), icon: 'cloud' });
+          } else if (name === 'iCloudDrive') {
+            candidates.push({ label: 'iCloud Drive', dir: path.join(homeDir, name), icon: 'cloud' });
+          } else if (name === 'Box' || name === 'Box Sync') {
+            candidates.push({ label: name, dir: path.join(homeDir, name), icon: 'cloud' });
+          }
+        }
+      } catch { /* can't read home dir */ }
+
+      for (const c of candidates) {
+        try {
+          await fs.access(c.dir);
+          quickAccess.push({ name: c.label, path: c.dir, hasChildren: true, icon: c.icon });
+        } catch {
+          // Not available, skip
+        }
+      }
+
+      // List available drive roots (Windows)
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      for (const letter of letters) {
+        const root = `${letter}:\\`;
+        try {
+          await fs.access(root);
+          entries.push({ name: root, path: root, hasChildren: true });
+        } catch {
+          // Drive doesn't exist, skip
+        }
+      }
+      return res.json({ entries, quickAccess, parent: null });
+    }
+
+    // Validate: must be absolute, no traversal
+    const normalized = path.resolve(browsePath);
+    if (normalized !== path.resolve(normalized)) {
+      return res.status(400).json({ message: 'Invalid path' });
+    }
+    if (browsePath.includes('..')) {
+      return res.status(400).json({ message: 'Path traversal not allowed' });
+    }
+
+    // Read directory contents — directories only
+    let items;
+    try {
+      items = await fs.readdir(normalized, { withFileTypes: true });
+    } catch (err) {
+      return res.json({ entries: [], parent: path.dirname(normalized), error: `Cannot read: ${err.message}` });
+    }
+
+    for (const item of items) {
+      if (!item.isDirectory()) continue;
+      // Skip hidden/system directories
+      if (item.name.startsWith('.') || item.name.startsWith('$')) continue;
+
+      const fullPath = path.join(normalized, item.name);
+      // Check if this directory has subdirectories (for expand arrow)
+      let hasChildren = false;
+      try {
+        const children = await fs.readdir(fullPath, { withFileTypes: true });
+        hasChildren = children.some((c) => c.isDirectory());
+      } catch {
+        // Can't read — still show it but no expand
+      }
+
+      entries.push({ name: item.name, path: fullPath, hasChildren });
+    }
+
+    // Sort alphabetically
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ entries, parent: path.dirname(normalized) });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

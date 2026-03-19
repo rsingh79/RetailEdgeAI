@@ -51,6 +51,8 @@ model Tenant {
   priceAlerts         PriceAlert[]
   shopifyIntegration  ShopifyIntegration?
   shopifyImportLogs   ShopifyImportLog[]
+  driveIntegrations   DriveIntegration[]
+  driveImportLogs     DriveImportLog[]
   planTierId          String?
   planTier            PlanTier?  @relation(fields: [planTierId], references: [id])
 }
@@ -498,7 +500,7 @@ model FolderIntegration {
   lastPollAt       DateTime?
   pollIntervalMin  Int       @default(30)
   isActive         Boolean   @default(true)
-  filePatterns     String[]  @default(["*.pdf", "*.jpg", "*.jpeg", "*.png"])
+  filePatterns     String[]  @default(["*.pdf", "*.jpg", "*.jpeg", "*.png", "*.webp"])
   moveToProcessed  Boolean   @default(true)         // move files to Processed/ subfolder after import
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -567,6 +569,55 @@ model ShopifyImportLog {
 
   @@index([tenantId])
   @@index([createdAt])
+}
+
+// ── Google Drive Integration ──
+
+model DriveIntegration {
+  id                    String    @id @default(cuid())
+  tenantId              String
+  googleClientId        String?                    // tenant's own Google OAuth Client ID
+  googleClientSecretEnc String?                    // AES-256-GCM encrypted Client Secret
+  email                 String?                    // Google account email (set after OAuth)
+  accessTokenEnc        String?                    // AES-256-GCM encrypted access token
+  refreshTokenEnc String?                          // AES-256-GCM encrypted refresh token
+  tokenExpiresAt  DateTime?
+  driveFolderId   String                           // Google Drive folder ID selected by user
+  driveFolderName String?                          // Display name of the selected folder
+  lastPollAt      DateTime?
+  pollIntervalMin Int       @default(30)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, driveFolderId])
+  @@index([tenantId])
+}
+
+model DriveImportLog {
+  id              String    @id @default(cuid())
+  tenantId        String
+  driveFileId     String                           // Dedup layer 1: Google Drive file ID
+  fileHash        String?                          // Dedup layer 2: SHA-256 of file contents
+  supplierName    String?                          // Dedup layer 3 component
+  invoiceNumber   String?                          // Dedup layer 3 component
+  invoiceDate     DateTime?                        // Dedup layer 3 component
+  fileName        String                           // Original filename from Drive
+  fileSize        Int                              // File size in bytes
+  mimeType        String?                          // MIME type from Drive metadata
+  status          String    @default("imported")   // imported, duplicate, failed, skipped
+  duplicateReason String?                          // "drive_file_id", "file_hash", "content_match"
+  invoiceId       String?                          // linked Invoice if imported
+  createdAt       DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, driveFileId])
+  @@index([tenantId])
+  @@index([tenantId, fileHash])
+  @@index([tenantId, invoiceNumber, invoiceDate])
 }
 
 // ── Competitor Intelligence ──

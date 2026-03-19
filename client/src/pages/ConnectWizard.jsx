@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import PollIntervalInput, { formatPollInterval } from '../components/ui/PollIntervalInput';
+import FolderBrowser from '../components/ui/FolderBrowser';
+import DriveFolderPicker from '../components/settings/DriveFolderPicker';
 
 /* ═══════════════════════════════════════════════════════════════════
    SVG Icons
@@ -83,6 +85,20 @@ const INTEGRATION_CATEGORIES = [
         iconSvg: icons.mail,
         comingSoon: true,
         features: ['Outlook & Microsoft 365 inboxes', 'Folder-based filtering', 'Shared mailbox support', 'Azure AD authentication'],
+      },
+      {
+        id: 'google-drive',
+        name: 'Google Drive',
+        subtitle: 'Cloud Storage',
+        description: 'Auto-import invoices from a Google Drive folder. Server polls for new PDF and image files automatically.',
+        iconBg: 'bg-green-50',
+        iconColor: 'text-green-600',
+        iconSvg: (
+          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+          </svg>
+        ),
+        features: ['PDF, JPG, PNG, WebP support', '3-layer duplicate detection', 'Multiple folder support', 'Watch shared Drive folders'],
       },
       {
         id: 'folder',
@@ -1128,10 +1144,11 @@ function FolderSetupWizard({ onBack, onComplete }) {
   const [testResult, setTestResult] = useState(null);
   const [config, setConfig] = useState({
     folderPath: '',
-    filePatterns: ['*.pdf', '*.jpg', '*.jpeg', '*.png'],
+    filePatterns: ['*.pdf', '*.jpg', '*.jpeg', '*.png', '*.webp'],
     pollIntervalMin: 30,
   });
   const [patternInput, setPatternInput] = useState('');
+  const [showFolderBrowser, setShowFolderBrowser] = useState(false);
 
   useEffect(() => {
     loadStatus();
@@ -1145,7 +1162,7 @@ function FolderSetupWizard({ onBack, onComplete }) {
         setStep(3);
         setConfig({
           folderPath: status.integration?.folderPath || '',
-          filePatterns: status.integration?.filePatterns || ['*.pdf', '*.jpg', '*.jpeg', '*.png'],
+          filePatterns: status.integration?.filePatterns || ['*.pdf', '*.jpg', '*.jpeg', '*.png', '*.webp'],
           pollIntervalMin: status.integration?.pollIntervalMin || 30,
         });
       }
@@ -1221,16 +1238,34 @@ function FolderSetupWizard({ onBack, onComplete }) {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Folder Path</label>
-              <input
-                type="text"
-                value={config.folderPath}
-                onChange={(e) => setConfig((p) => ({ ...p, folderPath: e.target.value }))}
-                placeholder="C:\Invoices  or  \\server\share\Invoices"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={config.folderPath}
+                  onChange={(e) => setConfig((p) => ({ ...p, folderPath: e.target.value }))}
+                  placeholder="C:\Invoices  or  \\server\share\Invoices"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowFolderBrowser(true)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  title="Browse folders"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                  </svg>
+                </button>
+              </div>
               <p className="text-xs text-gray-400 mt-1">
                 Local paths and UNC network paths are supported
               </p>
+              <FolderBrowser
+                isOpen={showFolderBrowser}
+                onClose={() => setShowFolderBrowser(false)}
+                onSelect={(path) => setConfig((p) => ({ ...p, folderPath: path }))}
+                initialPath={config.folderPath || null}
+              />
             </div>
 
             <div>
@@ -1269,6 +1304,12 @@ function FolderSetupWizard({ onBack, onComplete }) {
                 value={config.pollIntervalMin}
                 onChange={(val) => setConfig((p) => ({ ...p, pollIntervalMin: val }))}
               />
+              <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                The folder will be scanned immediately when you save, then on the schedule above.
+              </p>
             </div>
 
             <div className="flex items-center gap-3 pt-2">
@@ -2086,6 +2127,429 @@ function getSystemEmoji(systemId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   Google Drive Setup Wizard (per-tenant OAuth credentials)
+   ═══════════════════════════════════════════════════════════════════ */
+const DRIVE_STEPS = [
+  { num: 1, label: 'Credentials' },
+  { num: 2, label: 'Connect' },
+  { num: 3, label: 'Select Folder' },
+  { num: 4, label: 'Done' },
+];
+
+function GoogleDriveSetupWizard({ onBack, onComplete }) {
+  const [step, setStep] = useState(1);
+  const [integrations, setIntegrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [pendingIntegrationId, setPendingIntegrationId] = useState(null);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [addingFolder, setAddingFolder] = useState(false);
+  const [lastAddedFolder, setLastAddedFolder] = useState(null);
+  const [disconnecting, setDisconnecting] = useState(null);
+  const [driveCreds, setDriveCreds] = useState({ googleClientId: '', googleClientSecret: '' });
+  const [savingCreds, setSavingCreds] = useState(false);
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const loadStatus = async () => {
+    try {
+      const status = await api.drive.getStatus();
+      setIntegrations(status.integrations || []);
+      if (status.integrations?.length > 0) {
+        setStep(4); // management view
+      } else if (status.pendingOAuth?.email) {
+        // OAuth done but no folder selected yet
+        setPendingIntegrationId(status.pendingOAuth.id);
+        setStep(3);
+      } else if (status.hasCredentials) {
+        // Credentials saved but OAuth not done
+        setStep(2);
+      }
+    } catch {
+      // API not available
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCredentials = async () => {
+    if (!driveCreds.googleClientId || !driveCreds.googleClientSecret) return;
+    setSavingCreds(true);
+    try {
+      await api.drive.saveCredentials(driveCreds);
+      setDriveCreds((p) => ({ ...p, googleClientSecret: '' }));
+      setStep(2);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSavingCreds(false);
+    }
+  };
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      const { url } = await api.drive.getAuthUrl();
+      const popup = window.open(url, 'drive-oauth', 'width=600,height=700,scrollbars=yes');
+      if (!popup) {
+        window.location.href = url;
+        return;
+      }
+      // Poll for completion
+      const interval = setInterval(async () => {
+        try {
+          const status = await api.drive.getStatus();
+          if (status.pendingOAuth?.email) {
+            clearInterval(interval);
+            setPendingIntegrationId(status.pendingOAuth.id);
+            setConnecting(false);
+            setStep(3);
+          }
+        } catch { /* keep polling */ }
+      }, 2000);
+      setTimeout(() => {
+        clearInterval(interval);
+        setConnecting(false);
+      }, 120000);
+    } catch (err) {
+      alert(err.message);
+      setConnecting(false);
+    }
+  };
+
+  const handleFolderSelected = async (folder) => {
+    if (!pendingIntegrationId) return;
+    setAddingFolder(true);
+    try {
+      await api.drive.addFolder({
+        integrationId: pendingIntegrationId,
+        folderId: folder.id,
+        folderName: folder.name,
+      });
+      setLastAddedFolder(folder.name);
+      setPendingIntegrationId(null);
+      await loadStatus();
+      setStep(4);
+      onComplete?.();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setAddingFolder(false);
+    }
+  };
+
+  const handleAddAnotherFolder = () => {
+    // Start a new OAuth flow to add another folder (credentials already saved, skip to step 2)
+    setLastAddedFolder(null);
+    setStep(2);
+  };
+
+  const handleDisconnect = async (integrationId, folderName) => {
+    if (!confirm(`Remove "${folderName}" from watched folders? This will stop polling and remove the connection.`)) return;
+    setDisconnecting(integrationId);
+    try {
+      await api.drive.disconnect(integrationId);
+      await loadStatus();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-12 text-gray-400">Loading Google Drive status...</div>;
+  }
+
+  // ── Step 4: Management / Done view ──
+  if (step === 4) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-lg p-8 slide-up">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Google Drive Folders</h2>
+                <p className="text-sm text-gray-500">{integrations.length} folder{integrations.length !== 1 ? 's' : ''} connected</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Success banner for just-added folder */}
+          {lastAddedFolder && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+              <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm text-green-800">
+                <strong>{lastAddedFolder}</strong> is now being watched for invoice files.
+              </span>
+            </div>
+          )}
+
+          {/* Connected folders list */}
+          <div className="space-y-3 mb-6">
+            {integrations.map((int) => (
+              <div key={int.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{int.driveFolderName || 'Google Drive Folder'}</p>
+                    <p className="text-xs text-gray-500">{int.email || 'Google Account'}</p>
+                    {int.lastPollAt && (
+                      <p className="text-xs text-gray-400">Last polled: {new Date(int.lastPollAt).toLocaleString()}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDisconnect(int.id, int.driveFolderName || 'this folder')}
+                  disabled={disconnecting === int.id}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
+                >
+                  {disconnecting === int.id ? 'Removing...' : 'Remove'}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition"
+            >
+              {icons.back}
+              Back to Integrations
+            </button>
+            <button
+              onClick={handleAddAnotherFolder}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Add Another Folder
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Steps 1 & 2: Connect + Select Folder ──
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-2xl shadow-lg p-8 slide-up">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={onBack} className="text-gray-400 hover:text-gray-600 transition">
+            {icons.back}
+          </button>
+          <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Connect Google Drive</h2>
+            <p className="text-sm text-gray-500">Auto-import invoices from a Drive folder</p>
+          </div>
+        </div>
+
+        <StepProgress steps={DRIVE_STEPS} current={step} />
+
+        {/* ── Step 1: Credentials ── */}
+        {step === 1 && (
+          <div className="space-y-6">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <div className="flex items-start gap-2">
+                {icons.shield}
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Google Cloud Setup Required</p>
+                  <p>
+                    You need to create an OAuth 2.0 Client in your own Google Cloud Console.
+                    This gives you full control over the credentials and permissions.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+              <input
+                type="text"
+                value={driveCreds.googleClientId}
+                onChange={(e) => setDriveCreds((p) => ({ ...p, googleClientId: e.target.value }))}
+                placeholder="123456789.apps.googleusercontent.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Client Secret</label>
+              <input
+                type="password"
+                value={driveCreds.googleClientSecret}
+                onChange={(e) => setDriveCreds((p) => ({ ...p, googleClientSecret: e.target.value }))}
+                placeholder="GOCSPX-..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <a
+                href="/drive-setup-guide.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-teal-600 hover:text-teal-700 underline"
+              >
+                Need help? View setup guide
+              </a>
+              <button
+                onClick={handleSaveCredentials}
+                disabled={savingCreds || !driveCreds.googleClientId || !driveCreds.googleClientSecret}
+                className="px-6 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition disabled:opacity-50"
+              >
+                {savingCreds ? 'Saving...' : 'Save & Continue'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Connect ── */}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <div className="flex items-start gap-2">
+                {icons.shield}
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">What happens next</p>
+                  <p>
+                    You&apos;ll be redirected to Google to sign in and grant RetailEdge
+                    <strong> read-only access</strong> to your Drive files. We only read
+                    files from the folder you select — nothing else is accessed or modified.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Permissions requested</h4>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  View files and folders in Google Drive (read-only)
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  View your email address (for display purposes)
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span className="text-gray-400">Cannot modify, delete, or share your files</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <a
+                href="/drive-setup-guide.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-brand-600 hover:text-brand-700 underline"
+              >
+                How does this work?
+              </a>
+              <button
+                onClick={handleConnect}
+                disabled={connecting}
+                className="px-6 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {connecting ? (
+                  <>
+                    {icons.spinner}
+                    Waiting for Google...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                    </svg>
+                    Connect Google Drive
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Select Folder ── */}
+        {step === 3 && (
+          <div className="space-y-6">
+            <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+              <div className="flex items-center gap-2 text-sm text-green-800">
+                <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span><strong>Connected!</strong> Now choose which folder to watch for invoice files.</span>
+              </div>
+            </div>
+
+            <div className="text-center py-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Browse your Google Drive and select the folder where your invoice PDFs and images are stored.
+              </p>
+              <button
+                onClick={() => setShowFolderPicker(true)}
+                disabled={addingFolder}
+                className="px-6 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition flex items-center gap-2 mx-auto disabled:opacity-50"
+              >
+                {addingFolder ? (
+                  <>
+                    {icons.spinner}
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                    </svg>
+                    Browse Google Drive
+                  </>
+                )}
+              </button>
+            </div>
+
+            <DriveFolderPicker
+              isOpen={showFolderPicker}
+              onClose={() => setShowFolderPicker(false)}
+              onSelect={handleFolderSelected}
+              integrationId={pendingIntegrationId}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    Main Connect Wizard Page
    ═══════════════════════════════════════════════════════════════════ */
 export default function ConnectWizard() {
@@ -2110,6 +2574,11 @@ export default function ConnectWizard() {
       statuses.folder = folder.connected;
     } catch { /* not available */ }
     try {
+      // Check Google Drive status
+      const drive = await api.drive.getStatus();
+      statuses['google-drive'] = drive.integrations?.length > 0;
+    } catch { /* not available */ }
+    try {
       // Check POS/ecommerce connections
       const connectStatus = await api.connect.getStatus();
       if (connectStatus.connections) {
@@ -2125,6 +2594,8 @@ export default function ConnectWizard() {
   const handleSetup = (integration) => {
     if (integration.id === 'gmail') {
       setActiveWizard({ type: 'gmail' });
+    } else if (integration.id === 'google-drive') {
+      setActiveWizard({ type: 'google-drive' });
     } else if (integration.id === 'folder') {
       setActiveWizard({ type: 'folder' });
     } else if (integration.id === 'csv-import') {
@@ -2154,6 +2625,9 @@ export default function ConnectWizard() {
       <div className="max-w-4xl mx-auto py-6 px-6">
         {activeWizard.type === 'gmail' && (
           <GmailSetupWizard onBack={handleBack} onComplete={() => setConnectionStatus((p) => ({ ...p, gmail: true }))} />
+        )}
+        {activeWizard.type === 'google-drive' && (
+          <GoogleDriveSetupWizard onBack={handleBack} onComplete={() => setConnectionStatus((p) => ({ ...p, 'google-drive': true }))} />
         )}
         {activeWizard.type === 'folder' && (
           <FolderSetupWizard onBack={handleBack} onComplete={() => setConnectionStatus((p) => ({ ...p, folder: true }))} />

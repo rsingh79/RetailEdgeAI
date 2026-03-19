@@ -158,6 +158,29 @@ export const api = {
       return request(`/folder-polling/import-logs${qs}`);
     },
     disconnect: () => request('/folder-polling/disconnect', { method: 'DELETE' }),
+    browse: (folderPath) => request('/folder-polling/browse', { method: 'POST', body: JSON.stringify({ path: folderPath }) }),
+  },
+
+  // ── Google Drive Integration ───────────────────────────────────
+  drive: {
+    getStatus: () => request('/drive/status'),
+    saveCredentials: (data) => request('/drive/save-credentials', { method: 'POST', body: JSON.stringify(data) }),
+    getAuthUrl: () => request('/drive/auth-url'),
+    getFolders: (parentId, integrationId) => {
+      const params = new URLSearchParams();
+      if (parentId) params.set('parentId', parentId);
+      if (integrationId) params.set('integrationId', integrationId);
+      const qs = params.toString() ? `?${params}` : '';
+      return request(`/drive/folders${qs}`);
+    },
+    addFolder: (data) => request('/drive/add-folder', { method: 'POST', body: JSON.stringify(data) }),
+    poll: (integrationId) => request(`/drive/${integrationId}/poll`, { method: 'POST' }),
+    pollAll: () => request('/drive/poll-all', { method: 'POST' }),
+    getImportLogs: (params) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return request(`/drive/import-logs${qs}`);
+    },
+    disconnect: (integrationId) => request(`/drive/${integrationId}/disconnect`, { method: 'DELETE' }),
   },
 
   // ── Shopify Integration ─────────────────────────────────────────

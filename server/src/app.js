@@ -19,6 +19,8 @@ import folderRoutes from './routes/folder.js';
 import { handleOAuthCallback } from './services/gmail.js';
 import { handleOAuthCallback as handleShopifyCallback } from './services/shopify.js';
 import shopifyRoutes from './routes/shopify.js';
+import driveRoutes from './routes/drive.js';
+import { handleDriveOAuthCallback } from './services/drive.js';
 import { startGmailScheduler } from './services/gmailScheduler.js';
 import { startFolderScheduler } from './services/folderScheduler.js';
 import competitorRoutes from './routes/competitor.js';
@@ -80,6 +82,24 @@ app.get('/api/connect/shopify/callback', async (req, res) => {
   }
 });
 
+// Google Drive OAuth callback — unprotected (called by Google redirect, no JWT context)
+app.get('/api/drive/oauth/callback', async (req, res) => {
+  try {
+    const { code, state: tenantId, error } = req.query;
+    if (error) {
+      return res.redirect(`/settings?drive=error&reason=${encodeURIComponent(error)}`);
+    }
+    if (!code || !tenantId) {
+      return res.redirect('/settings?drive=error&reason=missing_params');
+    }
+    await handleDriveOAuthCallback(tenantId, code);
+    res.redirect('/settings?drive=connected');
+  } catch (err) {
+    console.error('Drive OAuth callback error:', err);
+    res.redirect(`/settings?drive=error&reason=${encodeURIComponent(err.message)}`);
+  }
+});
+
 // Protected routes — authenticate + tenantAccess + tenantScope inject req.prisma
 // Every query via req.prisma is automatically scoped to the tenant
 app.use('/api/invoices', authenticate, tenantAccess, tenantScope, invoiceRoutes);
@@ -97,6 +117,7 @@ app.use('/api/connect', authenticate, tenantAccess, tenantScope, connectRoutes);
 app.use('/api/gmail', authenticate, tenantAccess, tenantScope, requirePlan('email_integration'), gmailRoutes);
 app.use('/api/folder-polling', authenticate, tenantAccess, tenantScope, requirePlan('folder_polling'), folderRoutes);
 app.use('/api/shopify', authenticate, tenantAccess, tenantScope, requirePlan('shopify_integration'), shopifyRoutes);
+app.use('/api/drive', authenticate, tenantAccess, tenantScope, requirePlan('drive_integration'), driveRoutes);
 
 // Plan-gated routes — High tier only
 app.use('/api/competitor', authenticate, tenantAccess, tenantScope, requirePlan('competitor_intelligence'), competitorRoutes);

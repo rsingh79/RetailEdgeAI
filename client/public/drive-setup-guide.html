@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Drive Setup Guide — RetailEdge AI</title>
+  <style>
+    :root { --brand: #0d9488; --brand-light: #ccfbf1; --gcp-blue: #1a73e8; --gcp-blue-light: #e8f0fe; --gcp-dark: #202124; --gcp-sidebar: #f1f3f4; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f9fafb; color: #1f2937; line-height: 1.6; }
+    .container { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+
+    /* Header */
+    .header { text-align: center; margin-bottom: 2.5rem; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem; }
+    .header p { color: #6b7280; font-size: 0.875rem; }
+    .badge { display: inline-flex; align-items: center; gap: 0.25rem; background: var(--brand-light); color: var(--brand); font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 1rem; margin-bottom: 1rem; }
+    .time-badge { display: inline-flex; align-items: center; gap: 6px; background: #d1fae5; color: #065f46; font-size: 0.8125rem; font-weight: 600; padding: 6px 14px; border-radius: 20px; margin-bottom: 1rem; }
+
+    /* Cards */
+    .card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; overflow: hidden; }
+    .card-header { padding: 1.25rem 1.5rem; display: flex; align-items: flex-start; gap: 0.875rem; border-bottom: 1px solid #f3f4f6; }
+    .card-body { padding: 1.25rem 1.5rem; }
+    .card-body p { font-size: 0.875rem; color: #4b5563; margin-bottom: 0.75rem; }
+    .card-body ol, .card-body ul { padding-left: 1.25rem; margin-bottom: 1rem; }
+    .card-body li { font-size: 0.875rem; color: #4b5563; margin-bottom: 0.375rem; }
+    .card-body li strong { color: #1f2937; }
+
+    .step-num { width: 2rem; height: 2rem; background: var(--brand); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.875rem; flex-shrink: 0; }
+    .step-title { font-size: 1.0625rem; font-weight: 600; color: #111827; }
+    .step-subtitle { font-size: 0.8125rem; color: #6b7280; margin-top: 2px; }
+
+    .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 0.75rem; padding: 1rem; margin: 1rem 0; font-size: 0.8125rem; color: #1e40af; }
+    .warn-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 0.75rem; padding: 1rem; margin: 1rem 0; font-size: 0.8125rem; color: #92400e; }
+    .tip-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 0.75rem; padding: 1rem; margin: 1rem 0; font-size: 0.8125rem; color: #166534; }
+
+    /* Browser mockup */
+    .browser-mock { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; margin: 1rem 0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .browser-bar { background: #f3f4f6; padding: 8px 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e5e7eb; }
+    .browser-dots { display: flex; gap: 5px; }
+    .browser-dots span { width: 10px; height: 10px; border-radius: 50%; }
+    .browser-dots span:nth-child(1) { background: #ff5f57; }
+    .browser-dots span:nth-child(2) { background: #ffbd2e; }
+    .browser-dots span:nth-child(3) { background: #28c840; }
+    .browser-url { flex: 1; background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #6b7280; font-family: 'SF Mono', monospace; }
+    .browser-content { background: white; min-height: 100px; }
+
+    /* GCP mockups */
+    .gcp-topbar { background: var(--gcp-dark); color: white; padding: 8px 16px; display: flex; align-items: center; gap: 12px; font-size: 14px; }
+    .gcp-topbar-logo { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .gcp-topbar-logo .cloud { color: var(--gcp-blue); }
+    .gcp-project { background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px; font-size: 13px; }
+    .gcp-layout { display: flex; min-height: 180px; }
+    .gcp-sidebar { width: 200px; background: var(--gcp-sidebar); border-right: 1px solid #e5e7eb; padding: 8px 0; flex-shrink: 0; }
+    .gcp-sidebar-item { padding: 8px 20px; font-size: 13px; color: #374151; }
+    .gcp-sidebar-item.active { background: var(--gcp-blue-light); color: var(--gcp-blue); font-weight: 600; }
+    .gcp-main { flex: 1; padding: 16px 20px; }
+    .gcp-main h3 { font-size: 18px; color: var(--gcp-dark); margin-bottom: 12px; font-weight: 400; }
+    .gcp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; border-radius: 4px; font-size: 14px; font-weight: 500; border: none; }
+    .gcp-btn-primary { background: var(--gcp-blue); color: white; }
+    .gcp-btn-outline { background: white; color: var(--gcp-blue); border: 1px solid #d1d5db; }
+
+    /* Copy block */
+    .copy-block { background: #1f2937; color: #e5e7eb; border-radius: 8px; padding: 12px 16px; font-family: 'SF Mono', monospace; font-size: 13px; margin: 12px 0; word-break: break-all; }
+
+    /* API card in GCP */
+    .api-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+    .api-icon { width: 40px; height: 40px; background: #e8f0fe; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .api-card h4 { font-size: 14px; font-weight: 600; color: #202124; }
+    .api-card p { font-size: 12px; color: #5f6368; }
+
+    /* Credential dialog */
+    .cred-dialog { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 12px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .cred-dialog h4 { font-size: 16px; font-weight: 600; color: #202124; margin-bottom: 12px; }
+    .cred-field { margin-bottom: 12px; }
+    .cred-field label { display: block; font-size: 12px; font-weight: 600; color: #5f6368; margin-bottom: 4px; }
+    .cred-field .value { background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 12px; font-family: 'SF Mono', monospace; font-size: 13px; color: #202124; display: flex; align-items: center; justify-content: space-between; }
+    .cred-field .copy-icon { color: var(--gcp-blue); font-size: 12px; font-weight: 600; }
+
+    /* Troubleshooting */
+    .trouble-item { padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
+    .trouble-item:last-child { border-bottom: none; }
+    .trouble-item dt { font-weight: 600; font-size: 0.875rem; color: #111827; }
+    .trouble-item dd { font-size: 0.8125rem; color: #6b7280; margin-top: 4px; }
+    .trouble-code { background: #fef2f2; color: #991b1b; font-family: monospace; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; }
+
+    a { color: var(--brand); }
+
+    @media (max-width: 640px) {
+      .gcp-sidebar { display: none; }
+      .gcp-layout { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">Setup Guide</div>
+      <h1>Connect Google Drive to RetailEdge AI</h1>
+      <p>Create your own Google Cloud credentials and connect your Drive</p>
+      <div style="margin-top: 1rem;">
+        <span class="time-badge">&#9201; 5&ndash;10 minutes</span>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Overview                                    -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card">
+      <div class="card-body">
+        <p>To connect Google Drive, you need to create an OAuth 2.0 Client in your own Google Cloud Console. This gives you full control over your credentials and which permissions are granted.</p>
+        <div class="tip-box">
+          <strong>Already set up for Gmail?</strong> If you created a Google Cloud project for the Gmail integration, you can reuse the same project &mdash; just enable the Google Drive API and add the Drive redirect URI. Skip to <a href="#step2">Step 2</a>.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Step 1: Create Google Cloud Project         -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card" id="step1">
+      <div class="card-header">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">Create a Google Cloud Project</div>
+          <div class="step-subtitle">If you already have a project, skip this step</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol>
+          <li>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a></li>
+          <li>Click <strong>Select a project</strong> at the top, then <strong>New Project</strong></li>
+          <li>Enter a project name (e.g., <strong>RetailEdge</strong>) and click <strong>Create</strong></li>
+          <li>Make sure your new project is selected in the top bar</li>
+        </ol>
+
+        <div class="browser-mock">
+          <div class="browser-bar">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">console.cloud.google.com</div>
+          </div>
+          <div class="browser-content">
+            <div class="gcp-topbar">
+              <div class="gcp-topbar-logo"><span class="cloud">&#9729;</span> Google Cloud</div>
+              <div class="gcp-project">RetailEdge &#9662;</div>
+            </div>
+            <div style="padding: 20px; text-align: center; color: #5f6368; font-size: 14px;">
+              Welcome to your new Google Cloud project
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Step 2: Enable Google Drive API             -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card" id="step2">
+      <div class="card-header">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Enable the Google Drive API</div>
+          <div class="step-subtitle">Allow your project to access Drive</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol>
+          <li>In the left sidebar, go to <strong>APIs &amp; Services</strong> &rarr; <strong>Library</strong></li>
+          <li>Search for <strong>"Google Drive API"</strong></li>
+          <li>Click on it and press the <strong>Enable</strong> button</li>
+        </ol>
+
+        <div class="browser-mock">
+          <div class="browser-bar">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">console.cloud.google.com/apis/library</div>
+          </div>
+          <div class="browser-content">
+            <div class="gcp-topbar">
+              <div class="gcp-topbar-logo"><span class="cloud">&#9729;</span> Google Cloud</div>
+              <div class="gcp-project">RetailEdge</div>
+            </div>
+            <div class="gcp-layout">
+              <div class="gcp-sidebar">
+                <div class="gcp-sidebar-item">Dashboard</div>
+                <div class="gcp-sidebar-item active">Library</div>
+                <div class="gcp-sidebar-item">Credentials</div>
+              </div>
+              <div class="gcp-main">
+                <h3>API Library</h3>
+                <div class="api-card">
+                  <div class="api-icon">&#128194;</div>
+                  <div>
+                    <h4>Google Drive API</h4>
+                    <p>Read, write, and sync files stored in Google Drive</p>
+                  </div>
+                  <div style="margin-left: auto;">
+                    <span class="gcp-btn gcp-btn-primary">Enable</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Step 3: Configure OAuth Consent Screen      -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card" id="step3">
+      <div class="card-header">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Configure the OAuth Consent Screen</div>
+          <div class="step-subtitle">Tell Google what your app needs access to</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol>
+          <li>Go to <strong>APIs &amp; Services</strong> &rarr; <strong>OAuth consent screen</strong></li>
+          <li>Choose <strong>External</strong> user type (unless you have Google Workspace)</li>
+          <li>Fill in the required fields:
+            <ul style="margin-top: 4px;">
+              <li><strong>App name:</strong> RetailEdge</li>
+              <li><strong>User support email:</strong> your email</li>
+              <li><strong>Developer contact:</strong> your email</li>
+            </ul>
+          </li>
+          <li>On the <strong>Scopes</strong> page, click <strong>Add or Remove Scopes</strong> and add:
+            <ul style="margin-top: 4px;">
+              <li><code>https://www.googleapis.com/auth/drive.readonly</code></li>
+              <li><code>https://www.googleapis.com/auth/userinfo.email</code></li>
+            </ul>
+          </li>
+          <li>On the <strong>Test users</strong> page, add your Google email address</li>
+          <li>Click <strong>Save and Continue</strong></li>
+        </ol>
+
+        <div class="info-box">
+          <strong>Already configured for Gmail?</strong> If you set up the OAuth consent screen before, just make sure the <code>drive.readonly</code> scope is added alongside your existing scopes.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Step 4: Create OAuth 2.0 Credentials        -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card" id="step4">
+      <div class="card-header">
+        <div class="step-num">4</div>
+        <div>
+          <div class="step-title">Create OAuth 2.0 Credentials</div>
+          <div class="step-subtitle">Generate your Client ID and Secret</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol>
+          <li>Go to <strong>APIs &amp; Services</strong> &rarr; <strong>Credentials</strong></li>
+          <li>Click <strong>+ Create Credentials</strong> &rarr; <strong>OAuth client ID</strong></li>
+          <li>Set <strong>Application type</strong> to <strong>Web application</strong></li>
+          <li>Enter a name (e.g., <strong>RetailEdge Drive</strong>)</li>
+          <li>Under <strong>Authorized redirect URIs</strong>, click <strong>+ Add URI</strong> and paste:</li>
+        </ol>
+
+        <div class="copy-block">http://localhost:3001/api/drive/oauth/callback</div>
+
+        <div class="warn-box">
+          <strong>Important:</strong> The redirect URI must match exactly, including the protocol (http vs https) and port number. No trailing slash.
+        </div>
+
+        <ol start="6">
+          <li>Click <strong>Create</strong></li>
+        </ol>
+
+        <div class="browser-mock">
+          <div class="browser-bar">
+            <div class="browser-dots"><span></span><span></span><span></span></div>
+            <div class="browser-url">console.cloud.google.com/apis/credentials</div>
+          </div>
+          <div class="browser-content">
+            <div class="gcp-topbar">
+              <div class="gcp-topbar-logo"><span class="cloud">&#9729;</span> Google Cloud</div>
+              <div class="gcp-project">RetailEdge</div>
+            </div>
+            <div class="gcp-layout">
+              <div class="gcp-sidebar">
+                <div class="gcp-sidebar-item">Dashboard</div>
+                <div class="gcp-sidebar-item">Library</div>
+                <div class="gcp-sidebar-item active">Credentials</div>
+              </div>
+              <div class="gcp-main">
+                <h3>Credentials</h3>
+                <span class="gcp-btn gcp-btn-primary">+ Create Credentials</span>
+                <div style="margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; font-size: 13px; color: #5f6368;">
+                  <div style="margin-bottom: 8px;"><strong style="color: #202124;">Application type:</strong> Web application</div>
+                  <div style="margin-bottom: 8px;"><strong style="color: #202124;">Name:</strong> RetailEdge Drive</div>
+                  <div><strong style="color: #202124;">Redirect URI:</strong> <code style="font-size: 12px;">http://localhost:3001/api/drive/oauth/callback</code></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Step 5: Copy Client ID and Secret           -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card" id="step5">
+      <div class="card-header">
+        <div class="step-num">5</div>
+        <div>
+          <div class="step-title">Copy Your Client ID and Client Secret</div>
+          <div class="step-subtitle">Save these before closing the dialog</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>After clicking Create, a dialog will appear with your credentials. Copy both values:</p>
+
+        <div class="cred-dialog">
+          <h4>OAuth client created</h4>
+          <div class="cred-field">
+            <label>Your Client ID</label>
+            <div class="value">
+              <span>123456789-abc.apps.googleusercontent.com</span>
+              <span class="copy-icon">Copy &#128203;</span>
+            </div>
+          </div>
+          <div class="cred-field">
+            <label>Your Client Secret</label>
+            <div class="value">
+              <span>GOCSPX-abcdef123456</span>
+              <span class="copy-icon">Copy &#128203;</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="warn-box">
+          <strong>Copy the Client Secret now!</strong> You won't be able to see it again after closing this dialog. If you lose it, you'll need to create a new credential.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Step 6: Paste into RetailEdge               -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card" id="step6">
+      <div class="card-header">
+        <div class="step-num">6</div>
+        <div>
+          <div class="step-title">Paste Credentials into RetailEdge</div>
+          <div class="step-subtitle">Final step &mdash; connect your Drive</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <ol>
+          <li>In RetailEdge, go to <strong>Settings</strong> &rarr; <strong>Integrations</strong> &rarr; <strong>Google Drive</strong></li>
+          <li>Paste your <strong>Client ID</strong> and <strong>Client Secret</strong> into the form</li>
+          <li>Click <strong>Save Credentials</strong></li>
+          <li>Click <strong>Connect Google Drive</strong> &mdash; a Google sign-in popup will appear</li>
+          <li>Sign in and click <strong>Allow</strong> to grant read-only access</li>
+          <li>Browse your Drive and <strong>select a folder</strong> to watch for invoices</li>
+        </ol>
+
+        <div class="tip-box">
+          <strong>All done!</strong> RetailEdge will now automatically check this folder for new invoice files. You can add more folders or change settings in <strong>Settings &rarr; Integrations</strong>.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Supported Files                             -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card">
+      <div class="card-body">
+        <p style="font-weight: 600; color: #111827; margin-bottom: 0.5rem;">Supported File Types</p>
+        <p>RetailEdge detects and processes these file types from your Drive folder:</p>
+        <ul style="list-style: none; padding: 0;">
+          <li style="padding: 4px 0; font-size: 0.875rem;">&#10003; PDF documents (.pdf)</li>
+          <li style="padding: 4px 0; font-size: 0.875rem;">&#10003; JPEG images (.jpg, .jpeg)</li>
+          <li style="padding: 4px 0; font-size: 0.875rem;">&#10003; PNG images (.png)</li>
+          <li style="padding: 4px 0; font-size: 0.875rem;">&#10003; WebP images (.webp)</li>
+        </ul>
+        <p style="font-size: 0.8125rem; color: #6b7280;">Files up to 20 MB. Other file types are ignored.</p>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- Troubleshooting                             -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="card">
+      <div class="card-body">
+        <p style="font-weight: 600; color: #111827; margin-bottom: 0.75rem;">Troubleshooting</p>
+
+        <dl>
+          <div class="trouble-item">
+            <dt><span class="trouble-code">redirect_uri_mismatch</span></dt>
+            <dd>The redirect URI in Google Cloud must match exactly: <code>http://localhost:3001/api/drive/oauth/callback</code>. Check for typos, missing port, or wrong protocol (http vs https).</dd>
+          </div>
+          <div class="trouble-item">
+            <dt><span class="trouble-code">access_denied</span></dt>
+            <dd>Your Google account must be added as a <strong>Test User</strong> in the OAuth consent screen settings (Step 3 above).</dd>
+          </div>
+          <div class="trouble-item">
+            <dt>Popup blocked</dt>
+            <dd>Allow popups from RetailEdge in your browser settings, then try again.</dd>
+          </div>
+          <div class="trouble-item">
+            <dt><span class="trouble-code">invalid_grant</span></dt>
+            <dd>The refresh token has expired or was revoked. Disconnect and reconnect Google Drive in RetailEdge settings.</dd>
+          </div>
+          <div class="trouble-item">
+            <dt>Lost the Client Secret?</dt>
+            <dd>You cannot recover it. Go to Google Cloud Console &rarr; Credentials, delete the old credential, and create a new one. Then update the credentials in RetailEdge.</dd>
+          </div>
+          <div class="trouble-item">
+            <dt>Can I reuse my Gmail project?</dt>
+            <dd>Yes! Use the same Google Cloud project. Just enable the Google Drive API (Step 2) and add the Drive redirect URI to your existing OAuth credential (Step 4).</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

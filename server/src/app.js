@@ -126,14 +126,16 @@ if (isMainModule) {
   app.listen(PORT, async () => {
     console.log(`RetailEdge API running on http://localhost:${PORT}`);
 
-    // Start background polling schedulers
-    try {
-      const { default: prisma } = await import('./lib/prisma.js');
-      startGmailScheduler(prisma);
-      startFolderScheduler(prisma);
-    } catch (err) {
-      console.error('Failed to start schedulers:', err.message);
-    }
+    // Polling is triggered on-demand via the UI ("Poll Now") or API endpoints.
+    // Background schedulers are disabled — customer's pollIntervalMin controls
+    // frequency when they choose to enable scheduled polling.
+    // try {
+    //   const { default: prisma } = await import('./lib/prisma.js');
+    //   startGmailScheduler(prisma);
+    //   startFolderScheduler(prisma);
+    // } catch (err) {
+    //   console.error('Failed to start schedulers:', err.message);
+    // }
   });
 }
 

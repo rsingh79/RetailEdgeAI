@@ -13,6 +13,7 @@ export default function IntegrationsTab() {
     senderWhitelist: [],
     labelFilter: '',
     pollIntervalMin: 30,
+    initialLookbackDays: 7,
   });
   const [whitelistInput, setWhitelistInput] = useState('');
   const [creds, setCreds] = useState({ googleClientId: '', googleClientSecret: '' });
@@ -74,6 +75,7 @@ export default function IntegrationsTab() {
           senderWhitelist: status.integration.senderWhitelist || [],
           labelFilter: status.integration.labelFilter || '',
           pollIntervalMin: status.integration.pollIntervalMin || 30,
+          initialLookbackDays: status.integration.initialLookbackDays || 7,
         });
         const logData = await api.gmail.getImportLogs();
         setImportLogs(logData.logs || []);
@@ -146,10 +148,10 @@ export default function IntegrationsTab() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Gmail? This will remove your OAuth tokens and credentials.')) return;
+    if (!confirm('Are you sure you want to disconnect all Gmail accounts? This will remove all tokens and credentials.')) return;
     try {
       await api.gmail.disconnect();
-      setGmailStatus({ connected: false, hasCredentials: false });
+      setGmailStatus({ connected: false, hasCredentials: false, integrations: [] });
       setImportLogs([]);
       setCreds({ googleClientId: '', googleClientSecret: '' });
     } catch (err) {
@@ -602,6 +604,25 @@ export default function IntegrationsTab() {
                     value={config.pollIntervalMin}
                     onChange={(val) => setConfig((p) => ({ ...p, pollIntervalMin: val }))}
                   />
+                </div>
+
+                {/* Initial lookback window */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Initial Lookback</label>
+                  <select
+                    value={config.initialLookbackDays}
+                    onChange={(e) => setConfig((p) => ({ ...p, initialLookbackDays: Number(e.target.value) }))}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value={1}>1 day</option>
+                    <option value={3}>3 days</option>
+                    <option value={7}>7 days</option>
+                    <option value={14}>14 days</option>
+                    <option value={30}>30 days</option>
+                    <option value={60}>60 days</option>
+                    <option value={90}>90 days</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">How far back to search on the first poll</p>
                 </div>
 
                 <button

@@ -522,8 +522,9 @@ export async function pollGmailForInvoices(prisma, integration, tenantId, userId
   if (integration.labelFilter) {
     queryParts.push(`label:${integration.labelFilter}`);
   }
-  // Date filter: only messages after last poll (or last 7 days for first poll)
-  const since = integration.lastPollAt || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // Date filter: only messages after last poll (or configurable lookback for first poll)
+  const lookbackDays = integration.initialLookbackDays || 7;
+  const since = integration.lastPollAt || new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
   queryParts.push(`after:${Math.floor(since.getTime() / 1000)}`);
 
   const query = queryParts.join(' ');

@@ -42,7 +42,7 @@ model Tenant {
   importTemplates     ImportTemplate[]
   apiUsageLogs        ApiUsageLog[]
   accessLogs          TenantAccessLog[]
-  gmailIntegration    GmailIntegration?
+  gmailIntegrations   GmailIntegration[]
   gmailImportLogs     GmailImportLog[]
   folderIntegration   FolderIntegration?
   folderImportLogs    FolderImportLog[]
@@ -435,7 +435,7 @@ model TenantAccessLog {
 
 model GmailIntegration {
   id                    String    @id @default(cuid())
-  tenantId              String    @unique
+  tenantId              String
   googleClientId        String?                      // tenant's own Google OAuth Client ID
   googleClientSecretEnc String?                      // AES-256-GCM encrypted Client Secret
   email                 String?                      // connected Gmail address (set after OAuth)
@@ -452,6 +452,7 @@ model GmailIntegration {
   historyId             String?                      // Gmail history ID for incremental sync
   lastPollAt            DateTime?
   pollIntervalMin       Int       @default(30)
+  initialLookbackDays   Int       @default(7)          // how far back to search on first poll
   isActive              Boolean   @default(true)
   senderWhitelist       String[]  @default([])       // email addresses to filter
   labelFilter           String?                      // Gmail label to filter
@@ -460,6 +461,7 @@ model GmailIntegration {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
+  @@unique([tenantId, imapEmail])
   @@index([tenantId])
 }
 

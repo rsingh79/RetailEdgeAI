@@ -21,26 +21,24 @@ export async function testImapConnection(email, password) {
   const client = new ImapFlow({
     ...GMAIL_IMAP,
     auth: { user: email, pass: password },
+    disabledAuthMechanisms: ['XOAUTH2'],
     logger: false,
   });
 
   try {
     await client.connect();
 
-    // List top-level folders
+    // List mailbox folders
     const folders = [];
-    for await (const folder of client.listTree()) {
-      folders.push(folder.name);
-      if (folder.folders) {
-        for (const sub of folder.folders) {
-          folders.push(`${folder.name}/${sub.name}`);
-        }
-      }
+    const mailboxes = await client.list();
+    for (const mailbox of mailboxes) {
+      folders.push(mailbox.path);
     }
 
     await client.logout();
     return { success: true, folders };
   } catch (err) {
+    console.error('[IMAP Test] Connection error:', err.message, err.code || '', err.responseStatus || '');
     try { await client.logout(); } catch { /* ignore */ }
     return { success: false, error: err.message };
   }
@@ -77,6 +75,7 @@ export async function pollImapForInvoices(prisma, integration, tenantId, userId)
     port: integration.imapPort || GMAIL_IMAP.port,
     secure: integration.imapUseSsl !== false,
     auth: { user: integration.imapEmail, pass: password },
+    disabledAuthMechanisms: ['XOAUTH2'],
     logger: false,
   });
 
@@ -92,13 +91,14 @@ export async function pollImapForInvoices(prisma, integration, tenantId, userId)
       const searchCriteria = {};
       const lastUid = integration.imapLastUid || 0;
 
-      // Only fetch messages newer than last poll (or last 7 days for first run)
+      // Only fetch messages newer than last poll (or configurable lookback for first run)
       if (integration.lastPollAt) {
         searchCriteria.since = integration.lastPollAt;
       } else {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        searchCriteria.since = sevenDaysAgo;
+        const lookbackDays = integration.initialLookbackDays || 7;
+        const lookbackDate = new Date();
+        lookbackDate.setDate(lookbackDate.getDate() - lookbackDays);
+        searchCriteria.since = lookbackDate;
       }
 
       // Search for messages
@@ -151,6 +151,10 @@ export async function pollImapForInvoices(prisma, integration, tenantId, userId)
 
           // Find attachments in the body structure
           const attachments = findImapAttachments(msg.bodyStructure);
+
+          if (attachments.length > 0) {
+            console.log(`[IMAP] UID ${uid} from=${senderEmail} subj="${subject}" attachments=${attachments.map(a => a.filename).join(', ')}`);
+          }
 
           if (attachments.length === 0) {
             stats.skipped++;
@@ -233,15 +237,20 @@ function findImapAttachments(structure, prefix = '') {
   // Single part
   if (structure.type && !structure.childNodes) {
     const disposition = structure.disposition?.toLowerCase();
-    const isAttachment = disposition === 'attachment' ||
-      (disposition === 'inline' && structure.parameters?.name);
+    const mimeType = structure.type.toLowerCase();
+    // Only pick up real attachments (disposition: "attachment").
+    // Also accept inline PDFs (some suppliers embed them), but skip
+    // inline images — they're almost always email signatures/logos.
+    const isRealAttachment = disposition === 'attachment';
+    const isInlinePdf = disposition === 'inline' && mimeType.startsWith('application/pdf');
 
-    if (isAttachment || structure.parameters?.name) {
+    if (isRealAttachment || isInlinePdf) {
       const filename = structure.dispositionParameters?.filename ||
         structure.parameters?.name ||
         '';
       const ext = filename.split('.').pop()?.toLowerCase() || '';
-      const type = `${structure.type}/${structure.subtype}`.toLowerCase();
+      // ImapFlow puts the full MIME type in structure.type (e.g. "application/pdf")
+      const type = structure.type.toLowerCase();
 
       if (SUPPORTED_MIMETYPES.has(type)) {
         attachments.push({

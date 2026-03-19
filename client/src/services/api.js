@@ -134,12 +134,14 @@ export const api = {
     saveCredentials: (data) => request('/gmail/save-credentials', { method: 'POST', body: JSON.stringify(data) }),
     getAuthUrl: () => request('/gmail/auth-url'),
     configure: (data) => request('/gmail/configure', { method: 'POST', body: JSON.stringify(data) }),
-    poll: () => request('/gmail/poll', { method: 'POST' }),
+    poll: (integrationId) => request('/gmail/poll', { method: 'POST', body: JSON.stringify(integrationId ? { integrationId } : {}) }),
     getImportLogs: (params) => {
       const qs = params ? `?${new URLSearchParams(params)}` : '';
       return request(`/gmail/import-logs${qs}`);
     },
-    disconnect: () => request('/gmail/disconnect', { method: 'DELETE' }),
+    disconnect: (integrationId) => integrationId
+      ? request(`/gmail/${integrationId}/disconnect`, { method: 'DELETE' })
+      : request('/gmail/disconnect', { method: 'DELETE' }),
     // IMAP (App Password) methods
     imapTestConnection: (data) => request('/gmail/imap/test-connection', { method: 'POST', body: JSON.stringify(data) }),
     imapSaveCredentials: (data) => request('/gmail/imap/save-credentials', { method: 'POST', body: JSON.stringify(data) }),

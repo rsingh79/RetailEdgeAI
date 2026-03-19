@@ -279,10 +279,11 @@ function IntegrationCard({ integration, connected, onSetup, onManage }) {
    Gmail Setup Wizard (wired to real api.gmail)
    ═══════════════════════════════════════════════════════════════════ */
 function GmailSetupWizard({ onBack, onComplete }) {
-  // 'choose' = initial method selector, 'imap' or 'oauth' = specific flow
+  // 'manage' = account list, 'choose' = method selector, 'imap' or 'oauth' = specific flow
   const [mode, setMode] = useState('choose');
   const [step, setStep] = useState(1);
   const [gmailStatus, setGmailStatus] = useState(null);
+  const [integrations, setIntegrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingCreds, setSavingCreds] = useState(false);
   const [creds, setCreds] = useState({ googleClientId: '', googleClientSecret: '' });
@@ -291,11 +292,13 @@ function GmailSetupWizard({ onBack, onComplete }) {
   const [imapTesting, setImapTesting] = useState(false);
   const [imapTestResult, setImapTestResult] = useState(null);
   const [imapSaving, setImapSaving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(null); // integration ID being disconnected
   // Shared config
   const [config, setConfig] = useState({
     senderWhitelist: [],
     labelFilter: '',
     pollIntervalMin: 30,
+    initialLookbackDays: 7,
   });
   const [whitelistInput, setWhitelistInput] = useState('');
   const [configuring, setConfiguring] = useState(false);
@@ -308,14 +311,11 @@ function GmailSetupWizard({ onBack, onComplete }) {
     try {
       const status = await api.gmail.getStatus();
       setGmailStatus(status);
-      if (status.connected) {
-        setMode(status.connectionType || 'oauth');
-        setStep(4);
-        setConfig({
-          senderWhitelist: status.integration?.senderWhitelist || [],
-          labelFilter: status.integration?.labelFilter || '',
-          pollIntervalMin: status.integration?.pollIntervalMin || 30,
-        });
+      setIntegrations(status.integrations || []);
+
+      if (status.integrations?.length > 0) {
+        // Show management view when accounts exist
+        setMode('manage');
       } else if (status.hasCredentials && status.connectionType !== 'imap') {
         setMode('oauth');
         setStep(2);
@@ -327,6 +327,29 @@ function GmailSetupWizard({ onBack, onComplete }) {
       // API not available
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startAddAccount = () => {
+    // Reset wizard state for adding a new account
+    setMode('choose');
+    setStep(1);
+    setImapCreds({ email: '', password: '' });
+    setImapTestResult(null);
+    setConfig({ senderWhitelist: [], labelFilter: '', pollIntervalMin: 30, initialLookbackDays: 7 });
+    setWhitelistInput('');
+  };
+
+  const handleDisconnect = async (integrationId, email) => {
+    if (!confirm(`Disconnect ${email}? This will stop polling this account and remove its credentials.`)) return;
+    setDisconnecting(integrationId);
+    try {
+      await api.gmail.disconnect(integrationId);
+      await loadStatus();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setDisconnecting(null);
     }
   };
 
@@ -393,7 +416,8 @@ function GmailSetupWizard({ onBack, onComplete }) {
         password: imapCreds.password,
         ...config,
       });
-      setStep(4);
+      // Return to management view after saving
+      await loadStatus();
       onComplete?.();
     } catch (err) {
       alert(err.message);
@@ -407,7 +431,7 @@ function GmailSetupWizard({ onBack, onComplete }) {
     setConfiguring(true);
     try {
       await api.gmail.configure(config);
-      setStep(4);
+      await loadStatus();
       onComplete?.();
     } catch (err) {
       alert(err.message);
@@ -424,6 +448,75 @@ function GmailSetupWizard({ onBack, onComplete }) {
 
   if (loading) {
     return <div className="text-center py-12 text-gray-400">Loading Gmail status...</div>;
+  }
+
+  // ── Management view (connected accounts) ──
+  if (mode === 'manage') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-lg p-8 slide-up">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-red-500">
+                {icons.mail}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Gmail Accounts</h2>
+                <p className="text-sm text-gray-500">{integrations.length} account{integrations.length !== 1 ? 's' : ''} connected</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 mb-6">
+            {integrations.map((acct) => (
+              <div key={acct.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{acct.displayEmail}</p>
+                    <p className="text-xs text-gray-400">
+                      {acct.connectionType === 'imap' ? 'IMAP' : 'OAuth'} &middot;{' '}
+                      {acct.lastPollAt
+                        ? `Last polled ${new Date(acct.lastPollAt).toLocaleDateString()}`
+                        : 'Not polled yet'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDisconnect(acct.id, acct.displayEmail)}
+                  disabled={disconnecting === acct.id}
+                  className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-50 transition"
+                >
+                  {disconnecting === acct.id ? 'Removing...' : 'Disconnect'}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition flex items-center gap-2"
+            >
+              {icons.back} Back
+            </button>
+            <button
+              onClick={startAddAccount}
+              className="flex-1 px-6 py-2 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-700 transition flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Add Another Account
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // ── Mode selector (Simple vs Advanced) ──
@@ -490,10 +583,10 @@ function GmailSetupWizard({ onBack, onComplete }) {
           </div>
 
           <button
-            onClick={onBack}
+            onClick={integrations.length > 0 ? () => setMode('manage') : onBack}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition flex items-center gap-2"
           >
-            {icons.back} Back
+            {icons.back} {integrations.length > 0 ? 'Back to Accounts' : 'Back'}
           </button>
         </div>
       </div>
@@ -649,6 +742,20 @@ function GmailSetupWizard({ onBack, onComplete }) {
                   value={config.pollIntervalMin}
                   onChange={(val) => setConfig((p) => ({ ...p, pollIntervalMin: val }))}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Initial Lookback</label>
+                <select
+                  value={config.initialLookbackDays}
+                  onChange={(e) => setConfig((p) => ({ ...p, initialLookbackDays: parseInt(e.target.value) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500"
+                >
+                  {[1, 3, 7, 14, 30, 60, 90].map((d) => (
+                    <option key={d} value={d}>{d} day{d > 1 ? 's' : ''}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">How far back to search for invoices on the first poll</p>
               </div>
 
               <div className="flex items-center gap-3 pt-2">

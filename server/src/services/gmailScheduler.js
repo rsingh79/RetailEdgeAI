@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { pollGmailForInvoices } from './gmail.js';
 import { pollImapForInvoices } from './imap.js';
+import { createTenantClient } from '../lib/prisma.js';
 
 let isRunning = false;
 
@@ -53,8 +54,10 @@ export function startGmailScheduler(prisma) {
           );
 
           const pollFn = isImap ? pollImapForInvoices : pollGmailForInvoices;
+          // Create a tenant-scoped client so queries/creates get tenantId injected
+          const tenantPrisma = createTenantClient(integration.tenantId);
           const result = await pollFn(
-            prisma,
+            tenantPrisma,
             integration,
             integration.tenantId,
             user.id

@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { pollFolderForInvoices } from './folder.js';
+import { createTenantClient } from '../lib/prisma.js';
 
 let isRunning = false;
 
@@ -49,8 +50,10 @@ export function startFolderScheduler(prisma) {
             `[Folder Scheduler] Polling tenant ${integration.tenantId} (${integration.folderPath})`
           );
 
+          // Create a tenant-scoped client so queries/creates get tenantId injected
+          const tenantPrisma = createTenantClient(integration.tenantId);
           const result = await pollFolderForInvoices(
-            prisma,
+            tenantPrisma,
             integration,
             integration.tenantId,
             user.id

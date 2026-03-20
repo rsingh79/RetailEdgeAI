@@ -1,0 +1,429 @@
+// ============================================================================
+// RetailEdge Business AI Agent — Database Schema Additions
+// ============================================================================
+// This file documents the new Prisma models to be added to schema.prisma
+// Implementation order matches the phased plan:
+//   Phase 1: Chat models
+//   Phase 2: Knowledge Base, Persona, Snapshot
+//   Phase 3: Goals, Plans, Steps
+//   Phase 5: Shared Intelligence, Consent
+// ============================================================================
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 1: Chat & Conversations
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ChatConversation {
+  id            String     @id @default(uuid())
+  tenantId      String
+  tenant        Tenant     @relation(fields: [tenantId], references: [id])
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+  title         String?                       // Auto-generated from first message
+  status        ChatStatus @default(ACTIVE)
+  messageCount  Int        @default(0)
+  lastMessageAt DateTime?
+  summary       String?                       // Rolling conversation summary
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  messages      ChatMessage[]
+
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, status])
+}
+
+model ChatMessage {
+  id              String      @id @default(uuid())
+  conversationId  String
+  conversation    ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            MessageRole
+  content         String                      // Message text (markdown supported)
+  metadata        Json?                       // Tool calls used, sources, resolution details
+  tokenCount      Int?                        // Total tokens for this message
+  costUsd         Float?                      // Estimated cost in USD
+  resolutionLevel Int?                        // 1=template, 2=KB, 3=internal, 4=external, 5=strategy
+  createdAt       DateTime    @default(now())
+
+  feedback        ChatFeedback?
+
+  @@index([conversationId, createdAt])
+}
+
+model ChatFeedback {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  messageId String   @unique                  // One feedback per message
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  score     Int                               // 1 = thumbs down, 5 = thumbs up
+  reason    String?                           // Optional feedback text
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+enum ChatStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 2: Knowledge Base, Persona, Business Snapshot
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TenantPersona {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique                  // One persona per tenant
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  persona   Json                              // Full persona JSON document
+  version   Int      @default(1)              // Incremented on each update
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Persona JSON structure:
+// {
+//   "businessProfile": {
+//     "type": "grocery" | "pharmacy" | "clothing" | "hardware" | ...,
+//     "subType": "independent_grocer" | "chain_pharmacy" | ...,
+//     "region": "VIC" | "NSW" | ...,
+//     "storeCount": number,
+//     "avgMonthlyInvoices": number,
+//     "productCount": number,
+//     "supplierCount": number,
+//     "primaryCategories": string[],
+//     "estimatedAnnualRevenue": "0-100k" | "100k-500k" | "500k-1m" | "1m-5m" | "5m+"
+//   },
+//   "ownerProfile": {
+//     "goals": [{ "goal": string, "priority": number, "setAt": date, "baseline": number? }],
+//     "riskTolerance": "conservative" | "moderate" | "aggressive",
+//     "decisionStyle": "intuitive" | "data_driven" | "consultative",
+//     "knowledgeLevel": "beginner" | "intermediate" | "expert",
+//     "communicationPref": "concise" | "detailed" | "concise_with_numbers" | "visual",
+//     "topicsOfInterest": string[],
+//     "topicsNotInterested": string[]
+//   },
+//   "interactionHistory": {
+//     "totalConversations": number,
+//     "totalMessages": number,
+//     "avgMessagesPerSession": number,
+//     "recommendationsGiven": number,
+//     "recommendationsActedOn": number,
+//     "lastConversation": date,
+//     "feedbackScore": number
+//   }
+// }
+
+model BusinessSnapshot {
+  id          String   @id @default(uuid())
+  tenantId    String   @unique                // One current snapshot per tenant
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  snapshot    Json                             // Full snapshot JSON document
+  refreshedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Snapshot JSON structure:
+// {
+//   "refreshedAt": ISO date,
+//   "financial": {
+//     "avgMargin": number,
+//     "marginByCategory": { [category]: number },
+//     "totalMonthlyCost": number,
+//     "costTrendVsLastMonth": number,
+//     "costTrendVsLastQuarter": number
+//   },
+//   "suppliers": {
+//     "count": number,
+//     "topBySpend": [{ "name": string, "spendPct": number, "trend": string, "rate": number }],
+//     "concentrationRisk": "low" | "medium" | "high",
+//     "concentrationDetail": string
+//   },
+//   "products": {
+//     "totalActive": number,
+//     "belowTargetMargin": number,
+//     "noRecentInvoice90d": number,
+//     "topByMargin": [{ "name": string, "margin": number }],
+//     "bottomByMargin": [{ "name": string, "margin": number }],
+//     "avgHealthScore": number
+//   },
+//   "competitors": {
+//     "monitorsActive": number,
+//     "avgPricePosition": number,
+//     "openOpportunities": number,
+//     "activeThreats": number
+//   },
+//   "pipeline": {
+//     "pendingInvoices": number,
+//     "awaitingReview": number,
+//     "readyToExport": number
+//   },
+//   "alerts": {
+//     "critical": number,
+//     "warning": number,
+//     "info": number
+//   }
+// }
+
+model KnowledgeEntry {
+  id         String            @id @default(uuid())
+  tenantId   String
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  category   KnowledgeCategory
+  topic      String                            // Searchable topic tag
+  insight    String                            // The actual insight text
+  source     KnowledgeSource
+  confidence Float             @default(0.8)   // 0-1
+  metadata   Json?                             // Source URLs, query used, etc.
+  expiresAt  DateTime?                         // null = never expires
+  usedCount  Int               @default(0)     // Times used in responses
+  lastUsedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([tenantId, category, topic])
+  @@index([tenantId, expiresAt])
+  @@index([tenantId, source])
+}
+
+enum KnowledgeCategory {
+  SUPPLIER
+  MARKET
+  PRODUCT
+  PRICING
+  COMPETITOR
+  STRATEGY
+  CONSUMER_TREND
+  SECTOR_BENCHMARK
+  CONVERSATION
+}
+
+enum KnowledgeSource {
+  INTERNAL_ANALYSIS
+  TAVILY
+  PERPLEXITY
+  GOOGLE_TRENDS
+  AGENT_SYNTHESIS
+  USER_PROVIDED
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 3: Business Goals & Action Plans
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BusinessGoal {
+  id            String     @id @default(uuid())
+  tenantId      String
+  tenant        Tenant     @relation(fields: [tenantId], references: [id])
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+  title         String                        // "Increase margins to 25%"
+  description   String?
+  targetMetric  String?                       // "avg_margin", "monthly_revenue", etc.
+  targetValue   Float?                        // 25.0
+  baselineValue Float?                        // Value at time of goal creation
+  currentValue  Float?                        // Updated periodically from snapshot
+  deadline      DateTime?
+  status        GoalStatus @default(ACTIVE)
+  priority      Int        @default(1)        // 1 = highest
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  actionPlans   ActionPlan[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+}
+
+model ActionPlan {
+  id          String     @id @default(uuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  goalId      String?
+  goal        BusinessGoal? @relation(fields: [goalId], references: [id])
+  title       String                          // "Q1 Margin Improvement Plan"
+  summary     String                          // AI-generated plan overview
+  status      PlanStatus @default(ACTIVE)
+  progressPct Int        @default(0)          // 0-100, computed from steps
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  steps       ActionStep[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, goalId])
+}
+
+model ActionStep {
+  id            String     @id @default(uuid())
+  planId        String
+  plan          ActionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  stepNumber    Int
+  title         String                        // "Negotiate with Murray's Dairy"
+  description   String                        // Detailed guidance
+  status        StepStatus @default(PENDING)
+  dueDate       DateTime?
+  outcome       String?                       // What happened when user completed it
+  outcomeMetric Float?                        // Measurable result (e.g., -2.8 for cost reduction %)
+  completedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([planId, stepNumber])
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  PAUSED
+  ABANDONED
+}
+
+enum PlanStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  ARCHIVED
+}
+
+enum StepStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 5: Shared Intelligence Layer (NO tenantId, NO RLS)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SharedBenchmark {
+  id           String   @id @default(uuid())
+  businessType String                         // "grocery", "pharmacy", etc.
+  region       String                         // "VIC", "NSW", "AU"
+  period       String                         // "2026-03" (month level)
+  metricName   String                         // "overall_margin", "dairy_margin"
+  median       Float
+  p25          Float
+  p75          Float
+  sampleSize   Int                            // Must be >= 10 (k-anonymity)
+  computedAt   DateTime @default(now())
+
+  @@unique([businessType, region, period, metricName])
+  @@index([businessType, region, period])
+}
+
+model SharedRecommendationScore {
+  id                  String   @id @default(uuid())
+  recommendationType  String                  // "supplier_negotiation", "product_expansion"
+  businessType        String
+  category            String?                 // "dairy", "bakery", null
+  sampleSize          Int
+  actedOnRate         Float                   // 0-1
+  positiveOutcomeRate Float                   // 0-1 (of those who acted)
+  avgImpact           Float                   // e.g., -2.8 (cost reduction %)
+  impactUnit          String                  // "cost_reduction_pct", "margin_lift_pct"
+  confidenceScore     Float
+  avgTimeToResult     String?                 // "2-4 weeks"
+  computedAt          DateTime @default(now())
+
+  @@unique([recommendationType, businessType, category])
+  @@index([businessType, confidenceScore])
+}
+
+model SharedQuestionPattern {
+  id              String   @id @default(uuid())
+  businessType    String
+  region          String
+  period          String                      // "2026-03"
+  category        String                      // "cost_analysis", "pricing_strategy"
+  subcategory     String                      // "cost_increase", "margin_improvement"
+  productCategory String?                     // "dairy", null
+  count           Int                         // Tenants who asked about this
+  totalTenants    Int                         // Total tenants in group
+  percentage      Float                       // count / totalTenants
+  computedAt      DateTime @default(now())
+
+  @@unique([businessType, region, period, category, subcategory, productCategory])
+  @@index([businessType, region, period])
+}
+
+model SharedTrendSignal {
+  id           String   @id @default(uuid())
+  businessType String
+  region       String
+  signalType   String                         // "cost_increase", "margin_compression"
+  category     String?                        // "dairy", null
+  description  String                         // Human-readable trend
+  affectedPct  Float                          // % of tenants affected
+  severity     String                         // "info", "warning", "critical"
+  detectedAt   DateTime @default(now())
+  expiresAt    DateTime
+  isActive     Boolean  @default(true)
+
+  @@index([businessType, region, isActive])
+  @@index([detectedAt])
+}
+
+model SharedResponseQuality {
+  id                 String   @id @default(uuid())
+  questionCategory   String                   // "pricing_strategy"
+  responseStructure  String                   // "step_by_step", "narrative", "data_table"
+  includesNumbers    Boolean
+  includesBenchmark  Boolean
+  includesComparison Boolean
+  sampleSize         Int
+  satisfactionRate   Float                    // 0-1
+  computedAt         DateTime @default(now())
+
+  @@unique([questionCategory, responseStructure])
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 5: Consent Tracking
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TenantSharingConsent {
+  id             String   @id @default(uuid())
+  tenantId       String   @unique
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  benchmarkOptIn Boolean  @default(true)      // Tier 1: anonymised benchmarks
+  patternOptIn   Boolean  @default(false)     // Tier 2: question + recommendation patterns
+  trendOptIn     Boolean  @default(false)     // Tier 3: receive trend alerts
+  consentedAt    DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RELATIONS: Add to existing Tenant model
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Add these relations to the existing Tenant model in schema.prisma:
+//
+//   chatConversations   ChatConversation[]
+//   chatFeedback        ChatFeedback[]
+//   tenantPersona       TenantPersona?
+//   businessSnapshot    BusinessSnapshot?
+//   knowledgeEntries    KnowledgeEntry[]
+//   businessGoals       BusinessGoal[]
+//   actionPlans         ActionPlan[]
+//   sharingConsent      TenantSharingConsent?
+//
+// Add these relations to the existing User model:
+//
+//   chatConversations   ChatConversation[]
+//   businessGoals       BusinessGoal[]

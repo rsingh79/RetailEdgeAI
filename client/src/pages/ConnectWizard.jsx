@@ -1270,6 +1270,7 @@ function FolderSetupWizard({ onBack, onComplete }) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">File Patterns</label>
+              <p className="text-xs text-gray-500 mb-2">To add a new file pattern, type *.extension (e.g. *.jpeg, *.tiff) and click Add</p>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1283,19 +1284,24 @@ function FolderSetupWizard({ onBack, onComplete }) {
                   Add
                 </button>
               </div>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {config.filePatterns.map((p) => (
-                  <span key={p} className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-xs flex items-center gap-1">
-                    {p}
-                    <button
-                      onClick={() => setConfig((prev) => ({ ...prev, filePatterns: prev.filePatterns.filter((x) => x !== p) }))}
-                      className="text-amber-400 hover:text-red-500"
-                    >
-                      &times;
-                    </button>
-                  </span>
-                ))}
-              </div>
+              {config.filePatterns.length > 0 && (
+                <div className="mt-2">
+                  <span className="text-xs text-gray-500 mb-1 block">Active patterns:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {config.filePatterns.map((p) => (
+                      <span key={p} className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-xs flex items-center gap-1">
+                        {p}
+                        <button
+                          onClick={() => setConfig((prev) => ({ ...prev, filePatterns: prev.filePatterns.filter((x) => x !== p) }))}
+                          className="text-amber-400 hover:text-red-500"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -2225,8 +2231,8 @@ function GoogleDriveSetupWizard({ onBack, onComplete }) {
     try {
       await api.drive.addFolder({
         integrationId: pendingIntegrationId,
-        folderId: folder.id,
-        folderName: folder.name,
+        driveFolderId: folder.id,
+        driveFolderName: folder.name,
       });
       setLastAddedFolder(folder.name);
       setPendingIntegrationId(null);

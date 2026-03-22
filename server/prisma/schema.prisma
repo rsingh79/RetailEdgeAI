@@ -55,6 +55,7 @@ model Tenant {
   driveImportLogs     DriveImportLog[]
   planTierId          String?
   planTier            PlanTier?  @relation(fields: [planTierId], references: [id])
+  conversations       Conversation[]
 }
 
 // ── Auth ──
@@ -69,8 +70,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant    Tenant?    @relation(fields: [tenantId], references: [id])
-  auditLogs AuditLog[]
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id])
+  auditLogs     AuditLog[]
+  conversations Conversation[]
 
   @@index([tenantId])
 }
@@ -166,7 +168,8 @@ model Supplier {
   abn       String?
   email     String?
   phone        String?
-  gstInclusive Boolean  @default(false) // does this supplier's line prices include GST?
+  gstInclusive  Boolean  @default(false) // does this supplier's line prices include GST?
+  hasPerLineGst Boolean  @default(false) // does this supplier show per-line GST amounts on invoices?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -235,6 +238,8 @@ model InvoiceLine {
   lineTotal        Float
   freightAlloc     Float   @default(0)
   gstAlloc         Float   @default(0)
+  gstApplicable    Boolean @default(true)  // does this line item attract GST?
+  lineGstAmount    Float?  // per-line GST amount extracted from invoice (null if no per-line GST column)
   packSize         String? // e.g. "10kg bag", "Tray x30"
   baseUnit         String? // e.g. "kg", "each"
   baseUnitCost     Float?  // normalized cost per base unit
@@ -743,4 +748,45 @@ model PlanTierLimit {
 
   @@unique([planTierId, limitKey])
   @@index([planTierId])
+}
+
+// ── Business AI Advisor: Chat ──
+
+model Conversation {
+  id            String    @id @default(cuid())
+  tenantId      String
+  userId        String
+  title         String?                       // Auto-generated from first message
+  lastMessageAt DateTime?
+  messageCount  Int       @default(0)
+  totalCostUsd  Float     @default(0)         // Running total of message costs
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  messages Message[]
+
+  @@index([tenantId])
+  @@index([tenantId, userId, lastMessageAt])
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  conversationId  String
+  role            String                      // "user", "assistant", "system"
+  content         String                      // Message text (markdown supported)
+  toolCalls       Json?                       // Tool calls made by assistant
+  toolResults     Json?                       // Results from tool execution
+  inputTokens     Int?                        // Input tokens for this exchange
+  outputTokens    Int?                        // Output tokens for this exchange
+  costUsd         Float?                      // Estimated cost in USD
+  durationMs      Int?                        // Response time in milliseconds
+  feedbackRating  Int?                        // 1 = thumbs down, 5 = thumbs up
+  feedbackComment String?                     // Optional feedback text
+  createdAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
 }

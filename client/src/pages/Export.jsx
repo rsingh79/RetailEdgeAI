@@ -136,13 +136,20 @@ export default function Export() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState(new Set());
   const [items, setItems] = useState([]);
   const [selectedMatchIds, setSelectedMatchIds] = useState(new Set());
-  const [showExported, setShowExported] = useState(true);
+  const [includeOtherExported, setIncludeOtherExported] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
   const [loadingItems, setLoadingItems] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(null);
   // Track user price edits: { matchId: newPrice }
   const [priceEdits, setPriceEdits] = useState({});
+  // Duplicate resolution state
+  const [duplicateGroups, setDuplicateGroups] = useState(null);
+  const [duplicateChoices, setDuplicateChoices] = useState({});
+  // Invoice sort state for "Previously Exported" section
+  const [exportSortAsc, setExportSortAsc] = useState(true);
+  // Selected export systems (which output files to generate)
+  const [selectedExportSystems, setSelectedExportSystems] = useState(new Set());
 
   // ── Load invoices ───
   useEffect(() => {
@@ -174,7 +181,7 @@ export default function Export() {
     async function loadItems() {
       setLoadingItems(true);
       try {
-        const data = await api.getExportItems([...selectedInvoiceIds], showExported);
+        const data = await api.getExportItems([...selectedInvoiceIds], includeOtherExported);
         setItems(data.items || []);
         // Auto-select: items NOT previously exported are checked, previously exported are unchecked
         const autoSelected = new Set();
@@ -191,7 +198,7 @@ export default function Export() {
       }
     }
     loadItems();
-  }, [selectedInvoiceIds, showExported]);
+  }, [selectedInvoiceIds, includeOtherExported]);
 
   // ── Invoice selection handlers ───
   const toggleInvoice = useCallback((id) => {
@@ -204,13 +211,20 @@ export default function Export() {
     setExportSuccess(null);
   }, []);
 
-  const toggleAllInvoices = useCallback(() => {
+  const toggleSectionInvoices = useCallback((sectionInvoices) => {
     setSelectedInvoiceIds((prev) => {
-      if (prev.size === invoices.length) return new Set();
-      return new Set(invoices.map((inv) => inv.id));
+      const sectionIds = sectionInvoices.map((inv) => inv.id);
+      const allSelected = sectionIds.length > 0 && sectionIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allSelected) {
+        sectionIds.forEach((id) => next.delete(id));
+      } else {
+        sectionIds.forEach((id) => next.add(id));
+      }
+      return next;
     });
     setExportSuccess(null);
-  }, [invoices]);
+  }, []);
 
   // ── Item selection handlers ───
   const toggleItem = useCallback((matchId) => {
@@ -265,10 +279,42 @@ export default function Export() {
     return groups;
   }, [selectedItems]);
 
+  // ── Available export systems (derived from all loaded items) ───
+  const availableExportSystems = useMemo(() => {
+    const sources = [...new Set(items.map((i) => i.source || 'Other'))];
+    if (sources.includes('POS')) sources.push('Instore Update');
+    return sources;
+  }, [items]);
+
+  // Auto-select all export systems when the set of sources changes
+  const prevSystemsKey = useRef('');
+  useEffect(() => {
+    const key = [...availableExportSystems].sort().join(',');
+    if (key !== prevSystemsKey.current) {
+      prevSystemsKey.current = key;
+      setSelectedExportSystems(new Set(availableExportSystems));
+    }
+  }, [availableExportSystems]);
+
   // ── Count of edited prices ───
   const editedCount = useMemo(() => {
     return Object.keys(priceEdits).length;
   }, [priceEdits]);
+
+  // ── Split invoices into Ready / Previously Exported ───
+  const { readyInvoices, exportedInvoices } = useMemo(() => {
+    const ready = [];
+    const exported = [];
+    for (const inv of invoices) {
+      if (inv.lastExportedAt) exported.push(inv);
+      else ready.push(inv);
+    }
+    exported.sort((a, b) => {
+      const diff = new Date(a.lastExportedAt) - new Date(b.lastExportedAt);
+      return exportSortAsc ? diff : -diff;
+    });
+    return { readyInvoices: ready, exportedInvoices: exported };
+  }, [invoices, exportSortAsc]);
 
   // ── CSV helper: quote a field if it contains commas, quotes, or newlines ───
   function csvField(val) {
@@ -314,17 +360,58 @@ export default function Export() {
     return [headers.join(','), ...rows].join('\n');
   }
 
-  // ── Export handler ───
+  // ── Export handler — detects POS duplicates before exporting ───
   async function handleExport() {
     if (selectedItems.length === 0) return;
+
+    // Detect POS duplicates (same product name from different invoices)
+    const posItems = selectedItems.filter((i) => i.source === 'POS');
+    const groups = {};
+    for (const item of posItems) {
+      const name = item.productName || '';
+      (groups[name] ??= []).push(item);
+    }
+    const dupes = Object.entries(groups)
+      .filter(([, items]) => items.length > 1)
+      .map(([productName, items]) => ({ productName, items }));
+
+    if (dupes.length > 0) {
+      // Pre-select most recent invoice per group
+      const choices = {};
+      for (const g of dupes) {
+        const sorted = [...g.items].sort(
+          (a, b) => new Date(b.invoiceDate || 0) - new Date(a.invoiceDate || 0)
+        );
+        choices[g.productName] = sorted[0].matchId;
+      }
+      setDuplicateChoices(choices);
+      setDuplicateGroups(dupes);
+      return; // show modal, don't export yet
+    }
+
+    // No duplicates → proceed directly
+    await doExport(selectedItems);
+  }
+
+  // ── Core export logic (receives final, deduplicated item list) ───
+  async function doExport(exportItems) {
     setExporting(true);
     setExportSuccess(null);
 
     try {
       const ts = exportTimestamp();
 
-      // Generate format-specific CSV per source system
-      for (const [source, sourceItems] of Object.entries(itemsBySource)) {
+      // Group by source
+      const bySource = {};
+      for (const item of exportItems) {
+        const source = item.source || 'Other';
+        (bySource[source] ??= []).push(item);
+      }
+
+      // Generate format-specific CSV per source system (only for selected systems)
+      let fileCount = 0;
+      for (const [source, sourceItems] of Object.entries(bySource)) {
+        if (!selectedExportSystems.has(source)) continue;
         let csv;
         let label;
         const sourceLower = source.toLowerCase();
@@ -333,7 +420,6 @@ export default function Export() {
           csv = buildShopifyCsv(sourceItems);
           label = 'Shopify';
         } else {
-          // POS / other systems — use POS (Abacus) format
           csv = buildPosCsv(sourceItems);
           label = source;
         }
@@ -341,41 +427,45 @@ export default function Export() {
         const blob = new Blob([csv], { type: 'text/csv' });
         const safeName = label.replace(/[^a-zA-Z0-9]/g, '_');
         downloadBlob(blob, `${ts}_${safeName}_price_update.csv`);
+        fileCount++;
       }
 
-      // Generate XLSX INSTORE_UPDATE — POS items only, deduplicated by product name
-      const instoreMap = new Map();
-      for (const item of selectedItems) {
-        if (item.source !== 'POS') continue; // INSTORE labels are only for POS products
-        const name = item.productName || '';
-        if (!instoreMap.has(name)) {
-          instoreMap.set(name, item.newPrice ?? '');
+      // Generate XLSX INSTORE_UPDATE — POS items only (only if selected)
+      if (selectedExportSystems.has('Instore Update')) {
+        const posExportItems = exportItems.filter((item) => item.source === 'POS');
+        if (posExportItems.length > 0) {
+          const instoreData = posExportItems.map((item) => ({
+            'Product Name': item.productName || '',
+            'New Price': item.newPrice ?? '',
+          }));
+          const ws = XLSX.utils.json_to_sheet(instoreData);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'INSTORE_UPDATE');
+          const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          const xlsxBlob = new Blob([xlsxData], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          });
+          downloadBlob(xlsxBlob, `${ts}_INSTORE_UPDATE.xlsx`);
+          fileCount++;
         }
       }
-      const instoreData = Array.from(instoreMap.entries()).map(([name, price]) => ({
-        'Product Name': name,
-        'New Price': price,
-      }));
-      const ws = XLSX.utils.json_to_sheet(instoreData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'INSTORE_UPDATE');
-      const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const xlsxBlob = new Blob([xlsxData], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      downloadBlob(xlsxBlob, `${ts}_INSTORE_UPDATE.xlsx`);
 
       // Mark items as exported on server
-      const matchIds = selectedItems.map((item) => item.matchId);
+      const matchIds = exportItems.map((item) => item.matchId);
       await api.markExported(matchIds);
 
       setExportSuccess({
-        count: selectedItems.length,
-        csvCount: Object.keys(itemsBySource).length,
+        count: exportItems.length,
+        fileCount,
         timestamp: ts,
       });
 
       // Refresh items to show updated exportedAt
-      const data = await api.getExportItems([...selectedInvoiceIds], showExported);
+      const data = await api.getExportItems([...selectedInvoiceIds], includeOtherExported);
       setItems(data.items || []);
+      // Refresh invoices to update lastExportedAt
+      const invoiceData = await api.getExportableInvoices();
+      setInvoices(invoiceData);
       // Clear selection and price edits after export
       setSelectedMatchIds(new Set());
       setPriceEdits({});
@@ -384,6 +474,67 @@ export default function Export() {
     } finally {
       setExporting(false);
     }
+  }
+
+  // ── Resolve duplicates and export ───
+  async function handleResolveAndExport() {
+    const dupeProductNames = new Set(duplicateGroups.map((g) => g.productName));
+    const chosenMatchIds = new Set(Object.values(duplicateChoices));
+
+    const deduplicatedItems = selectedItems.filter((item) => {
+      if (item.source !== 'POS') return true; // non-POS items pass through
+      if (!dupeProductNames.has(item.productName)) return true; // non-duplicate POS items pass through
+      return chosenMatchIds.has(item.matchId); // for duplicates, keep only the chosen one
+    });
+
+    setDuplicateGroups(null);
+    await doExport(deduplicatedItems);
+  }
+
+  // ── Shared invoice row renderer ───
+  function renderInvoiceRow(inv, showLastExported) {
+    const isSelected = selectedInvoiceIds.has(inv.id);
+    return (
+      <tr
+        key={inv.id}
+        className={`cursor-pointer transition ${isSelected ? 'bg-teal-50/60 hover:bg-teal-50' : 'hover:bg-gray-50'}`}
+        onClick={() => toggleInvoice(inv.id)}
+      >
+        <td className="pl-5 pr-2 py-3">
+          <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${isSelected ? 'bg-teal-600' : 'border-2 border-gray-300'}`}>
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        </td>
+        <td className="px-3 py-3 font-medium text-gray-900">{inv.supplierName}</td>
+        <td className="px-3 py-3 text-gray-600">{inv.invoiceNumber || '—'}</td>
+        <td className="px-3 py-3 text-gray-600">
+          {inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+        </td>
+        <td className="px-3 py-3 text-center">
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+            inv.confirmedCount === inv.totalCount ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+          }`}>
+            {inv.confirmedCount}/{inv.totalCount}
+          </span>
+        </td>
+        <td className="px-3 py-3 text-center">
+          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+            inv.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+            inv.status === 'EXPORTED' ? 'bg-blue-100 text-blue-700' :
+            'bg-amber-100 text-amber-700'
+          }`}>
+            {inv.status}
+          </span>
+        </td>
+        {showLastExported && (
+          <td className="px-3 py-3 text-gray-600 text-xs">
+            {inv.lastExportedAt
+              ? new Date(inv.lastExportedAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
+              : '—'}
+          </td>
+        )}
+      </tr>
+    );
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -410,7 +561,7 @@ export default function Export() {
           <div>
             <div className="font-medium text-emerald-900">Export Complete</div>
             <p className="text-sm text-emerald-700 mt-0.5">
-              {exportSuccess.count} item{exportSuccess.count !== 1 ? 's' : ''} exported across {exportSuccess.csvCount} CSV file{exportSuccess.csvCount !== 1 ? 's' : ''} + INSTORE_UPDATE.xlsx.
+              {exportSuccess.count} item{exportSuccess.count !== 1 ? 's' : ''} exported across {exportSuccess.fileCount} file{exportSuccess.fileCount !== 1 ? 's' : ''}.
               Files prefixed with {exportSuccess.timestamp}.
             </p>
           </div>
@@ -418,74 +569,98 @@ export default function Export() {
       )}
 
       {/* Invoice Selector */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700">Select Invoices</h3>
-          <span className="text-xs text-gray-400">{selectedInvoiceIds.size} of {invoices.length} selected</span>
+      {loadingInvoices ? (
+        <div className="bg-white rounded-xl border border-gray-200 px-5 py-8 text-center text-sm text-gray-400">
+          Loading invoices...
         </div>
-
-        {loadingInvoices ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">Loading invoices...</div>
-        ) : invoices.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">No invoices with confirmed matches found.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <th className="pl-5 pr-2 py-2.5 text-left w-10">
-                  <button onClick={toggleAllInvoices} className="w-5 h-5 rounded flex items-center justify-center border-2 border-gray-300 hover:border-teal-500 transition">
-                    {selectedInvoiceIds.size === invoices.length && <Check className="w-3 h-3 text-teal-600" />}
-                  </button>
-                </th>
-                <th className="px-3 py-2.5 text-left">Supplier</th>
-                <th className="px-3 py-2.5 text-left">Invoice #</th>
-                <th className="px-3 py-2.5 text-left">Date</th>
-                <th className="px-3 py-2.5 text-center">Confirmed</th>
-                <th className="px-3 py-2.5 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {invoices.map((inv) => {
-                const isSelected = selectedInvoiceIds.has(inv.id);
-                return (
-                  <tr
-                    key={inv.id}
-                    className={`cursor-pointer transition ${isSelected ? 'bg-teal-50/60 hover:bg-teal-50' : 'hover:bg-gray-50'}`}
-                    onClick={() => toggleInvoice(inv.id)}
-                  >
-                    <td className="pl-5 pr-2 py-3">
-                      <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${isSelected ? 'bg-teal-600' : 'border-2 border-gray-300'}`}>
-                        {isSelected && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 font-medium text-gray-900">{inv.supplierName}</td>
-                    <td className="px-3 py-3 text-gray-600">{inv.invoiceNumber || '—'}</td>
-                    <td className="px-3 py-3 text-gray-600">
-                      {inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                        inv.confirmedCount === inv.totalCount ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {inv.confirmedCount}/{inv.totalCount}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                        inv.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
-                        inv.status === 'EXPORTED' ? 'bg-blue-100 text-blue-700' :
-                        'bg-amber-100 text-amber-700'
-                      }`}>
-                        {inv.status}
-                      </span>
-                    </td>
+      ) : invoices.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 px-5 py-8 text-center text-sm text-gray-400">
+          No invoices with confirmed matches found.
+        </div>
+      ) : (
+        <>
+          {/* Ready to Export */}
+          {readyInvoices.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">Ready to Export</h3>
+                <span className="text-xs text-gray-400">
+                  {readyInvoices.filter((inv) => selectedInvoiceIds.has(inv.id)).length} of {readyInvoices.length} selected
+                </span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="pl-5 pr-2 py-2.5 text-left w-10">
+                      <button
+                        onClick={() => toggleSectionInvoices(readyInvoices)}
+                        className="w-5 h-5 rounded flex items-center justify-center border-2 border-gray-300 hover:border-teal-500 transition"
+                      >
+                        {readyInvoices.length > 0 && readyInvoices.every((inv) => selectedInvoiceIds.has(inv.id)) && (
+                          <Check className="w-3 h-3 text-teal-600" />
+                        )}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2.5 text-left">Supplier</th>
+                    <th className="px-3 py-2.5 text-left">Invoice #</th>
+                    <th className="px-3 py-2.5 text-left">Date</th>
+                    <th className="px-3 py-2.5 text-center">Confirmed</th>
+                    <th className="px-3 py-2.5 text-center">Status</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {readyInvoices.map((inv) => renderInvoiceRow(inv, false))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Previously Exported */}
+          {exportedInvoices.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">Previously Exported</h3>
+                <span className="text-xs text-gray-400">
+                  {exportedInvoices.filter((inv) => selectedInvoiceIds.has(inv.id)).length} of {exportedInvoices.length} selected
+                </span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="pl-5 pr-2 py-2.5 text-left w-10">
+                      <button
+                        onClick={() => toggleSectionInvoices(exportedInvoices)}
+                        className="w-5 h-5 rounded flex items-center justify-center border-2 border-gray-300 hover:border-teal-500 transition"
+                      >
+                        {exportedInvoices.length > 0 && exportedInvoices.every((inv) => selectedInvoiceIds.has(inv.id)) && (
+                          <Check className="w-3 h-3 text-teal-600" />
+                        )}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2.5 text-left">Supplier</th>
+                    <th className="px-3 py-2.5 text-left">Invoice #</th>
+                    <th className="px-3 py-2.5 text-left">Date</th>
+                    <th className="px-3 py-2.5 text-center">Confirmed</th>
+                    <th className="px-3 py-2.5 text-center">Status</th>
+                    <th
+                      className="px-3 py-2.5 text-left cursor-pointer select-none hover:text-gray-700 transition"
+                      onClick={() => setExportSortAsc((prev) => !prev)}
+                    >
+                      <div className="flex items-center gap-1">
+                        Last Exported
+                        <span className="text-[10px]">{exportSortAsc ? '▲' : '▼'}</span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {exportedInvoices.map((inv) => renderInvoiceRow(inv, true))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Export Items Table */}
       {selectedInvoiceIds.size > 0 && (
@@ -503,11 +678,11 @@ export default function Export() {
             <label className="flex items-center gap-2 text-xs text-gray-500">
               <input
                 type="checkbox"
-                checked={showExported}
-                onChange={(e) => setShowExported(e.target.checked)}
+                checked={includeOtherExported}
+                onChange={(e) => setIncludeOtherExported(e.target.checked)}
                 className="rounded border-gray-300 text-teal-600"
               />
-              Show previously exported
+              Include exported from other invoices
             </label>
           </div>
 
@@ -597,24 +772,123 @@ export default function Export() {
         </div>
       )}
 
-      {/* Export button */}
+      {/* Export systems & button */}
       {selectedInvoiceIds.size > 0 && items.length > 0 && (
         <div className="flex items-center justify-between">
-          <div className="text-xs text-gray-500">
-            {selectedMatchIds.size > 0 && (
-              <>
-                {Object.keys(itemsBySource).length} CSV file{Object.keys(itemsBySource).length !== 1 ? 's' : ''} ({Object.keys(itemsBySource).join(', ')}) + INSTORE_UPDATE.xlsx
-              </>
-            )}
+          <div className="flex items-center gap-4">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Export for:</span>
+            {availableExportSystems.map((sys) => (
+              <label key={sys} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedExportSystems.has(sys)}
+                  onChange={() => {
+                    setSelectedExportSystems((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(sys)) next.delete(sys);
+                      else next.add(sys);
+                      return next;
+                    });
+                  }}
+                  className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                />
+                {sys}
+                <span className="text-xs text-gray-400">{sys === 'Instore Update' ? '(.xlsx)' : '(.csv)'}</span>
+              </label>
+            ))}
           </div>
           <button
             onClick={handleExport}
-            disabled={selectedMatchIds.size === 0 || exporting}
+            disabled={selectedMatchIds.size === 0 || selectedExportSystems.size === 0 || exporting}
             className="px-6 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
             {exporting ? 'Exporting...' : `Export ${selectedMatchIds.size} Item${selectedMatchIds.size !== 1 ? 's' : ''}`}
           </button>
+        </div>
+      )}
+
+      {/* ── Duplicate Resolution Modal ─── */}
+      {duplicateGroups && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Resolve Duplicate POS Products</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {duplicateGroups.length} product{duplicateGroups.length !== 1 ? 's' : ''} found on multiple invoices.
+                Choose which price to use for each.
+              </p>
+            </div>
+
+            {/* Body — scrollable */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+              {duplicateGroups.map((group) => (
+                <div key={group.productName}>
+                  <div className="text-sm font-semibold text-gray-900 mb-2">{group.productName}</div>
+                  <div className="space-y-2">
+                    {group.items.map((item) => {
+                      const isChosen = duplicateChoices[group.productName] === item.matchId;
+                      return (
+                        <label
+                          key={item.matchId}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition ${
+                            isChosen ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={`dup-${group.productName}`}
+                            checked={isChosen}
+                            onChange={() =>
+                              setDuplicateChoices((prev) => ({
+                                ...prev,
+                                [group.productName]: item.matchId,
+                              }))
+                            }
+                            className="text-teal-600 focus:ring-teal-500"
+                          />
+                          <div className="flex-1 grid grid-cols-[minmax(60px,auto)_1fr_80px_60px_16px_60px] items-center gap-2 text-sm">
+                            <span className="text-gray-600 font-medium truncate">{item.invoiceNumber || '—'}</span>
+                            <span className="text-gray-500 truncate">{item.supplierName || '—'}</span>
+                            <span className="text-gray-500 text-xs">
+                              {item.invoiceDate
+                                ? new Date(item.invoiceDate).toLocaleDateString('en-AU', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })
+                                : '—'}
+                            </span>
+                            <span className="font-mono text-gray-700 text-right">{money(item.newCost)}</span>
+                            <span className="text-gray-400 text-center">&rarr;</span>
+                            <span className="font-mono font-medium text-gray-900 text-right">{money(item.newPrice)}</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDuplicateGroups(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResolveAndExport}
+                className="px-5 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Resolve &amp; Export ({selectedItems.length - duplicateGroups.reduce((sum, g) => sum + g.items.length - 1, 0)} items)
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

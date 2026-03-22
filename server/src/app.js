@@ -25,6 +25,7 @@ import { startGmailScheduler } from './services/gmailScheduler.js';
 import { startFolderScheduler } from './services/folderScheduler.js';
 import competitorRoutes from './routes/competitor.js';
 import agentRoutes from './routes/agents.js';
+import chatRoutes from './routes/chat.js';
 import connectRoutes from './routes/connect.js';
 import adminOverviewRoutes from './routes/admin/overview.js';
 import adminTenantRoutes from './routes/admin/tenants.js';
@@ -121,6 +122,9 @@ app.use('/api/drive', authenticate, tenantAccess, tenantScope, requirePlan('driv
 
 // Plan-gated routes — High tier only
 app.use('/api/competitor', authenticate, tenantAccess, tenantScope, requirePlan('competitor_intelligence'), competitorRoutes);
+
+// Business AI Advisor — chat interface (plan-gated)
+app.use('/api/chat', authenticate, tenantAccess, tenantScope, requirePlan('ai_advisor'), chatRoutes);
 
 // Admin routes — no tenantScope, requires SYSTEM_ADMIN
 const requireAdmin = [authenticate, requireRole('SYSTEM_ADMIN')];

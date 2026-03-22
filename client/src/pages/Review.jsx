@@ -244,9 +244,8 @@ function OCRExtractPanel({ invoice, onProceed }) {
                     <th className="text-left px-4 py-2 font-medium">#</th>
                     <th className="text-left px-4 py-2 font-medium">Description</th>
                     <th className="text-center px-4 py-2 font-medium">Qty</th>
-                    <th className="text-right px-4 py-2 font-medium">Unit Price</th>
+                    <th className="text-right px-4 py-2 font-medium">Cost to Use</th>
                     <th className="text-right px-4 py-2 font-medium">Line Total</th>
-                    {invoice.freight > 0 && <th className="text-right px-4 py-2 font-medium">Landed Unit</th>}
                     <th className="text-center px-4 py-2 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -256,11 +255,8 @@ function OCRExtractPanel({ invoice, onProceed }) {
                       <td className="px-4 py-2">{i + 1}</td>
                       <td className="px-4 py-2 font-medium">{line.description}</td>
                       <td className="px-4 py-2 text-center">{line.quantity}</td>
-                      <td className="px-4 py-2 text-right font-mono">{money(line.unitPrice)}</td>
+                      <td className="px-4 py-2 text-right font-mono font-medium">{money(line.baseUnitCost || line.unitPrice)}</td>
                       <td className="px-4 py-2 text-right font-mono">{money(line.lineTotal)}</td>
-                      {invoice.freight > 0 && (
-                        <td className="px-4 py-2 text-right font-mono font-medium">{line.baseUnitCost ? money(line.baseUnitCost) : '—'}</td>
-                      )}
                       <td className="px-4 py-2 text-center">
                         <span className={`w-2 h-2 rounded-full inline-block ${
                           line.matches?.length > 0 && Math.max(...(line.matches || []).map(m => m.confidence || 0)) >= 0.9 ? 'bg-green-500' :
@@ -461,6 +457,10 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
       });
     }
     merged.sort((a, b) => (b.confidence ?? -1) - (a.confidence ?? -1));
+    // Sort variants heaviest to lightest
+    for (const item of merged) {
+      item.variants.sort((a, b) => (b.unitQty || 0) - (a.unitQty || 0));
+    }
     return merged;
   }, [suggestions, searchResults]);
 
@@ -512,9 +512,9 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
     const sellPrice = variant.currentPrice ?? variant.salePrice ?? null;
     const currentMarginPct = sellPrice && currentCost ? marginPct(sellPrice, currentCost) : null;
     const currentMarginDol = sellPrice && currentCost != null ? marginDollar(sellPrice, currentCost) : null;
-    const newCost = variant.newCost ?? (baseUnitCost
+    const newCost = baseUnitCost
       ? Math.round(baseUnitCost * (variant.unitQty || 1) * 100) / 100
-      : null);
+      : (variant.newCost ?? null);
     const defaultSellPrice = variant.approvedPrice ?? variant.suggestedPrice ?? sellPrice ?? null;
     const overrideKey = variant.id || productId;
     const overridePrice = priceOverrides[overrideKey];
@@ -522,8 +522,9 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
     const newMarginPct = effectiveSellPrice && newCost ? marginPct(effectiveSellPrice, newCost) : null;
     const newMarginDol = effectiveSellPrice && newCost != null ? marginDollar(effectiveSellPrice, newCost) : null;
     const costChange = currentCost && newCost ? costChangePct(currentCost, newCost) : null;
+    const sellPriceChange = sellPrice && effectiveSellPrice ? costChangePct(sellPrice, effectiveSellPrice) : null;
     const priceChanged = overridePrice != null && overridePrice !== defaultSellPrice;
-    return { currentCost, sellPrice, currentMarginPct, currentMarginDol, newCost, defaultSellPrice, effectiveSellPrice, newMarginPct, newMarginDol, costChange, priceChanged };
+    return { currentCost, sellPrice, currentMarginPct, currentMarginDol, newCost, defaultSellPrice, effectiveSellPrice, newMarginPct, newMarginDol, costChange, sellPriceChange, priceChanged };
   }
 
   // Determine border color based on intervention state
@@ -538,7 +539,7 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
         <div className="px-5 py-2.5 bg-blue-50/50 border-b border-gray-100 text-xs flex items-center gap-3">
           <span className="font-medium text-blue-800">Pack Conversion:</span>
           <span className="text-blue-700">
-            Supplier: "{line.packSize}" @ {money(line.unitPrice)}/unit → Base unit: {line.baseUnit || 'unit'} → Landed cost: <strong>{money(baseUnitCost)}</strong> per unit
+            Supplier: "{line.packSize}" @ {money(line.unitPrice)}/unit → Base unit: {line.baseUnit || 'unit'} → Cost to use: <strong>{money(baseUnitCost)}</strong> per unit
           </span>
         </div>
       )}
@@ -552,8 +553,7 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
               <div className="font-medium">{line.description}</div>
               <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                 <div>Pack size: <span className="font-medium text-gray-900">{line.packSize || '—'}</span></div>
-                <div>Unit price: <span className="font-medium text-gray-900">{money(line.unitPrice)}</span></div>
-                <div>Landed cost: <span className="font-medium text-gray-900">{line.baseUnitCost ? money(line.baseUnitCost) + '/' + (line.baseUnit || 'unit') : '—'}</span></div>
+                <div>Cost to use: <span className="font-medium text-gray-900">{money(baseUnitCost)}/{line.baseUnit || 'unit'}</span></div>
                 <div>Qty ordered: <span className="font-medium text-gray-900">{line.quantity}</span></div>
               </div>
             </div>
@@ -620,28 +620,35 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
 
           {!searching && allProducts.length > 0 && (
             <div className="border border-gray-200 rounded-lg overflow-auto max-h-[340px]">
-              <table className="w-full text-sm min-w-[900px]">
+              <table className="w-full text-sm min-w-[1000px]">
                 <thead className="sticky top-0 z-10">
-                  <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <th className="pl-4 pr-2 py-2.5 text-left w-8"></th>
-                    <th className="px-3 py-2.5 text-left">Product</th>
-                    <th className="px-2 py-2.5 text-left w-16">Source</th>
-                    <th className="px-2 py-2.5 text-center w-14">Score</th>
-                    <th className="px-2 py-2.5 text-right w-20">Curr Cost</th>
-                    <th className="px-2 py-2.5 text-right w-20">Sell Price</th>
-                    <th className="px-2 py-2.5 text-right w-20">
+                  <tr className="bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                    <th colSpan={4} className="py-1"></th>
+                    <th colSpan={3} className="py-1 text-center border-l border-gray-200 bg-gray-100/50">Current</th>
+                    <th colSpan={3} className="py-1 text-center border-l border-gray-200 bg-teal-50/50 text-teal-600">New</th>
+                    <th colSpan={2} className="py-1 text-center border-l border-gray-200 bg-amber-50/50 text-amber-600 leading-tight">Change<br /><span className="font-normal text-[9px]">(Current to New)</span></th>
+                  </tr>
+                  <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider border-t border-gray-100">
+                    <th className="pl-4 pr-2 py-2 text-left w-8"></th>
+                    <th className="px-3 py-2 text-left">Product</th>
+                    <th className="px-2 py-2 text-left w-16">Source</th>
+                    <th className="px-2 py-2 text-center w-14">Score</th>
+                    <th className="px-2 py-2 text-right w-20 border-l border-gray-200">Cost</th>
+                    <th className="px-2 py-2 text-right w-20">Sell</th>
+                    <th className="px-2 py-2 text-right w-20">
                       <button onClick={() => setMarginMode((m) => m === 'pct' ? 'dollar' : 'pct')} className="hover:text-teal-600 transition-colors" title="Toggle margin % / $">
                         Margin {marginMode === 'pct' ? '%' : '$'}
                       </button>
                     </th>
-                    <th className="px-2 py-2.5 text-right w-20">New Cost</th>
-                    <th className="px-2 py-2.5 text-right w-24">New Sell</th>
-                    <th className="px-2 py-2.5 text-right w-24">
+                    <th className="px-2 py-2 text-right w-20 border-l border-gray-200">Cost</th>
+                    <th className="px-2 py-2 text-right w-24">Sell</th>
+                    <th className="px-2 py-2 text-right w-24">
                       <button onClick={() => setMarginMode((m) => m === 'pct' ? 'dollar' : 'pct')} className="hover:text-teal-600 transition-colors" title="Toggle margin % / $">
-                        New Margin {marginMode === 'pct' ? '%' : '$'}
+                        Margin {marginMode === 'pct' ? '%' : '$'}
                       </button>
                     </th>
-                    <th className="px-2 py-2.5 text-center w-16">Change</th>
+                    <th className="px-2 py-2 text-center w-16 border-l border-gray-200">Cost %</th>
+                    <th className="px-2 py-2 text-center w-16">Sell %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -691,12 +698,14 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                               }`}>{Math.round(item.confidence * 100)}%</span>
                             ) : <span className="text-gray-300">—</span>}
                           </td>
-                          <td className={`px-2 py-3 text-right font-mono ${isSelected ? 'text-gray-700' : 'text-gray-400'}`}>{p.currentCost != null ? money(p.currentCost) : '—'}</td>
+                          {/* ── Current group ── */}
+                          <td className={`px-2 py-3 text-right font-mono border-l border-gray-200 ${isSelected ? 'text-gray-700' : 'text-gray-400'}`}>{p.currentCost != null ? money(p.currentCost) : '—'}</td>
                           <td className={`px-2 py-3 text-right font-mono ${isSelected ? 'text-gray-700' : 'text-gray-400'}`}>{p.sellPrice != null ? money(p.sellPrice) : '—'}</td>
                           <td className={`px-2 py-3 text-right font-mono ${isSelected ? '' : 'text-gray-400'}`}>
                             {p.currentMarginPct != null ? (marginMode === 'pct' ? `${p.currentMarginPct.toFixed(1)}%` : money(p.currentMarginDol)) : '—'}
                           </td>
-                          <td className={`px-2 py-3 text-right font-mono font-medium ${
+                          {/* ── New group ── */}
+                          <td className={`px-2 py-3 text-right font-mono font-medium border-l border-gray-200 ${
                             p.costChange != null && p.costChange > 0 ? 'text-red-600' : p.costChange != null && p.costChange < 0 ? 'text-emerald-600' : isSelected ? 'text-gray-700' : 'text-gray-400'
                           }`}>{p.newCost != null ? money(p.newCost) : '—'}</td>
                           <td className="px-2 py-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -720,10 +729,18 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                               />
                             ) : '—'}
                           </td>
-                          <td className="px-2 py-3 text-center">
+                          {/* ── Change group ── */}
+                          <td className="px-2 py-3 text-center border-l border-gray-200">
                             {p.costChange != null && p.costChange !== 0 ? (
                               <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${p.costChange > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                 {p.costChange > 0 ? '+' : ''}{p.costChange.toFixed(1)}%
+                              </span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            {p.sellPriceChange != null && p.sellPriceChange !== 0 ? (
+                              <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${p.sellPriceChange > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                {p.sellPriceChange > 0 ? '+' : ''}{p.sellPriceChange.toFixed(1)}%
                               </span>
                             ) : <span className="text-gray-300">—</span>}
                           </td>
@@ -770,7 +787,7 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                               }`}>{Math.round(item.confidence * 100)}%</span>
                             ) : <span className="text-gray-300">—</span>}
                           </td>
-                          <td colSpan={7} className="px-2 py-3 text-center text-xs text-gray-500 italic">
+                          <td colSpan={8} className="px-2 py-3 text-center text-xs text-gray-500 italic">
                             {item.variants.length} variant{item.variants.length !== 1 ? 's' : ''}
                           </td>
                         </tr>
@@ -793,12 +810,14 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                               </td>
                               <td className="px-2 py-2"></td>
                               <td className="px-2 py-2"></td>
-                              <td className={`px-2 py-2 text-right font-mono text-xs ${isSelected ? 'text-gray-600' : 'text-gray-400'}`}>{p.currentCost != null ? money(p.currentCost) : '—'}</td>
+                              {/* ── Current group ── */}
+                              <td className={`px-2 py-2 text-right font-mono text-xs border-l border-gray-200 ${isSelected ? 'text-gray-600' : 'text-gray-400'}`}>{p.currentCost != null ? money(p.currentCost) : '—'}</td>
                               <td className={`px-2 py-2 text-right font-mono text-xs ${isSelected ? 'text-gray-600' : 'text-gray-400'}`}>{p.sellPrice != null ? money(p.sellPrice) : '—'}</td>
                               <td className={`px-2 py-2 text-right font-mono text-xs ${isSelected ? '' : 'text-gray-400'}`}>
                                 {p.currentMarginPct != null ? (marginMode === 'pct' ? `${p.currentMarginPct.toFixed(1)}%` : money(p.currentMarginDol)) : '—'}
                               </td>
-                              <td className={`px-2 py-2 text-right font-mono text-xs font-medium ${
+                              {/* ── New group ── */}
+                              <td className={`px-2 py-2 text-right font-mono text-xs font-medium border-l border-gray-200 ${
                                 p.costChange != null && p.costChange > 0 ? 'text-red-600' : p.costChange != null && p.costChange < 0 ? 'text-emerald-600' : isSelected ? 'text-gray-600' : 'text-gray-400'
                               }`}>{p.newCost != null ? money(p.newCost) : '—'}</td>
                               <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
@@ -822,10 +841,18 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                                   />
                                 ) : '—'}
                               </td>
-                              <td className="px-2 py-2 text-center">
+                              {/* ── Change group ── */}
+                              <td className="px-2 py-2 text-center border-l border-gray-200">
                                 {p.costChange != null && p.costChange !== 0 ? (
                                   <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${p.costChange > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                     {p.costChange > 0 ? '+' : ''}{p.costChange.toFixed(1)}%
+                                  </span>
+                                ) : <span className="text-gray-300">—</span>}
+                              </td>
+                              <td className="px-2 py-2 text-center">
+                                {p.sellPriceChange != null && p.sellPriceChange !== 0 ? (
+                                  <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${p.sellPriceChange > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                    {p.sellPriceChange > 0 ? '+' : ''}{p.sellPriceChange.toFixed(1)}%
                                   </span>
                                 ) : <span className="text-gray-300">—</span>}
                               </td>
@@ -849,18 +876,35 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
           <div className="text-xs text-teal-800">
             <strong>AI Insight:</strong>{' '}
             {(() => {
-              const avgCostChange = suggestions.reduce((sum, s) => {
-                const changes = s.variants.map(v => {
-                  const prev = v.previousCost ?? v.currentCost;
-                  return prev && v.newCost ? ((v.newCost - prev) / prev) * 100 : 0;
-                });
-                return sum + (changes.length > 0 ? changes.reduce((a, b) => a + b, 0) / changes.length : 0);
-              }, 0) / (suggestions.length || 1);
-              const direction = avgCostChange > 0 ? 'increased' : avgCostChange < 0 ? 'decreased' : 'unchanged';
-              return `Cost ${direction} ${Math.abs(avgCostChange).toFixed(1)}%.`;
+              // Compute cost & sell changes from selected products using getVariantPricing
+              const selectedItems = allProducts.filter(p => selectedProductIds.has(p.productId));
+              const costChanges = [];
+              const sellChanges = [];
+              for (const item of selectedItems) {
+                for (const v of item.variants) {
+                  const p = getVariantPricing(v, item.productId);
+                  if (p.costChange != null) costChanges.push(p.costChange);
+                  if (p.sellPriceChange != null) sellChanges.push(p.sellPriceChange);
+                }
+              }
+              const parts = [];
+              if (costChanges.length > 0) {
+                const avgCost = costChanges.reduce((a, b) => a + b, 0) / costChanges.length;
+                const dir = avgCost > 0 ? 'increased' : avgCost < 0 ? 'decreased' : 'unchanged';
+                parts.push(`Cost ${dir} ${Math.abs(avgCost).toFixed(1)}%`);
+              }
+              if (sellChanges.length > 0) {
+                const avgSell = sellChanges.reduce((a, b) => a + b, 0) / sellChanges.length;
+                const dir = avgSell > 0 ? 'increased' : avgSell < 0 ? 'decreased' : 'unchanged';
+                parts.push(`sell price ${dir} ${Math.abs(avgSell).toFixed(1)}%`);
+              }
+              return parts.length > 0 ? parts.join(', ') + '.' : '';
             })()}{' '}
             {selectedProductIds.size > 0 && `${selectedProductIds.size} product${selectedProductIds.size !== 1 ? 's' : ''} selected for matching. `}
-            {suggestions[0]?.matchReason && `Match reason: ${suggestions[0].matchReason}.`}
+            {(() => {
+              const reasons = [...new Set(suggestions.filter(s => selectedProductIds.has(s.productId) && s.matchReason).map(s => s.matchReason))];
+              return reasons.length > 0 ? `Match reason: ${reasons.join(', ')}.` : '';
+            })()}
           </div>
         </div>
       )}
@@ -971,10 +1015,7 @@ function LineItemRow({ line, invoice, stores, storeColorMap, expanded, onToggle,
             <span className="text-xs text-gray-500">
               {line.packSize ? `${line.packSize} · ` : ''}
               {line.quantity && `× ${line.quantity} · `}
-              {money(line.unitPrice)}/unit
-              {baseUnitCost && baseUnitCost !== line.unitPrice && (
-                <span className="font-mono text-gray-400"> → landed {money(baseUnitCost)}</span>
-              )}
+              {money(baseUnitCost)}/unit
             </span>
             {isNeedsReview && (
               <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold uppercase">Needs Your Input</span>
@@ -1408,8 +1449,9 @@ function ExportPanel({ invoice, exportData, stores, storeColorMap, onDone, navig
 // ── MAIN REVIEW PAGE ─────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════
 
-export default function Review() {
-  const { invoiceId } = useParams();
+export default function Review({ invoiceIdProp, onApproved }) {
+  const { invoiceId: routeInvoiceId } = useParams();
+  const invoiceId = invoiceIdProp || routeInvoiceId;
   const navigate = useNavigate();
   const lineRefs = useRef({});
 
@@ -1554,11 +1596,9 @@ export default function Review() {
     await handleApproveLine(lineId, 'APPROVED');
   }, [handleApproveLine]);
 
-  // Approve & Next: approve current line, collapse it, expand next unresolved
+  // Approve & Next: collapse current line, expand next unresolved
+  // Note: the line is already APPROVED by handleConfirm() → setLineMatch endpoint
   const handleApproveAndNext = useCallback(async (lineId) => {
-    // Approve the line
-    await handleApproveLine(lineId, 'APPROVED');
-
     // Find the next line that needs attention
     const lines = invoice?.lines || [];
     const currentIndex = lines.findIndex(l => l.id === lineId);
@@ -1585,7 +1625,7 @@ export default function Review() {
         lineRefs.current[nextLineId]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 200);
     }
-  }, [invoice, handleApproveLine]);
+  }, [invoice]);
 
   const handleConfirmExports = useCallback(async () => {
     setApproving(true);
@@ -1596,12 +1636,13 @@ export default function Review() {
       const updated = await api.getInvoice(invoiceId);
       setInvoice(updated);
       setStep(4);
+      onApproved?.(invoiceId);
     } catch (err) {
       setError(err.message);
     } finally {
       setApproving(false);
     }
-  }, [invoiceId]);
+  }, [invoiceId, onApproved]);
 
   // Proceed from Step 1 to Step 2: run auto-matching
   const handleProceedToMatching = useCallback(async () => {

@@ -180,6 +180,13 @@ router.post('/poll', async (req, res) => {
     }
 
     if (integrations.length === 0) {
+      // Check if integrations exist but are paused
+      const pausedCount = await req.prisma.gmailIntegration.count({
+        where: { tenantId: req.user.tenantId, isActive: false },
+      });
+      if (pausedCount > 0) {
+        return res.status(400).json({ message: 'All Gmail integrations are paused. Enable at least one to poll.' });
+      }
       return res.status(404).json({ message: 'No active Gmail integrations found' });
     }
 

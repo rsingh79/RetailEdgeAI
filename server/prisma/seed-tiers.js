@@ -31,6 +31,7 @@ const FEATURES = [
   { key: 'competitor_intelligence',  name: 'Competitor Intelligence',  category: 'intelligence',  icon: '🕵️', isCore: false, sortOrder: 31 },
   { key: 'demand_forecasting',       name: 'Demand Forecasting',       category: 'intelligence',  icon: '🔮', isCore: false, sortOrder: 32 },
   { key: 'supplier_comparison',      name: 'Supplier Comparison',      category: 'intelligence',  icon: '⚖️', isCore: false, sortOrder: 33 },
+  { key: 'ai_advisor',               name: 'AI Business Advisor',      category: 'intelligence',  icon: '🤖', isCore: false, sortOrder: 34 },
 ];
 
 // ── Tier definitions ─────────────────────────────────────────────────
@@ -72,6 +73,7 @@ const TIERS = [
     featureKeys: [
       'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
       'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis',
+      'ai_advisor',
     ],
     limits: {
       max_users: 15,
@@ -99,6 +101,7 @@ const TIERS = [
       'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
       'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis',
       'competitor_intelligence', 'demand_forecasting', 'supplier_comparison',
+      'ai_advisor',
     ],
     limits: {
       max_users: 999,

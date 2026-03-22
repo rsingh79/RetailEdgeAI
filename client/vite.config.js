@@ -19,5 +19,9 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    watch: {
+      // Ignore server directory to prevent unnecessary full-page reloads
+      ignored: ['**/server/**', '**/node_modules/**', '**/.git/**'],
+    },
   },
 });

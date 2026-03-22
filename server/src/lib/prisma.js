@@ -34,6 +34,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'PriceAlert',
   'DriveIntegration',
   'DriveImportLog',
+  'Conversation',
 ]);
 
 // Operations that read data (need tenantId in WHERE)

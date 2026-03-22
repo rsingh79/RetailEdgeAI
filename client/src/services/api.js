@@ -98,15 +98,17 @@ export const api = {
     }),
   approveInvoice: (invoiceId) =>
     request(`/invoices/${invoiceId}/approve`, { method: 'POST' }),
+  reOcr: (invoiceId) =>
+    request(`/invoices/${invoiceId}/reocr`, { method: 'POST' }),
   getExportData: (invoiceId) =>
     request(`/invoices/${invoiceId}/export`),
 
   // Cross-invoice export
   getExportableInvoices: () => request('/invoices/exportable'),
-  getExportItems: (invoiceIds, includeExported = true) => {
+  getExportItems: (invoiceIds, includeOtherExported = false) => {
     const params = new URLSearchParams({
       invoiceIds: invoiceIds.join(','),
-      includeExported: String(includeExported),
+      includeOtherExported: String(includeOtherExported),
     });
     return request(`/invoices/export/items?${params}`);
   },
@@ -279,4 +281,54 @@ export const api = {
     },
     run: () => request('/agents/run', { method: 'POST' }),
   },
+
+  // AI Business Advisor (Chat)
+  chat: {
+    getConversations: () => request('/chat/conversations'),
+    createConversation: (title) =>
+      request('/chat/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ title }),
+      }),
+    getConversation: (id) => request(`/chat/conversations/${id}`),
+    deleteConversation: (id) =>
+      request(`/chat/conversations/${id}`, { method: 'DELETE' }),
+    updateConversation: (id, data) =>
+      request(`/chat/conversations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    sendFeedback: (messageId, rating, comment) =>
+      request(`/chat/messages/${messageId}/feedback`, {
+        method: 'PATCH',
+        body: JSON.stringify({ rating, comment }),
+      }),
+  },
 };
+
+/**
+ * Start an SSE stream for a chat message.
+ * Returns the raw fetch Response for SSE consumption.
+ *
+ * @param {string} conversationId
+ * @param {string} content — The user's message text
+ * @returns {Promise<Response>}
+ */
+export async function chatStream(conversationId, content) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/chat/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(error.message || error.error || 'Failed to send message');
+  }
+
+  return res;
+}

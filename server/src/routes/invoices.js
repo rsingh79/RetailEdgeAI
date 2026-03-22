@@ -245,7 +245,7 @@ router.get('/exportable', async (req, res) => {
           include: {
             matches: {
               where: { status: { in: ['CONFIRMED', 'APPROVED', 'EXPORTED'] } },
-              select: { id: true },
+              select: { id: true, exportedAt: true },
             },
           },
         },
@@ -258,6 +258,12 @@ router.get('/exportable', async (req, res) => {
       .map((inv) => {
         const totalCount = inv.lines.length;
         const confirmedCount = inv.lines.filter((l) => l.matches.length > 0).length;
+        const exportDates = inv.lines
+          .flatMap((l) => l.matches.map((m) => m.exportedAt))
+          .filter(Boolean);
+        const lastExportedAt = exportDates.length > 0
+          ? new Date(Math.max(...exportDates.map((d) => new Date(d).getTime())))
+          : null;
         return {
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
@@ -266,6 +272,7 @@ router.get('/exportable', async (req, res) => {
           status: inv.status,
           confirmedCount,
           totalCount,
+          lastExportedAt,
         };
       })
       .filter((inv) => inv.confirmedCount > 0);
@@ -279,19 +286,24 @@ router.get('/exportable', async (req, res) => {
 // Get export items from selected invoices
 router.get('/export/items', async (req, res) => {
   try {
-    const { invoiceIds, includeExported } = req.query;
+    const { invoiceIds, includeOtherExported } = req.query;
     if (!invoiceIds) return res.status(400).json({ message: 'invoiceIds query parameter required' });
 
     const ids = invoiceIds.split(',').filter(Boolean);
 
     const whereClause = {
       status: { in: ['CONFIRMED', 'APPROVED', 'EXPORTED'] },
-      invoiceLine: { invoiceId: { in: ids } },
     };
 
-    // Optionally exclude already-exported items
-    if (includeExported === 'false') {
-      whereClause.exportedAt = null;
+    if (includeOtherExported === 'true') {
+      // Items from selected invoices + exported items from ANY other invoice
+      whereClause.OR = [
+        { invoiceLine: { invoiceId: { in: ids } } },
+        { exportedAt: { not: null }, invoiceLine: { invoiceId: { notIn: ids } } },
+      ];
+    } else {
+      // Only items from selected invoices (both exported and non-exported)
+      whereClause.invoiceLine = { invoiceId: { in: ids } };
     }
 
     const matches = await req.prisma.invoiceLineMatch.findMany({
@@ -299,7 +311,7 @@ router.get('/export/items', async (req, res) => {
       include: {
         invoiceLine: {
           include: {
-            invoice: { select: { id: true, invoiceNumber: true, supplierName: true } },
+            invoice: { select: { id: true, invoiceNumber: true, invoiceDate: true, supplierName: true } },
           },
         },
         productVariant: {
@@ -324,6 +336,8 @@ router.get('/export/items', async (req, res) => {
         matchId: m.id,
         invoiceId: m.invoiceLine.invoiceId,
         invoiceNumber: m.invoiceLine.invoice?.invoiceNumber || '',
+        invoiceDate: m.invoiceLine.invoice?.invoiceDate || null,
+        supplierName: m.invoiceLine.invoice?.supplierName || '',
         productName,
         sku,
         size,
@@ -344,6 +358,17 @@ router.get('/export/items', async (req, res) => {
         storeType: store?.type || '',
         handle: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
       };
+    }).filter((item) => {
+      // Only include items where cost or selling price has actually changed
+      const costChanged = item.newCost != null && (
+        item.previousCost == null ||
+        Math.abs(item.newCost - item.previousCost) >= 0.005
+      );
+      const priceChanged = item.newPrice != null && (
+        item.currentPrice == null ||
+        Math.abs(item.newPrice - item.currentPrice) >= 0.005
+      );
+      return costChanged || priceChanged;
     });
 
     res.json({ items });
@@ -483,6 +508,39 @@ router.post('/upload', checkApiLimit, upload.single('file'), async (req, res) =>
   }
 });
 
+// Re-OCR an existing invoice — re-reads the original file and re-extracts data
+router.post('/:id/reocr', checkApiLimit, async (req, res) => {
+  try {
+    const invoice = await req.prisma.invoice.findFirst({
+      where: { id: req.params.id },
+    });
+    if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
+    if (!invoice.originalFileUrl) return res.status(400).json({ message: 'No original file to re-process' });
+
+    // Read the original file
+    const filePath = path.join(process.cwd(), invoice.originalFileUrl.replace(/^\/api/, ''));
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'Original file not found on disk' });
+
+    const fileBuffer = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeType = ext === '.pdf' ? 'application/pdf'
+      : ext === '.png' ? 'image/png'
+      : ext === '.webp' ? 'image/webp'
+      : 'image/jpeg';
+
+    // Delete existing lines (cascade deletes matches too)
+    await req.prisma.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } });
+
+    // Re-run OCR and apply
+    const ocrResult = await extractInvoiceData(fileBuffer, mimeType, req.user.tenantId, req.user.userId);
+    const result = await applyOcrToInvoice(req.prisma, invoice.id, ocrResult);
+    res.json(result);
+  } catch (err) {
+    console.error('Re-OCR failed:', err);
+    res.status(500).json({ message: 'Re-OCR failed: ' + err.message });
+  }
+});
+
 // ── Header / Line Editing ─────────────────────────────────────
 
 // Update invoice header (for correcting OCR data)
@@ -522,7 +580,7 @@ router.patch('/:id', async (req, res) => {
 // Update a line item (for correcting OCR data)
 router.patch('/:id/lines/:lineId', async (req, res) => {
   try {
-    const { description, quantity, unitPrice, lineTotal, packSize, baseUnit } = req.body;
+    const { description, quantity, unitPrice, lineTotal, packSize, baseUnit, baseUnitCost, gstApplicable } = req.body;
 
     const updateData = {};
     if (description !== undefined) updateData.description = description;
@@ -531,12 +589,25 @@ router.patch('/:id/lines/:lineId', async (req, res) => {
     if (lineTotal !== undefined) updateData.lineTotal = lineTotal;
     if (packSize !== undefined) updateData.packSize = packSize;
     if (baseUnit !== undefined) updateData.baseUnit = baseUnit;
+    if (baseUnitCost !== undefined) updateData.baseUnitCost = baseUnitCost;
+    if (gstApplicable !== undefined) updateData.gstApplicable = gstApplicable;
 
-    const line = await req.prisma.invoiceLine.update({
+    await req.prisma.invoiceLine.update({
       where: { id: req.params.lineId },
       data: updateData,
     });
 
+    // When gstApplicable changes, re-run cost allocation and return the full invoice
+    if (gstApplicable !== undefined) {
+      await allocateInvoiceCosts(req.prisma, req.params.id);
+      const invoice = await req.prisma.invoice.findFirst({
+        where: { id: req.params.id },
+        include: { supplier: true, lines: { orderBy: { lineNumber: 'asc' } } },
+      });
+      return res.json(invoice);
+    }
+
+    const line = await req.prisma.invoiceLine.findFirst({ where: { id: req.params.lineId } });
     res.json(line);
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ message: 'Line item not found' });
@@ -789,7 +860,10 @@ router.post('/:id/lines/:lineId/confirm', async (req, res) => {
       data: { status: status || 'APPROVED' },
       include: {
         matches: {
-          include: { productVariant: { include: { product: true, store: true } } },
+          include: {
+            productVariant: { include: { product: true, store: true } },
+            product: { include: { variants: { where: { isActive: true }, select: { id: true, size: true, sku: true, name: true } } } },
+          },
         },
       },
     });

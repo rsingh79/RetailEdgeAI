@@ -38,6 +38,7 @@ async function ensureTiersSeeded() {
     { key: 'competitor_intelligence', name: 'Competitor Intelligence', category: 'intelligence', isCore: false, sortOrder: 31 },
     { key: 'demand_forecasting', name: 'Demand Forecasting', category: 'intelligence', isCore: false, sortOrder: 32 },
     { key: 'supplier_comparison', name: 'Supplier Comparison', category: 'intelligence', isCore: false, sortOrder: 33 },
+    { key: 'ai_advisor', name: 'AI Business Advisor', category: 'intelligence', isCore: false, sortOrder: 34 },
   ];
 
   const featureMap = {};
@@ -59,12 +60,12 @@ async function ensureTiersSeeded() {
     },
     {
       slug: 'medium', name: 'Medium', monthlyPrice: 79, annualPrice: 790, sortOrder: 2, isDefault: false,
-      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis'],
+      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis', 'ai_advisor'],
       limits: { max_users: 15, max_stores: 10, max_invoice_pages_per_month: 500, max_products: 2000, max_pricing_rules: 20, max_exports_per_month: 200, max_email_imports_per_month: 100, max_folder_imports_per_month: 100, max_shopify_syncs_per_month: 100, max_competitors_monitored: 0, max_demand_products: 0 },
     },
     {
       slug: 'high', name: 'High', monthlyPrice: 199, annualPrice: 1990, sortOrder: 3, isDefault: false,
-      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis', 'competitor_intelligence', 'demand_forecasting', 'supplier_comparison'],
+      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis', 'competitor_intelligence', 'demand_forecasting', 'supplier_comparison', 'ai_advisor'],
       limits: { max_users: 999, max_stores: 999, max_invoice_pages_per_month: 2000, max_products: 999999, max_pricing_rules: 999, max_exports_per_month: 999, max_email_imports_per_month: 500, max_folder_imports_per_month: 500, max_shopify_syncs_per_month: 500, max_competitors_monitored: 50, max_demand_products: 100 },
     },
   ];

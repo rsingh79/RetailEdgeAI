@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { PrismaClient } from '../src/generated/prisma/client.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const serverDir = path.resolve(__dirname, '..');
@@ -26,10 +27,20 @@ export async function setup() {
 
   // After migrations, grant the app role access to all tables
   // (tables created by superuser aren't automatically accessible to app_user)
-  execSync(
-    `"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" exec retailedge-db psql -U retailedge -d retailedge_test -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO retailedge_app; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO retailedge_app;"`,
-    { stdio: 'pipe' }
-  );
+  // Use direct SQL via Prisma instead of Docker exec (works even when Docker CLI is unavailable)
+  const superPrisma = new PrismaClient({
+    datasources: { db: { url: migrationUrl } },
+  });
+  try {
+    await superPrisma.$executeRawUnsafe(
+      'GRANT ALL ON ALL TABLES IN SCHEMA public TO retailedge_app'
+    );
+    await superPrisma.$executeRawUnsafe(
+      'GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO retailedge_app'
+    );
+  } finally {
+    await superPrisma.$disconnect();
+  }
 
   console.log('✓ Test database migrations applied\n');
 }

@@ -245,7 +245,15 @@ router.get('/exportable', async (req, res) => {
           include: {
             matches: {
               where: { status: { in: ['CONFIRMED', 'APPROVED', 'EXPORTED'] } },
-              select: { id: true, exportedAt: true },
+              select: {
+                id: true,
+                exportedAt: true,
+                previousCost: true,
+                newCost: true,
+                currentPrice: true,
+                suggestedPrice: true,
+                approvedPrice: true,
+              },
             },
           },
         },
@@ -258,6 +266,22 @@ router.get('/exportable', async (req, res) => {
       .map((inv) => {
         const totalCount = inv.lines.length;
         const confirmedCount = inv.lines.filter((l) => l.matches.length > 0).length;
+
+        // Compute per-invoice cost/price change stats
+        const allMatches = inv.lines.flatMap((l) => l.matches);
+        const matchedCount = allMatches.length;
+        let costChangedCount = 0, costUnchangedCount = 0;
+        let priceChangedCount = 0, priceUnchangedCount = 0;
+        for (const m of allMatches) {
+          const costChanged = m.newCost != null &&
+            (m.previousCost == null || Math.abs(m.newCost - m.previousCost) >= 0.005);
+          if (costChanged) costChangedCount++; else costUnchangedCount++;
+          const newPrice = m.approvedPrice ?? m.suggestedPrice ?? m.currentPrice;
+          const priceChanged = newPrice != null &&
+            (m.currentPrice == null || Math.abs(newPrice - m.currentPrice) >= 0.005);
+          if (priceChanged) priceChangedCount++; else priceUnchangedCount++;
+        }
+
         const exportDates = inv.lines
           .flatMap((l) => l.matches.map((m) => m.exportedAt))
           .filter(Boolean);
@@ -273,6 +297,11 @@ router.get('/exportable', async (req, res) => {
           confirmedCount,
           totalCount,
           lastExportedAt,
+          matchedCount,
+          costChangedCount,
+          costUnchangedCount,
+          priceChangedCount,
+          priceUnchangedCount,
         };
       })
       .filter((inv) => inv.confirmedCount > 0);

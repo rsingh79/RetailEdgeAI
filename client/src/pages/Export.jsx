@@ -517,6 +517,34 @@ export default function Export() {
             {inv.confirmedCount}/{inv.totalCount}
           </span>
         </td>
+        <td className="px-3 py-3">
+          <div className="flex flex-wrap gap-1 justify-center">
+            {inv.costChangedCount > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700"
+                    title="Cost price changed">
+                {inv.costChangedCount} cost
+              </span>
+            )}
+            {inv.priceChangedCount > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-teal-100 text-teal-700"
+                    title="Selling price changed">
+                {inv.priceChangedCount} price
+              </span>
+            )}
+            {inv.costUnchangedCount > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-500"
+                    title="No cost change">
+                {inv.costUnchangedCount} same cost
+              </span>
+            )}
+            {inv.priceUnchangedCount > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-500"
+                    title="No selling price change">
+                {inv.priceUnchangedCount} same price
+              </span>
+            )}
+          </div>
+        </td>
         <td className="px-3 py-3 text-center">
           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
             inv.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
@@ -605,6 +633,7 @@ export default function Export() {
                     <th className="px-3 py-2.5 text-left">Invoice #</th>
                     <th className="px-3 py-2.5 text-left">Date</th>
                     <th className="px-3 py-2.5 text-center">Confirmed</th>
+                    <th className="px-3 py-2.5 text-center">Changes</th>
                     <th className="px-3 py-2.5 text-center">Status</th>
                   </tr>
                 </thead>
@@ -641,6 +670,7 @@ export default function Export() {
                     <th className="px-3 py-2.5 text-left">Invoice #</th>
                     <th className="px-3 py-2.5 text-left">Date</th>
                     <th className="px-3 py-2.5 text-center">Confirmed</th>
+                    <th className="px-3 py-2.5 text-center">Changes</th>
                     <th className="px-3 py-2.5 text-center">Status</th>
                     <th
                       className="px-3 py-2.5 text-left cursor-pointer select-none hover:text-gray-700 transition"

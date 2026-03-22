@@ -355,32 +355,107 @@ sequenceDiagram
 
     User->>Client: Navigate to Export page
     Client->>API: GET /api/invoices/exportable
-    API->>DB: Query invoices with status APPROVED<br/>and unexported matches
-    DB-->>API: Exportable invoices
+    API->>DB: Query invoices with APPROVED status<br/>and confirmed matches, compute lastExportedAt
+    DB-->>API: Invoices with lastExportedAt
     API-->>Client: Invoice list
 
-    User->>Client: Select invoices for export
-    Client->>API: GET /api/invoices/export/items?invoiceIds=1,2,3
-    API->>DB: Load confirmed matches across selected invoices
-    DB-->>API: Export items (grouped by store)
-    API-->>Client: Items with current/suggested/approved prices
+    Client->>Client: Split into "Ready to Export"<br/>and "Previously Exported" tables
+    Note over Client: Previously Exported sorted by<br/>Last Exported date (ascending)
 
+    User->>Client: Select invoices from either table
+    Client->>API: GET /api/invoices/export/items<br/>?invoiceIds=1,2,3&includeOtherExported=false
+    API->>DB: Load confirmed matches for selected invoices
+    API->>API: Filter: only items where cost or price changed
+    DB-->>API: Filtered export items
+    API-->>Client: Items with prices, invoiceDate, supplierName
+
+    User->>Client: Toggle export system checkboxes<br/>(POS, Shopify, Instore Update)
     User->>Client: Review and adjust prices inline
     Client->>API: PATCH /api/invoices/export/price<br/>{matchId, approvedPrice}
     API->>DB: Update InvoiceLineMatch.approvedPrice
     API-->>Client: Updated
 
-    User->>Client: Click "Mark as Exported"
+    User->>Client: Click "Export N Items"
+
+    alt Duplicate POS products detected
+        Client->>Client: Show duplicate resolution modal
+        Note over Client: Radio buttons per duplicate group<br/>Pre-selects most recent invoice date
+        User->>Client: Choose price for each duplicate
+        Client->>Client: Deduplicate selected items
+    end
+
+    Client->>Client: Generate files for selected systems only
+    Note over Client: POS → Abacus CSV<br/>Shopify → Shopify CSV<br/>Instore Update → XLSX (name + price)
+
     Client->>API: POST /api/invoices/export/mark<br/>{matchIds: [...]}
     API->>DB: Update matches: exportedAt = now()
     API->>DB: Update invoices: status → EXPORTED<br/>(if all matches exported)
     API-->>Client: 200 {exported: N}
-    Client-->>User: Show export complete
+
+    Client->>API: GET /api/invoices/exportable
+    Note over Client: Refresh invoices so exported ones<br/>move to "Previously Exported" table
+    Client-->>User: Show export complete banner
 ```
 
 ---
 
-## 8. Competitor Intelligence Workflow
+## 8. AI Business Advisor Chat
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Client as React Client
+    participant API as Express API
+    participant Orch as AI Orchestrator
+    participant Tools as Domain Tools
+    participant Claude as Claude API
+    participant DB as PostgreSQL
+
+    User->>Client: Open Business Advisor page
+    Client->>API: GET /api/chat/conversations
+    API->>DB: Load user's conversations
+    DB-->>API: Conversation list
+    API-->>Client: Conversations with last message preview
+
+    User->>Client: Type question and send
+    Client->>API: POST /api/chat/message<br/>{conversationId, content}
+    API->>API: Rate limit check (chatRateLimit)
+    API->>DB: Save user message
+    API->>API: Set SSE headers (text/event-stream)
+
+    API->>Orch: orchestrate(message, tools, tenantId)
+    Orch->>Claude: Send message with tool definitions
+    Claude-->>Orch: Stream response (SSE)
+
+    loop Tool calls (if any)
+        Claude->>Orch: tool_use: {name, input}
+        Orch->>Tools: Execute domain tool
+        alt Invoice tool
+            Tools->>DB: Query invoice data
+        else Product tool
+            Tools->>DB: Query product catalog
+        else Pricing tool
+            Tools->>DB: Query pricing rules + margins
+        else Competitor tool
+            Tools->>DB: Query competitor prices
+        end
+        DB-->>Tools: Query results
+        Tools-->>Orch: Tool result
+        Orch->>Claude: Send tool result, continue
+        Claude-->>Orch: Continue streaming response
+    end
+
+    Orch-->>API: Stream chunks
+    API-->>Client: SSE: data chunks (streaming)
+    Client-->>User: Render streaming markdown response
+
+    API->>DB: Save assistant message (complete)
+    API-->>Client: SSE: [DONE]
+```
+
+---
+
+## 9. Competitor Intelligence Workflow
 
 ```mermaid
 sequenceDiagram
@@ -426,7 +501,7 @@ sequenceDiagram
 
 ---
 
-## 9. Admin Tenant Management
+## 10. Admin Tenant Management
 
 ```mermaid
 sequenceDiagram
@@ -467,7 +542,7 @@ sequenceDiagram
 
 ---
 
-## 10. Middleware Pipeline (Request Lifecycle)
+## 11. Middleware Pipeline (Request Lifecycle)
 
 ```mermaid
 sequenceDiagram

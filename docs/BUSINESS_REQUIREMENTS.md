@@ -15,6 +15,7 @@ RetailEdge is a multi-tenant SaaS platform that helps small-to-medium retailers 
 3. **Margin-based pricing** — Rule engine calculates suggested retail prices with rounding, jump limits, and minimum margin enforcement
 4. **Multi-source import** — Manual upload, Gmail polling, and local/network folder polling
 5. **Competitor monitoring** — Track competitor prices and receive margin squeeze alerts (Enterprise)
+6. **AI Business Advisor** — Claude-powered chat agent for invoice analysis, pricing insights, and strategic recommendations
 
 ---
 
@@ -62,6 +63,8 @@ RetailEdge is a multi-tenant SaaS platform that helps small-to-medium retailers 
 | INV-08 | GST handling: detect inclusive/exclusive pricing, calculate ex-GST base unit costs | Must |
 | INV-09 | Pack size parsing: "12.5kg", "5x1kg", "Tray x30" → total base units for per-unit costing | Should |
 | INV-10 | Delete invoices with full cascade (lines, matches, import logs) | Must |
+| INV-11 | Re-OCR: re-run OCR extraction on an existing invoice to refresh data | Should |
+| INV-12 | Per-line GST detection: detect GST applicability per line item and store gstAmount | Should |
 
 ### 3.3 Product Matching
 
@@ -141,7 +144,14 @@ RetailEdge is a multi-tenant SaaS platform that helps small-to-medium retailers 
 | EXP-02 | Inline price editing in export view (update approved price before final export) | Must |
 | EXP-03 | Group export items by store for POS system import | Must |
 | EXP-04 | Mark items as exported with timestamp tracking | Must |
-| EXP-05 | Filter: show only unexported items, or all items | Should |
+| EXP-05 | Include exported items from other invoices via checkbox (re-export support) | Should |
+| EXP-06 | Split invoice table: "Ready to Export" (never exported) and "Previously Exported" (with Last Exported date) | Must |
+| EXP-07 | Sortable "Last Exported" column in Previously Exported table (ascending default) | Should |
+| EXP-08 | Per-system export checkboxes: POS (.csv), Shopify (.csv), Instore Update (.xlsx) — all selected by default | Must |
+| EXP-09 | Only export items where cost or selling price has changed (0.005 tolerance) | Must |
+| EXP-10 | Duplicate POS product detection: when same product appears on multiple invoices, show resolution modal | Must |
+| EXP-11 | Duplicate resolution: pre-select most recent invoice, user can override via radio buttons per product | Must |
+| EXP-12 | Generate INSTORE_UPDATE.xlsx (Product Name + New Price) for POS shelf label updates | Must |
 
 ### 3.9 Competitor Intelligence (Enterprise)
 
@@ -178,13 +188,29 @@ RetailEdge is a multi-tenant SaaS platform that helps small-to-medium retailers 
 | STR-01 | Store profiles: name, type (POS or Ecommerce), platform (Lightspeed, Shopify, WooCommerce) | Must |
 | STR-02 | Products linked to stores via variants (per-store SKU, pricing, shelf location) | Must |
 
-### 3.12 Workflow UI
+### 3.12 AI Business Advisor
+
+| ID | Requirement | Priority |
+|---|---|---|
+| ADV-01 | Chat interface with streaming responses via Server-Sent Events (SSE) | Must |
+| ADV-02 | Persistent conversation history: create, list, resume, and delete conversations | Must |
+| ADV-03 | AI orchestrator with tool-use: agent calls domain-specific tools to answer questions | Must |
+| ADV-04 | Invoice analysis tools: summarize invoices, compare costs, identify trends | Must |
+| ADV-05 | Product intelligence tools: catalog search, margin analysis, price history | Must |
+| ADV-06 | Pricing analysis tools: rule evaluation, margin impact simulation | Must |
+| ADV-07 | Competitor intelligence tools: price comparison, market positioning | Should |
+| ADV-08 | Quick action buttons: predefined prompts for common analysis tasks | Should |
+| ADV-09 | Message feedback: thumbs up/down on AI responses for quality tracking | Should |
+| ADV-10 | Rate limiting: per-tenant chat request throttling to control API costs | Must |
+
+### 3.13 Workflow UI
 
 | ID | Requirement | Priority |
 |---|---|---|
 | WKF-01 | Dashboard with KPI metrics: invoice counts, pending review, action items | Must |
 | WKF-02 | Workflow breadcrumb navigation: Dashboard → Invoices → Review → Export | Must |
 | WKF-03 | Invoice sidebar badge counts (total, needing review) | Must |
+| WKF-04 | Batch review page: review multiple invoices with side panel for invoice detail | Should |
 
 ---
 

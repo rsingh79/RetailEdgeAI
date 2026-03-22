@@ -9,15 +9,17 @@ RetailEdge is a monorepo web application with a React 19 single-page application
 │                        Client (React 19)                     │
 │  Vite 7 · Tailwind CSS 4 · React Router 7 · xlsx            │
 │  ┌─────────────┐ ┌─────────────┐ ┌──────────────────────┐   │
-│  │ Pages       │ │ Components  │ │ Services             │   │
+│  │ Pages       │ │ Components  │ │ Services / Hooks     │   │
 │  │ Dashboard   │ │ Layout      │ │ api.js (HTTP client)  │   │
 │  │ Invoices    │ │ Settings    │ │ useTenantPlan hook    │   │
-│  │ Review      │ │ Competitor  │ │                       │   │
-│  │ Export      │ │ UpgradePmt  │ │                       │   │
-│  │ Products    │ │             │ │                       │   │
+│  │ Review      │ │ Competitor  │ │ useChat hook          │   │
+│  │ BatchReview │ │ Advisor/*   │ │                       │   │
+│  │ Export      │ │ Review/*    │ │                       │   │
+│  │ Products    │ │ UpgradePmt  │ │                       │   │
 │  │ Pricing     │ │             │ │                       │   │
 │  │ Settings    │ │             │ │                       │   │
 │  │ Competitor  │ │             │ │                       │   │
+│  │ BizAdvisor  │ │             │ │                       │   │
 │  │ Admin/*     │ │             │ │                       │   │
 │  └─────────────┘ └─────────────┘ └──────────────────────┘   │
 └───────────────────────────┬─────────────────────────────────┘
@@ -40,6 +42,7 @@ RetailEdge is a monorepo web application with a React 19 single-page application
 │  │ gmail        │ │ folder       │ │                  │     │
 │  │ folder       │ │ shopifyImp   │ │                  │     │
 │  │ competitor   │ │ apiTracker   │ │                  │     │
+│  │ chat         │ │ agents/*     │ │                  │     │
 │  │ admin/*      │ │              │ │                  │     │
 │  └──────────────┘ └──────────────┘ └──────────────────┘     │
 └───────────────────────────┬─────────────────────────────────┘
@@ -249,8 +252,14 @@ The `requirePlan(feature)` middleware returns `403 PLAN_UPGRADE_REQUIRED` if the
 ┌──────────────────────────────────────────────────────────┐
 │                      EXPORT                               │
 │                                                          │
-│  Cross-invoice export view → grouped by store            │
+│  Invoice tables: "Ready to Export" / "Previously         │
+│    Exported" with sortable Last Exported column           │
+│  Per-system export checkboxes: POS, Shopify, Instore     │
+│  Duplicate POS detection: modal to choose price          │
+│  Only exports items where cost/price changed             │
 │  Inline price editing → mark as exported                 │
+│  Re-export support for previously exported invoices      │
+│  Output: POS CSV, Shopify CSV, INSTORE_UPDATE.xlsx       │
 │  Status: APPROVED → EXPORTED                             │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -350,6 +359,13 @@ The `requirePlan(feature)` middleware returns `403 PLAN_UPGRADE_REQUIRED` if the
 │  │   When fuzzy confidence < 80%             │
 │  │   Suggests best product match             │
 │  │                                           │
+│  ├─ Business Advisor: AI chat agent           │
+│  │   Streaming SSE responses                  │
+│  │   Orchestrator + domain-specific tools     │
+│  │   Tools: invoice, product, pricing,        │
+│  │          competitor analysis                │
+│  │   Conversation history (DB-persisted)      │
+│  │                                            │
 │  └─ Pricing: AI recommendation [placeholder] │
 │      Market-based suggestions (future)       │
 └──────────────┬───────────────────────────────┘
@@ -395,7 +411,9 @@ Tenant (1) ──── (*) User
    │
    ├──── (1) FolderIntegration ──── (*) FolderImportLog
    │
-   └──── (*) ApiUsageLog
+   ├──── (*) ApiUsageLog
+   │
+   └──── (*) Conversation ──── (*) Message
 
 Platform-wide (no tenant):
    PlatformSettings (singleton)
@@ -501,7 +519,9 @@ retail-store-management/
 │   │   │   ├── Invoices.jsx
 │   │   │   ├── InvoiceDetail.jsx
 │   │   │   ├── Review.jsx
+│   │   │   ├── BatchReview.jsx
 │   │   │   ├── Export.jsx
+│   │   │   ├── BusinessAdvisor.jsx
 │   │   │   ├── Products.jsx
 │   │   │   ├── Pricing.jsx
 │   │   │   ├── Settings.jsx
@@ -519,6 +539,16 @@ retail-store-management/
 │   │   │   │   ├── TopBar.jsx
 │   │   │   │   ├── WorkflowBreadcrumb.jsx
 │   │   │   │   └── AdminLayout.jsx
+│   │   │   ├── advisor/
+│   │   │   │   ├── ChatPanel.jsx       # Main advisor chat interface
+│   │   │   │   ├── ChatInput.jsx       # Message input with suggestions
+│   │   │   │   ├── ChatMessage.jsx     # Individual message rendering
+│   │   │   │   ├── StreamingMessage.jsx# SSE streaming display
+│   │   │   │   ├── ConversationList.jsx# Chat history sidebar
+│   │   │   │   ├── QuickActions.jsx    # Predefined action buttons
+│   │   │   │   └── MessageFeedback.jsx # Thumbs up/down feedback
+│   │   │   ├── review/
+│   │   │   │   └── InvoiceSidePanel.jsx# Invoice detail overlay
 │   │   │   ├── settings/
 │   │   │   │   └── IntegrationsTab.jsx
 │   │   │   ├── competitor/
@@ -527,7 +557,8 @@ retail-store-management/
 │   │   ├── services/
 │   │   │   └── api.js                 # HTTP client
 │   │   └── hooks/
-│   │       └── useTenantPlan.js       # Feature gating hook
+│   │       ├── useTenantPlan.js       # Feature gating hook
+│   │       └── useChat.js             # AI advisor chat hook (SSE streaming)
 │   ├── public/
 │   │   └── gmail-setup-guide.html     # Gmail configuration guide
 │   └── vite.config.js
@@ -549,6 +580,7 @@ retail-store-management/
 │   │   │   ├── gmail.js
 │   │   │   ├── folder.js
 │   │   │   ├── competitor.js
+│   │   │   ├── chat.js                # AI advisor chat (SSE streaming)
 │   │   │   └── admin/
 │   │   │       ├── overview.js
 │   │   │       ├── tenants.js
@@ -564,7 +596,15 @@ retail-store-management/
 │   │   │   ├── gmailScheduler.js      # Background Gmail sync
 │   │   │   ├── folder.js              # Path validation + polling + dedup
 │   │   │   ├── folderScheduler.js     # Background folder sync
-│   │   │   └── apiUsageTracker.js     # Claude API call logging
+│   │   │   ├── apiUsageTracker.js     # Claude API call logging
+│   │   │   └── agents/
+│   │   │       ├── orchestrator.js    # AI agent orchestrator
+│   │   │       ├── toolExecutor.js    # Tool dispatch for agent
+│   │   │       └── tools/
+│   │   │           ├── invoiceTools.js    # Invoice analysis tools
+│   │   │           ├── productTools.js    # Product catalog tools
+│   │   │           ├── pricingTools.js    # Pricing analysis tools
+│   │   │           └── competitorTools.js # Competitor intel tools
 │   │   ├── lib/
 │   │   │   ├── prisma.js              # Tenant-scoped Prisma client
 │   │   │   └── encryption.js          # AES-256-GCM encrypt/decrypt

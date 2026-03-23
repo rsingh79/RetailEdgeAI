@@ -131,6 +131,37 @@ export function parsePackSizeQty(packSize) {
  * @returns {Object} Full invoice with supplier and lines
  */
 export async function applyOcrToInvoice(prisma, invoiceId, ocrResult) {
+  // ── Document type check: discard non-invoices ──
+  const docType = ocrResult.documentType || 'invoice';
+  if (docType !== 'invoice' && docType !== 'credit_note') {
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: 'DISCARDED',
+        supplierName: ocrResult.supplier?.name || null,
+        ocrConfidence: ocrResult.ocrConfidence || null,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'DOCUMENT_DISCARDED',
+        entityType: 'Invoice',
+        entityId: invoiceId,
+        newVal: {
+          documentType: docType,
+          supplierName: ocrResult.supplier?.name || null,
+          invoiceNumber: ocrResult.invoiceNumber || null,
+        },
+        metadata: {
+          reason: `Document classified as "${docType}" by OCR, not a valid invoice — discarded automatically`,
+        },
+      },
+    });
+
+    return { discarded: true, documentType: docType, supplierName: ocrResult.supplier?.name };
+  }
+
   // Try to match supplier by name (case-insensitive)
   let supplierId = null;
   if (ocrResult.supplier?.name) {

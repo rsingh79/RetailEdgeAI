@@ -8,6 +8,16 @@ import { checkApiLimit } from '../middleware/apiLimiter.js';
 import { extractInvoiceData } from '../services/ocr.js';
 import { applyOcrToInvoice, allocateInvoiceCosts } from '../services/invoiceProcessor.js';
 import { matchInvoiceLines, createMatchRecords } from '../services/matching.js';
+import {
+  recordPromptMeta,
+  recordOutcome,
+  recordSatisfaction,
+  recordUsage,
+  recordHumanOverride,
+  recordEscalation,
+  recordImplicitSatisfaction,
+  emitSignal,
+} from '../services/signalCollector.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
@@ -518,13 +528,59 @@ router.post('/upload', checkApiLimit, upload.single('file'), async (req, res) =>
   }
 
   // Run OCR extraction and apply results via shared processor
+  const ocrSignalKey = `ocr:${invoice.id}`;
+  const ocrStart = Date.now();
   try {
     const fileBuffer = fs.readFileSync(req.file.path);
     const ocrResult = await extractInvoiceData(fileBuffer, req.file.mimetype, req.user.tenantId, req.user.userId);
     const result = await applyOcrToInvoice(req.prisma, invoice.id, ocrResult);
+
+    // Signal: OCR success — use real prompt metadata from assembly engine
+    const ocrMeta = ocrResult._promptMeta || {};
+    recordPromptMeta(ocrSignalKey, {
+      agentRoleKey: 'ocr_extraction',
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      baseVersionId: ocrMeta.baseVersionId || 'fallback',
+      tenantConfigId: ocrMeta.tenantConfigId || null,
+      baseVersionNumber: ocrMeta.baseVersionNumber,
+    });
+    recordOutcome(ocrSignalKey, {
+      resolutionStatus: 'resolved',
+      topicTags: [ocrResult.supplier?.name, `confidence:${ocrResult.ocrConfidence}`].filter(Boolean),
+    });
+    recordUsage(ocrSignalKey, { latencyMs: Date.now() - ocrStart });
+    emitSignal(ocrSignalKey, invoice.id);
+
+    // Check if document was discarded (not an invoice)
+    if (result?.discarded) {
+      return res.status(200).json({
+        discarded: true,
+        documentType: result.documentType,
+        supplierName: result.supplierName,
+        invoiceId: invoice.id,
+        message: `Document classified as "${result.documentType}" — discarded. This is not a valid invoice.`,
+      });
+    }
+
     res.status(201).json(result);
   } catch (ocrErr) {
     console.error('OCR extraction failed:', ocrErr);
+
+    // Signal: OCR failure
+    recordPromptMeta(ocrSignalKey, {
+      agentRoleKey: 'ocr_extraction',
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      baseVersionId: 'unknown',
+    });
+    recordOutcome(ocrSignalKey, {
+      resolutionStatus: 'failed',
+      failureReason: ocrErr.message,
+    });
+    recordUsage(ocrSignalKey, { latencyMs: Date.now() - ocrStart });
+    emitSignal(ocrSignalKey, invoice.id);
+
     // Mark invoice as failed but keep the record
     await req.prisma.invoice.update({
       where: { id: invoice.id },
@@ -557,12 +613,39 @@ router.post('/:id/reocr', checkApiLimit, async (req, res) => {
       : ext === '.webp' ? 'image/webp'
       : 'image/jpeg';
 
+    // SIGNAL 5: Re-OCR is an escalation — the first OCR was bad enough to redo
+    const escalationKey = `reocr:${invoice.id}`;
+    recordPromptMeta(escalationKey, {
+      agentRoleKey: 'ocr_extraction',
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      baseVersionId: 'reocr_escalation',
+    });
+    recordEscalation(escalationKey, true);
+    recordSatisfaction(escalationKey, 1); // first OCR was bad enough to redo
+    recordOutcome(escalationKey, {
+      resolutionStatus: 'escalated',
+      topicTags: ['reocr', invoice.supplierName].filter(Boolean),
+    });
+    emitSignal(escalationKey, invoice.id);
+
     // Delete existing lines (cascade deletes matches too)
     await req.prisma.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } });
 
     // Re-run OCR and apply
     const ocrResult = await extractInvoiceData(fileBuffer, mimeType, req.user.tenantId, req.user.userId);
     const result = await applyOcrToInvoice(req.prisma, invoice.id, ocrResult);
+
+    if (result?.discarded) {
+      return res.json({
+        discarded: true,
+        documentType: result.documentType,
+        supplierName: result.supplierName,
+        invoiceId: invoice.id,
+        message: `Document classified as "${result.documentType}" — discarded.`,
+      });
+    }
+
     res.json(result);
   } catch (err) {
     console.error('Re-OCR failed:', err);
@@ -599,6 +682,25 @@ router.patch('/:id', async (req, res) => {
       },
     });
 
+    // SIGNAL 2: Implicit OCR satisfaction — how many header fields did user correct?
+    const editableHeaderFields = ['supplierName', 'invoiceNumber', 'invoiceDate', 'dueDate', 'subtotal', 'gst', 'freight', 'total', 'gstInclusive'];
+    const fieldsChanged = editableHeaderFields.filter((f) => req.body[f] !== undefined).length;
+    if (fieldsChanged > 0) {
+      const satKey = `ocr_edit:${req.params.id}:header`;
+      recordPromptMeta(satKey, {
+        agentRoleKey: 'ocr_extraction',
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        baseVersionId: 'ocr_correction',
+      });
+      recordImplicitSatisfaction(satKey, fieldsChanged, editableHeaderFields.length);
+      recordOutcome(satKey, {
+        resolutionStatus: 'resolved',
+        topicTags: ['ocr_correction', `fields:${fieldsChanged}`],
+      });
+      emitSignal(satKey, req.params.id);
+    }
+
     res.json(invoice);
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ message: 'Invoice not found' });
@@ -625,6 +727,25 @@ router.patch('/:id/lines/:lineId', async (req, res) => {
       where: { id: req.params.lineId },
       data: updateData,
     });
+
+    // SIGNAL 2: Implicit OCR satisfaction — line-level correction
+    const editableLineFields = ['description', 'quantity', 'unitPrice', 'lineTotal', 'packSize', 'baseUnit', 'baseUnitCost', 'gstApplicable'];
+    const lineFieldsChanged = editableLineFields.filter((f) => req.body[f] !== undefined).length;
+    if (lineFieldsChanged > 0) {
+      const satKey = `ocr_edit:${req.params.id}:line:${req.params.lineId}`;
+      recordPromptMeta(satKey, {
+        agentRoleKey: 'ocr_extraction',
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        baseVersionId: 'ocr_correction',
+      });
+      recordImplicitSatisfaction(satKey, lineFieldsChanged, editableLineFields.length);
+      recordOutcome(satKey, {
+        resolutionStatus: 'resolved',
+        topicTags: ['ocr_line_correction', `fields:${lineFieldsChanged}`],
+      });
+      emitSignal(satKey, req.params.id);
+    }
 
     // When gstApplicable changes, re-run cost allocation and return the full invoice
     if (gstApplicable !== undefined) {
@@ -680,7 +801,23 @@ router.post('/:id/match', requireRole('OWNER', 'OPS_MANAGER', 'MERCHANDISER'), a
 
     // Pass tenantId for AI fallback tracking
     if (!invoice.tenantId) invoice.tenantId = req.user.tenantId;
+    const matchStart = Date.now();
     await matchInvoiceLines(req.prisma, invoice);
+
+    // Signal: matching completed
+    const matchSignalKey = `match:${invoice.id}`;
+    recordPromptMeta(matchSignalKey, {
+      agentRoleKey: 'product_matching',
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      baseVersionId: 'match_run',
+    });
+    recordOutcome(matchSignalKey, {
+      resolutionStatus: 'resolved',
+      topicTags: [`lines:${invoice.lines.length}`],
+    });
+    recordUsage(matchSignalKey, { latencyMs: Date.now() - matchStart });
+    emitSignal(matchSignalKey, invoice.id);
 
     // Re-fetch with full match data populated
     const updated = await fetchFullInvoice(req.prisma, req.params.id);
@@ -702,6 +839,27 @@ router.post('/:id/lines/:lineId/matches', async (req, res) => {
       where: { id: req.params.lineId, invoiceId: req.params.id },
     });
     if (!line) return res.status(404).json({ message: 'Line not found' });
+
+    // ── Capture AI's original suggestions BEFORE deleting (Signal 3 data) ──
+    const previousMatches = await req.prisma.invoiceLineMatch.findMany({
+      where: { invoiceLineId: line.id },
+      include: {
+        product: { select: { id: true, name: true, category: true } },
+        productVariant: { select: { id: true, name: true, sku: true } },
+      },
+      orderBy: { confidence: 'desc' },
+    });
+    const aiSuggestions = previousMatches.map((m) => ({
+      productId: m.productId,
+      productName: m.product?.name || null,
+      productCategory: m.product?.category || null,
+      variantId: m.productVariantId,
+      variantName: m.productVariant?.name || null,
+      confidence: m.confidence,
+      matchReason: m.matchReason,
+      suggestedPrice: m.suggestedPrice,
+      isManual: m.isManual,
+    }));
 
     // Delete existing matches for this line
     await req.prisma.invoiceLineMatch.deleteMany({
@@ -834,6 +992,45 @@ router.post('/:id/lines/:lineId/matches', async (req, res) => {
         }
       }
     }
+
+    // SIGNAL 3: Human override — this is the HIGHEST VALUE signal
+    // Compare what the AI suggested vs what the user chose
+    const aiTopSuggestion = aiSuggestions.find((s) => !s.isManual);
+    const aiTopProductId = aiTopSuggestion?.productId || null;
+    const aiTopWasCorrect = aiTopProductId ? ids.includes(aiTopProductId) : false;
+
+    // Fetch user-selected product names for the diff
+    let userSelectedNames = [];
+    try {
+      const selectedProducts = await req.prisma.product.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, name: true, category: true },
+      });
+      userSelectedNames = selectedProducts.map((p) => ({ id: p.id, name: p.name, category: p.category }));
+    } catch { /* non-critical */ }
+
+    const overrideKey = `override:${req.params.id}:${line.id}`;
+    recordPromptMeta(overrideKey, {
+      agentRoleKey: 'product_matching',
+      tenantId: req.user.tenantId,
+      userId: req.user.id,
+      baseVersionId: 'manual_match',
+    });
+    recordHumanOverride(overrideKey, {
+      humanOverride: true,
+      humanOverrideDiff: {
+        lineDescription: line.description,
+        packSize: line.packSize,
+        aiSuggestions: aiSuggestions.filter((s) => !s.isManual).slice(0, 5),
+        aiHadSuggestions: aiSuggestions.filter((s) => !s.isManual).length > 0,
+        aiTopWasCorrect,
+        userSelected: userSelectedNames,
+        savedMapping: !!saveMapping,
+        priceOverridden: !!(variantPriceOverrides || priceOverrides),
+      },
+    });
+    recordOutcome(overrideKey, { resolutionStatus: 'resolved' });
+    emitSignal(overrideKey, req.params.id);
 
     // Return updated line with matches
     const updatedLine = await req.prisma.invoiceLine.findFirst({
@@ -978,6 +1175,33 @@ router.post('/:id/approve', requireRole('OWNER', 'OPS_MANAGER', 'MERCHANDISER'),
           }
         }
       }
+    }
+
+    // SIGNAL 2: Matching satisfaction — derived from manual vs auto match ratio
+    const allMatches = invoice.lines.flatMap((l) => l.matches);
+    const totalMatches = allMatches.length;
+    const manualMatches = allMatches.filter((m) => m.isManual).length;
+    const priceOverrides = allMatches.filter((m) => m.approvedPrice != null && m.suggestedPrice != null && m.approvedPrice !== m.suggestedPrice).length;
+    if (totalMatches > 0) {
+      const manualRatio = manualMatches / totalMatches;
+      let matchSat;
+      if (manualRatio === 0 && priceOverrides === 0) matchSat = 5;      // all auto, no price edits
+      else if (manualRatio <= 0.2 && priceOverrides <= 1) matchSat = 4; // mostly auto
+      else if (manualRatio <= 0.5) matchSat = 3;                        // mixed
+      else matchSat = 1;                                                 // mostly manual
+      const matchSatKey = `match_sat:${req.params.id}`;
+      recordPromptMeta(matchSatKey, {
+        agentRoleKey: 'product_matching',
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        baseVersionId: 'approval',
+      });
+      recordSatisfaction(matchSatKey, matchSat);
+      recordOutcome(matchSatKey, {
+        resolutionStatus: 'resolved',
+        topicTags: [`manual:${manualMatches}/${totalMatches}`, `price_overrides:${priceOverrides}`],
+      });
+      emitSignal(matchSatKey, req.params.id);
     }
 
     // Update invoice status

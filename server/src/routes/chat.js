@@ -8,6 +8,14 @@
 import { Router } from 'express';
 import { chatRateLimit } from '../middleware/chatRateLimit.js';
 import { runAdvisorStreaming } from '../services/agents/orchestrator.js';
+import {
+  recordPromptMeta,
+  recordOutcome,
+  recordSatisfaction,
+  recordCorrectionCount,
+  recordUsage,
+  emitSignal,
+} from '../services/signalCollector.js';
 
 const router = Router();
 
@@ -179,6 +187,18 @@ router.post(
         });
       }
 
+      // SIGNAL 4: Detect consecutive user messages (correction signal)
+      // If the previous message was also from the user, they're adding context
+      // because the AI didn't understand or respond yet
+      const lastTwoMessages = await req.prisma.message.findMany({
+        where: { conversationId: conversation.id },
+        orderBy: { createdAt: 'desc' },
+        select: { role: true },
+        take: 2,
+      });
+      // lastTwoMessages[0] is the message we just created (user), [1] is the one before
+      const previousWasUser = lastTwoMessages.length >= 2 && lastTwoMessages[1].role === 'user';
+
       // Load recent messages as context (last 20)
       const recentMessages = await req.prisma.message.findMany({
         where: { conversationId: conversation.id },
@@ -215,6 +235,52 @@ router.post(
         prisma: req.prisma,
         res,
       });
+
+      // ── Signal capture (fire-and-forget) ──
+      const signalKey = `chat:${conversation.id}`;
+
+      // SIGNAL 6: Prompt metadata from assembly engine
+      if (result.promptMeta) {
+        recordPromptMeta(signalKey, {
+          ...result.promptMeta,
+          agentRoleKey: 'business_advisor',
+          tenantId: req.user.tenantId,
+          userId: req.user.id,
+        });
+      }
+
+      // SIGNAL 4: Correction count — consecutive user messages without AI response
+      // If user sent 2+ messages in a row, they're rephrasing or adding context
+      if (previousWasUser) {
+        // Count the streak of consecutive user messages at the end
+        const allMsgs = await req.prisma.message.findMany({
+          where: { conversationId: conversation.id },
+          orderBy: { createdAt: 'desc' },
+          select: { role: true },
+          take: 10,
+        });
+        let streak = 0;
+        for (const m of allMsgs) {
+          if (m.role === 'user') streak++;
+          else break;
+        }
+        recordCorrectionCount(signalKey, Math.max(0, streak - 1));
+      }
+
+      // Token usage & latency
+      recordUsage(signalKey, {
+        tokenCount: (result.inputTokens || 0) + (result.outputTokens || 0),
+        latencyMs: result.durationMs || 0,
+        costUsd: result.costUsd || 0,
+      });
+
+      // SIGNAL 1: Outcome — resolved if we got content, failed on error
+      if (result.content) {
+        recordOutcome(signalKey, { resolutionStatus: 'resolved' });
+      }
+
+      // Emit the signal (will be flushed async)
+      emitSignal(signalKey, conversation.id);
 
       // Save the assistant message (fire-and-forget)
       if (result.content && !clientDisconnected) {
@@ -258,6 +324,20 @@ router.post(
     } catch (err) {
       console.error('Error in chat message:', err.message);
 
+      // Signal: conversation failed
+      const errSignalKey = `chat:${req.params.id}`;
+      recordPromptMeta(errSignalKey, {
+        agentRoleKey: 'business_advisor',
+        tenantId: req.user?.tenantId,
+        userId: req.user?.id,
+        baseVersionId: 'unknown',
+      });
+      recordOutcome(errSignalKey, {
+        resolutionStatus: 'failed',
+        failureReason: err.message,
+      });
+      emitSignal(errSignalKey, req.params.id);
+
       // If headers already sent (SSE mode), send error as SSE event
       if (res.headersSent) {
         res.write(
@@ -295,6 +375,12 @@ router.patch('/messages/:messageId/feedback', async (req, res) => {
       return res.status(404).json({ error: 'Message not found' });
     }
 
+    // Get conversation ID for signal key
+    const msgWithConv = await req.prisma.message.findFirst({
+      where: { id: req.params.messageId },
+      select: { conversationId: true },
+    });
+
     const updated = await req.prisma.message.update({
       where: { id: req.params.messageId },
       data: {
@@ -302,6 +388,19 @@ router.patch('/messages/:messageId/feedback', async (req, res) => {
         feedbackComment: comment || null,
       },
     });
+
+    // SIGNAL 2: Satisfaction — emit as standalone signal for this conversation
+    if (msgWithConv) {
+      const fbKey = `feedback:${msgWithConv.conversationId}:${req.params.messageId}`;
+      recordPromptMeta(fbKey, {
+        agentRoleKey: 'business_advisor',
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        baseVersionId: 'feedback_only',
+      });
+      recordSatisfaction(fbKey, rating);
+      emitSignal(fbKey, msgWithConv.conversationId);
+    }
 
     res.json({ success: true, feedbackRating: updated.feedbackRating });
   } catch (err) {

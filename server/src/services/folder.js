@@ -261,7 +261,32 @@ export async function processFileImport(prisma, filePath, fileName, buffer, mime
   // Run OCR + apply results
   try {
     const ocrResult = await extractInvoiceData(buffer, mimeType, tenantId, userId);
-    await applyOcrToInvoice(prisma, invoice.id, ocrResult);
+    const applyResult = await applyOcrToInvoice(prisma, invoice.id, ocrResult);
+
+    // ── Document type check: discard non-invoices ──
+    if (applyResult?.discarded) {
+      await prisma.folderImportLog.create({
+        data: {
+          tenantId,
+          filePath,
+          fileHash,
+          supplierName: applyResult.supplierName || null,
+          fileName,
+          fileSize: buffer.length,
+          status: 'discarded',
+          duplicateReason: `not_invoice:${applyResult.documentType}`,
+          invoiceId: invoice.id,
+        },
+      });
+      // Move to Discarded/ subfolder if configured
+      if (integration.moveToProcessed) {
+        const discardedDir = path.join(path.dirname(filePath), 'Discarded');
+        await fs.promises.mkdir(discardedDir, { recursive: true }).catch(() => {});
+        const destPath = path.join(discardedDir, path.basename(filePath));
+        await fs.promises.rename(filePath, destPath).catch(() => {});
+      }
+      return { status: 'discarded', documentType: applyResult.documentType, invoiceId: invoice.id };
+    }
 
     // ── Dedup Layer 3: Supplier + Invoice Number + Date ──
     const supplierName = ocrResult.supplier?.name || null;

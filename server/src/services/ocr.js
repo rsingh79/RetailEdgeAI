@@ -1,6 +1,8 @@
 import { trackedClaudeCall } from './apiUsageTracker.js';
+import { assemblePrompt } from './promptAssemblyEngine.js';
 
-const EXTRACTION_PROMPT = `You are an invoice data extraction system. Analyze this supplier invoice and extract all data into the following JSON structure. Be precise with numbers and dates.
+// Hardcoded fallback — used only if DB prompt system has no active template
+const FALLBACK_EXTRACTION_PROMPT = `You are an invoice data extraction system. Analyze this supplier invoice and extract all data into the following JSON structure. Be precise with numbers and dates.
 
 Return ONLY valid JSON with this exact structure (no markdown, no code fences):
 {
@@ -31,10 +33,12 @@ Return ONLY valid JSON with this exact structure (no markdown, no code fences):
   ],
   "gstInclusive": "boolean — true if line item prices already INCLUDE GST, false if GST is charged separately at the invoice total",
   "gstOnFreightOnly": "boolean — true if the invoice GST amount applies ONLY to freight/delivery, not to any line items",
+  "documentType": "string — classify this document: 'invoice' for a supplier invoice with line items and amounts due, 'statement' for a statement of account showing multiple past invoices and balances due, 'credit_note' for a credit/refund document, 'purchase_order' for a PO, 'receipt' for a payment receipt, 'unknown' if unclear",
   "ocrConfidence": "number 0-1 — your confidence in the overall extraction accuracy"
 }
 
 Rules:
+- CRITICAL: First determine documentType. If the document is a statement of account (lists previous invoice numbers with balances/amounts owing), set documentType to "statement" and still extract supplier info, but lineItems can be empty. Statements typically show "Balance Due", "Amount Owing", list invoice numbers with dates and amounts, and have no individual product line items.
 - All monetary values should be numbers (not strings), ex-GST unless specified
 - Dates must be ISO 8601 format (YYYY-MM-DD)
 - If a value cannot be determined, use null
@@ -79,6 +83,22 @@ Rules:
  * @returns {Promise<Object>} Extracted invoice data
  */
 export async function extractInvoiceData(fileBuffer, mimeType, tenantId, userId) {
+  // Load tenant-specific prompt via assembly engine, fall back to hardcoded
+  let promptText = FALLBACK_EXTRACTION_PROMPT;
+  let promptMeta = null;
+  try {
+    const assembly = await assemblePrompt({
+      agentRoleKey: 'ocr_extraction',
+      tenantId,
+    });
+    if (assembly) {
+      promptText = assembly.prompt;
+      promptMeta = assembly.metadata;
+    }
+  } catch (err) {
+    console.warn('Failed to assemble prompt, using fallback:', err.message);
+  }
+
   const base64Data = fileBuffer.toString('base64');
 
   let contentBlock;
@@ -111,7 +131,7 @@ export async function extractInvoiceData(fileBuffer, mimeType, tenantId, userId)
     messages: [
       {
         role: 'user',
-        content: [contentBlock, { type: 'text', text: EXTRACTION_PROMPT }],
+        content: [contentBlock, { type: 'text', text: promptText }],
       },
     ],
     requestSummary: { type: 'invoice_ocr', mimeType, fileSize: fileBuffer.length },
@@ -130,6 +150,9 @@ export async function extractInvoiceData(fileBuffer, mimeType, tenantId, userId)
   if (!data.lineItems || !Array.isArray(data.lineItems)) {
     throw new Error('OCR response missing lineItems array');
   }
+
+  // Attach prompt metadata so the route can log it in the interaction signal
+  data._promptMeta = promptMeta || null;
 
   return data;
 }

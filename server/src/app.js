@@ -32,6 +32,12 @@ import adminTenantRoutes from './routes/admin/tenants.js';
 import adminApiUsageRoutes from './routes/admin/apiUsage.js';
 import adminSettingsRoutes from './routes/admin/settings.js';
 import adminTierRoutes from './routes/admin/tiers.js';
+import adminPromptRoutes from './routes/admin/prompts.js';
+import metaOptimizerRoutes from './routes/admin/metaOptimizer.js';
+import promptRoutes from './routes/prompts.js';
+import promptChatRoutes from './routes/promptChat.js';
+import suggestionRoutes from './routes/suggestions.js';
+import productImportRoutes from './routes/productImport.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -105,6 +111,7 @@ app.get('/api/drive/oauth/callback', async (req, res) => {
 // Every query via req.prisma is automatically scoped to the tenant
 app.use('/api/invoices', authenticate, tenantAccess, tenantScope, invoiceRoutes);
 app.use('/api/products', authenticate, tenantAccess, tenantScope, productRoutes);
+app.use('/api/product-import', authenticate, tenantAccess, tenantScope, productImportRoutes);
 app.use('/api/pricing-rules', authenticate, tenantAccess, tenantScope, pricingRoutes);
 app.use('/api/stores', authenticate, tenantAccess, tenantScope, storeRoutes);
 
@@ -133,6 +140,13 @@ app.use('/api/admin/tenants', ...requireAdmin, adminTenantRoutes);
 app.use('/api/admin/api-usage', ...requireAdmin, adminApiUsageRoutes);
 app.use('/api/admin/settings', ...requireAdmin, adminSettingsRoutes);
 app.use('/api/admin/tiers', ...requireAdmin, adminTierRoutes);
+app.use('/api/admin/prompts', ...requireAdmin, adminPromptRoutes);
+app.use('/api/admin/meta-optimizer', ...requireAdmin, metaOptimizerRoutes);
+
+// Prompt management — available to all tenants
+app.use('/api/prompts', authenticate, tenantAccess, tenantScope, promptRoutes);
+app.use('/api/prompt-chat', authenticate, tenantAccess, tenantScope, promptChatRoutes);
+app.use('/api/suggestions', authenticate, tenantAccess, tenantScope, suggestionRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -148,6 +162,16 @@ app.use((err, _req, res, _next) => {
 // Only listen when run directly (not when imported by tests)
 const isMainModule = process.argv[1] && !process.argv[1].includes('vitest');
 if (isMainModule) {
+  // Start the interaction signal collector (async buffer flush)
+  import('./services/signalCollector.js')
+    .then(({ startSignalCollector }) => startSignalCollector())
+    .catch((err) => console.warn('Signal collector failed to start:', err.message));
+
+  // Start conversation abandonment detector (runs every 30 min)
+  import('./services/conversationCleanup.js')
+    .then(({ startConversationCleanup }) => startConversationCleanup())
+    .catch((err) => console.warn('Conversation cleanup failed to start:', err.message));
+
   app.listen(PORT, async () => {
     console.log(`RetailEdge API running on http://localhost:${PORT}`);
 

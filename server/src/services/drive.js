@@ -397,7 +397,19 @@ export async function processDriveFile(prisma, attachment, tenantId, userId) {
   // Run OCR
   try {
     const ocrResult = await extractInvoiceData(buffer, mimetype, tenantId, userId);
-    await applyOcrToInvoice(prisma, invoice.id, ocrResult);
+    const applyResult = await applyOcrToInvoice(prisma, invoice.id, ocrResult);
+
+    // ── Document type check: discard non-invoices ──
+    if (applyResult?.discarded) {
+      await prisma.driveImportLog.create({
+        data: {
+          tenantId, driveFileId, fileHash, fileName: filename, fileSize, mimeType: mimetype,
+          supplierName: applyResult.supplierName || null,
+          status: 'discarded', duplicateReason: `not_invoice:${applyResult.documentType}`, invoiceId: invoice.id,
+        },
+      });
+      return { status: 'discarded', documentType: applyResult.documentType, invoiceId: invoice.id };
+    }
 
     // Dedup Layer 3: Content match
     const updatedInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } });

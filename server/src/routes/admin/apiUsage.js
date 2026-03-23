@@ -96,6 +96,148 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Agent-to-display-name mapping (endpoint values → friendly labels)
+const AGENT_LABELS = {
+  ocr: 'Invoice OCR',
+  advisor_tool: 'Business Advisor',
+  advisor_stream: 'Business Advisor',
+  product_matching: 'Product Matching',
+  meta_optimizer: 'Meta Optimizer',
+  conflict_detection: 'Conflict Detection',
+  prompt_management: 'Prompt Config',
+  suggestion_engine: 'Suggestion Engine',
+};
+
+// Collapse advisor_tool + advisor_stream into one agent key
+function normalizeAgent(endpoint) {
+  if (endpoint === 'advisor_tool' || endpoint === 'advisor_stream') return 'advisor';
+  return endpoint;
+}
+
+// GET /api/admin/api-usage/agents — Per-agent cost breakdown (system-wide + per-tenant)
+router.get('/agents', async (req, res) => {
+  try {
+    const { tenantId, dateFrom, dateTo } = req.query;
+
+    const where = {};
+    if (tenantId) where.tenantId = tenantId;
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
+    // Group by endpoint
+    const byEndpoint = await basePrisma.apiUsageLog.groupBy({
+      by: ['endpoint'],
+      where,
+      _sum: { costUsd: true, inputTokens: true, outputTokens: true },
+      _count: true,
+      orderBy: { _sum: { costUsd: 'desc' } },
+    });
+
+    // Group by endpoint + tenantId (for per-tenant drilldown)
+    const byEndpointTenant = await basePrisma.apiUsageLog.groupBy({
+      by: ['endpoint', 'tenantId'],
+      where,
+      _sum: { costUsd: true, inputTokens: true, outputTokens: true },
+      _count: true,
+      orderBy: { _sum: { costUsd: 'desc' } },
+    });
+
+    // Get tenant names
+    const tenantIds = [...new Set(byEndpointTenant.map((r) => r.tenantId))];
+    const tenantsList = await basePrisma.tenant.findMany({
+      where: { id: { in: tenantIds } },
+      select: { id: true, name: true },
+    });
+    const tenantNameMap = {};
+    for (const t of tenantsList) tenantNameMap[t.id] = t.name;
+
+    // Collapse advisor endpoints and build agent summary
+    const agentMap = {};
+    for (const row of byEndpoint) {
+      const agentKey = normalizeAgent(row.endpoint);
+      if (!agentMap[agentKey]) {
+        agentMap[agentKey] = {
+          agentKey,
+          label: AGENT_LABELS[row.endpoint] || row.endpoint,
+          calls: 0,
+          cost: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          tenants: {},
+        };
+      }
+      agentMap[agentKey].calls += row._count;
+      agentMap[agentKey].cost += row._sum.costUsd || 0;
+      agentMap[agentKey].inputTokens += row._sum.inputTokens || 0;
+      agentMap[agentKey].outputTokens += row._sum.outputTokens || 0;
+    }
+
+    // Build per-tenant breakdown for each agent
+    for (const row of byEndpointTenant) {
+      const agentKey = normalizeAgent(row.endpoint);
+      if (!agentMap[agentKey]) continue;
+      const tenantKey = row.tenantId;
+      if (!agentMap[agentKey].tenants[tenantKey]) {
+        agentMap[agentKey].tenants[tenantKey] = {
+          tenantId: tenantKey,
+          tenantName: tenantNameMap[tenantKey] || 'Unknown',
+          calls: 0,
+          cost: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+        };
+      }
+      agentMap[agentKey].tenants[tenantKey].calls += row._count;
+      agentMap[agentKey].tenants[tenantKey].cost += row._sum.costUsd || 0;
+      agentMap[agentKey].tenants[tenantKey].inputTokens += row._sum.inputTokens || 0;
+      agentMap[agentKey].tenants[tenantKey].outputTokens += row._sum.outputTokens || 0;
+    }
+
+    // Format output
+    const totalCost = Object.values(agentMap).reduce((s, a) => s + a.cost, 0);
+    const totalCalls = Object.values(agentMap).reduce((s, a) => s + a.calls, 0);
+
+    const agents = Object.values(agentMap)
+      .sort((a, b) => b.cost - a.cost)
+      .map((a) => ({
+        agentKey: a.agentKey,
+        label: a.label,
+        calls: a.calls,
+        cost: Math.round(a.cost * 100) / 100,
+        avgCost: a.calls > 0 ? Math.round((a.cost / a.calls) * 10000) / 10000 : 0,
+        inputTokens: a.inputTokens,
+        outputTokens: a.outputTokens,
+        pctOfTotal: totalCost > 0 ? Math.round((a.cost / totalCost) * 1000) / 10 : 0,
+        tenants: Object.values(a.tenants)
+          .sort((x, y) => y.cost - x.cost)
+          .map((t) => ({
+            ...t,
+            cost: Math.round(t.cost * 100) / 100,
+            avgCost: t.calls > 0 ? Math.round((t.cost / t.calls) * 10000) / 10000 : 0,
+          })),
+      }));
+
+    res.json({
+      summary: {
+        totalCalls,
+        totalCost: Math.round(totalCost * 100) / 100,
+        avgCostPerCall: totalCalls > 0 ? Math.round((totalCost / totalCalls) * 10000) / 10000 : 0,
+        agentCount: agents.length,
+      },
+      agents,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET /api/admin/api-usage/calls — Individual API call logs
 router.get('/calls', async (req, res) => {
   try {

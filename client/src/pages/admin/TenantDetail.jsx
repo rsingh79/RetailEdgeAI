@@ -2,7 +2,62 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 
-const tabs = ['Details', 'Users', 'Subscription', 'Access Control'];
+const tabs = ['Details', 'Users', 'Subscription', 'Access Control', 'Prompt History'];
+
+function PromptHistoryTab({ tenantId, logs, loading, onLoad }) {
+  useEffect(() => { onLoad(); }, []);
+
+  const changeTypeLabels = {
+    add_override: 'Added',
+    remove_override: 'Removed',
+    replace_condition: 'Replaced',
+    resolve_conflict: 'Resolved',
+    revert: 'Reverted',
+  };
+
+  const changeTypeColors = {
+    add_override: 'bg-green-100 text-green-700',
+    remove_override: 'bg-red-100 text-red-700',
+    replace_condition: 'bg-blue-100 text-blue-700',
+    resolve_conflict: 'bg-amber-100 text-amber-700',
+    revert: 'bg-gray-100 text-gray-700',
+  };
+
+  if (loading) return <div className="text-center py-8 text-gray-500">Loading prompt history...</div>;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-200">
+        <h3 className="font-semibold text-gray-900">Prompt Change History</h3>
+        <p className="text-xs text-gray-500 mt-1">Timeline of all AI prompt customizations for this tenant</p>
+      </div>
+      {logs.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 text-sm">No prompt changes recorded</div>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {logs.map((log) => (
+            <div key={log.id} className="px-5 py-3">
+              <div className="flex items-center gap-3 mb-1">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${changeTypeColors[log.changeType] || 'bg-gray-100 text-gray-700'}`}>
+                  {changeTypeLabels[log.changeType] || log.changeType}
+                </span>
+                <span className="text-xs font-mono text-gray-500">{log.agentTypeKey}</span>
+                {log.conditionKey && <span className="text-xs text-gray-400">({log.conditionKey})</span>}
+                <span className="ml-auto text-xs text-gray-400">{new Date(log.createdAt).toLocaleString()}</span>
+              </div>
+              <p className="text-sm text-gray-700">{log.reason}</p>
+              {log.newText && (
+                <div className="mt-1 text-xs bg-gray-50 rounded p-2 font-mono text-gray-600 max-h-20 overflow-y-auto">
+                  {log.newText}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminTenantDetail() {
   const { id } = useParams();
@@ -13,6 +68,8 @@ export default function AdminTenantDetail() {
   const [saving, setSaving] = useState(false);
   const [lockReason, setLockReason] = useState('');
   const [editForm, setEditForm] = useState({});
+  const [promptLogs, setPromptLogs] = useState([]);
+  const [promptLogsLoading, setPromptLogsLoading] = useState(false);
 
   useEffect(() => {
     api.admin.getTenant(id)
@@ -241,6 +298,18 @@ export default function AdminTenantDetail() {
             <p className="text-gray-500 text-sm">Billing history will be available after Stripe integration.</p>
           </div>
         </div>
+      )}
+
+      {activeTab === 'Prompt History' && (
+        <PromptHistoryTab tenantId={id} logs={promptLogs} loading={promptLogsLoading} onLoad={() => {
+          if (promptLogs.length === 0) {
+            setPromptLogsLoading(true);
+            api.admin.getPromptChangeLog(id, 50)
+              .then(setPromptLogs)
+              .catch(console.error)
+              .finally(() => setPromptLogsLoading(false));
+          }
+        }} />
       )}
 
       {activeTab === 'Access Control' && (

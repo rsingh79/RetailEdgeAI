@@ -1,8 +1,25 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 
+const AGENT_COLORS = {
+  ocr: { bg: 'bg-blue-100', text: 'text-blue-700', bar: 'bg-blue-500' },
+  advisor: { bg: 'bg-teal-100', text: 'text-teal-700', bar: 'bg-teal-500' },
+  product_matching: { bg: 'bg-amber-100', text: 'text-amber-700', bar: 'bg-amber-500' },
+  suggestion_engine: { bg: 'bg-violet-100', text: 'text-violet-700', bar: 'bg-violet-500' },
+  meta_optimizer: { bg: 'bg-rose-100', text: 'text-rose-700', bar: 'bg-rose-500' },
+  prompt_management: { bg: 'bg-cyan-100', text: 'text-cyan-700', bar: 'bg-cyan-500' },
+  conflict_detection: { bg: 'bg-orange-100', text: 'text-orange-700', bar: 'bg-orange-500' },
+};
+
+const DEFAULT_COLOR = { bg: 'bg-gray-100', text: 'text-gray-700', bar: 'bg-gray-500' };
+
+function agentColor(key) {
+  return AGENT_COLORS[key] || DEFAULT_COLOR;
+}
+
 export default function AdminApiUsage() {
   const [usage, setUsage] = useState(null);
+  const [agentUsage, setAgentUsage] = useState(null);
   const [calls, setCalls] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState([]);
@@ -10,6 +27,8 @@ export default function AdminApiUsage() {
   const [callDetail, setCallDetail] = useState(null);
   const [showDrilldown, setShowDrilldown] = useState(false);
   const [drilldownTenantId, setDrilldownTenantId] = useState('');
+  const [expandedAgent, setExpandedAgent] = useState(null);
+  const [expandedTenant, setExpandedTenant] = useState(null);
 
   // Filters
   const [tenantFilter, setTenantFilter] = useState('');
@@ -21,15 +40,26 @@ export default function AdminApiUsage() {
     api.admin.getTenants().then(setTenants).catch(console.error);
   }, []);
 
-  const loadData = () => {
-    setLoading(true);
+  const buildParams = () => {
     const params = {};
     if (tenantFilter) params.tenantId = tenantFilter;
     if (dateFrom) params.dateFrom = dateFrom;
     if (dateTo) params.dateTo = dateTo;
+    return Object.keys(params).length ? params : null;
+  };
 
-    api.admin.getApiUsage(Object.keys(params).length ? params : null)
-      .then(setUsage)
+  const loadData = () => {
+    setLoading(true);
+    const params = buildParams();
+
+    Promise.all([
+      api.admin.getApiUsage(params),
+      api.admin.getApiAgentUsage(params),
+    ])
+      .then(([usageData, agentData]) => {
+        setUsage(usageData);
+        setAgentUsage(agentData);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -137,6 +167,47 @@ export default function AdminApiUsage() {
             </div>
           )}
 
+          {/* AI Agent Breakdown */}
+          {agentUsage?.agents?.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">AI Agent Breakdown</h3>
+                <div className="text-sm text-gray-500">
+                  {agentUsage.summary.agentCount} agents | Avg ${agentUsage.summary.avgCostPerCall}/call
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-2 font-medium text-gray-500 w-8"></th>
+                    <th className="text-left py-2 font-medium text-gray-500">Agent</th>
+                    <th className="text-right py-2 font-medium text-gray-500">Calls</th>
+                    <th className="text-right py-2 font-medium text-gray-500">Total Cost</th>
+                    <th className="text-right py-2 font-medium text-gray-500">Avg Cost/Call</th>
+                    <th className="text-right py-2 font-medium text-gray-500">Input Tokens</th>
+                    <th className="text-right py-2 font-medium text-gray-500">Output Tokens</th>
+                    <th className="text-right py-2 font-medium text-gray-500">% of Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agentUsage.agents.map((agent) => {
+                    const colors = agentColor(agent.agentKey);
+                    const isExpanded = expandedAgent === agent.agentKey;
+                    return (
+                      <AgentRow
+                        key={agent.agentKey}
+                        agent={agent}
+                        colors={colors}
+                        isExpanded={isExpanded}
+                        onToggle={() => setExpandedAgent(isExpanded ? null : agent.agentKey)}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Tenant Breakdown */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -154,6 +225,7 @@ export default function AdminApiUsage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-200">
                   <tr>
+                    <th className="text-left py-2 font-medium text-gray-500 w-8"></th>
                     <th className="text-left py-2 font-medium text-gray-500">Tenant</th>
                     <th className="text-right py-2 font-medium text-gray-500">Calls</th>
                     <th className="text-right py-2 font-medium text-gray-500">Input Tokens</th>
@@ -168,30 +240,25 @@ export default function AdminApiUsage() {
                     const pct = usage.summary.totalCost > 0
                       ? ((t.cost / usage.summary.totalCost) * 100).toFixed(1)
                       : 0;
+                    const isExpanded = expandedTenant === t.tenantId;
+                    // Build per-agent breakdown for this tenant from agentUsage data
+                    const tenantAgents = (agentUsage?.agents || [])
+                      .map((agent) => {
+                        const tenantData = agent.tenants.find((at) => at.tenantId === t.tenantId);
+                        return tenantData ? { ...tenantData, agentKey: agent.agentKey, label: agent.label } : null;
+                      })
+                      .filter(Boolean)
+                      .sort((a, b) => b.cost - a.cost);
                     return (
-                      <tr key={t.tenantId} className="border-b border-gray-100">
-                        <td className="py-2.5 font-medium text-gray-900">{t.tenantName}</td>
-                        <td className="py-2.5 text-right text-gray-600">{t.calls}</td>
-                        <td className="py-2.5 text-right text-gray-600">{t.inputTokens.toLocaleString()}</td>
-                        <td className="py-2.5 text-right text-gray-600">{t.outputTokens.toLocaleString()}</td>
-                        <td className="py-2.5 text-right font-medium">${t.cost.toFixed(2)}</td>
-                        <td className="py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                            <span className="text-xs text-gray-500 w-10 text-right">{pct}%</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 text-right">
-                          <button
-                            onClick={() => loadCalls(t.tenantId)}
-                            className="text-brand-600 hover:underline text-xs"
-                          >
-                            Details
-                          </button>
-                        </td>
-                      </tr>
+                      <TenantRow
+                        key={t.tenantId}
+                        tenant={t}
+                        pct={pct}
+                        isExpanded={isExpanded}
+                        onToggle={() => setExpandedTenant(isExpanded ? null : t.tenantId)}
+                        onViewCalls={() => loadCalls(t.tenantId)}
+                        tenantAgents={tenantAgents}
+                      />
                     );
                   })}
                 </tbody>
@@ -216,41 +283,42 @@ export default function AdminApiUsage() {
                 </button>
               </div>
               <div className="space-y-1">
-                {(calls.calls || []).map((call) => (
-                  <div key={call.id}>
-                    <div
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer text-sm"
-                      onClick={() => loadCallDetail(call.id)}
-                    >
-                      <span className="text-gray-400 w-36">{new Date(call.createdAt).toLocaleString()}</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        call.endpoint === 'ocr' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {call.endpoint}
-                      </span>
-                      <span className="text-gray-500 text-xs">{call.model}</span>
-                      <span className="flex-1" />
-                      <span className="text-gray-600">{call.inputTokens?.toLocaleString()} / {call.outputTokens?.toLocaleString()}</span>
-                      <span className="text-gray-400 text-xs w-14 text-right">{call.durationMs}ms</span>
-                      <span className="font-medium w-16 text-right">${call.costUsd?.toFixed(4)}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${call.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {call.status}
-                      </span>
-                    </div>
-                    {expandedCall === call.id && callDetail && (
-                      <div className="mx-3 mb-3 p-4 bg-gray-900 rounded-lg text-xs font-mono text-gray-300">
-                        <div className="mb-3">
-                          <div className="text-gray-500 mb-1">Request</div>
-                          <pre className="whitespace-pre-wrap">{JSON.stringify(callDetail.requestPayload, null, 2)}</pre>
-                        </div>
-                        <div>
-                          <div className="text-gray-500 mb-1">Response</div>
-                          <pre className="whitespace-pre-wrap">{JSON.stringify(callDetail.responsePayload, null, 2)}</pre>
-                        </div>
+                {(calls.calls || []).map((call) => {
+                  const endpointColors = agentColor(call.endpoint === 'advisor_tool' || call.endpoint === 'advisor_stream' ? 'advisor' : call.endpoint);
+                  return (
+                    <div key={call.id}>
+                      <div
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer text-sm"
+                        onClick={() => loadCallDetail(call.id)}
+                      >
+                        <span className="text-gray-400 w-36">{new Date(call.createdAt).toLocaleString()}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${endpointColors.bg} ${endpointColors.text}`}>
+                          {call.endpoint}
+                        </span>
+                        <span className="text-gray-500 text-xs">{call.model}</span>
+                        <span className="flex-1" />
+                        <span className="text-gray-600">{call.inputTokens?.toLocaleString()} / {call.outputTokens?.toLocaleString()}</span>
+                        <span className="text-gray-400 text-xs w-14 text-right">{call.durationMs}ms</span>
+                        <span className="font-medium w-16 text-right">${call.costUsd?.toFixed(4)}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${call.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {call.status}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {expandedCall === call.id && callDetail && (
+                        <div className="mx-3 mb-3 p-4 bg-gray-900 rounded-lg text-xs font-mono text-gray-300">
+                          <div className="mb-3">
+                            <div className="text-gray-500 mb-1">Request</div>
+                            <pre className="whitespace-pre-wrap">{JSON.stringify(callDetail.requestPayload, null, 2)}</pre>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 mb-1">Response</div>
+                            <pre className="whitespace-pre-wrap">{JSON.stringify(callDetail.responsePayload, null, 2)}</pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               {calls.pagination && calls.pagination.totalPages > 1 && (
                 <div className="mt-3 text-center text-sm text-gray-500">
@@ -262,5 +330,147 @@ export default function AdminApiUsage() {
         </>
       )}
     </div>
+  );
+}
+
+/** Expandable agent row with per-tenant drilldown */
+function AgentRow({ agent, colors, isExpanded, onToggle }) {
+  return (
+    <>
+      <tr
+        className="border-b border-gray-100 cursor-pointer hover:bg-gray-50"
+        onClick={onToggle}
+      >
+        <td className="py-2.5 text-gray-400">
+          <svg
+            className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </td>
+        <td className="py-2.5">
+          <span className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg ${colors.bg}`}>
+            <span className={`w-2 h-2 rounded-full ${colors.bar}`} />
+            <span className={`font-medium text-sm ${colors.text}`}>{agent.label}</span>
+          </span>
+        </td>
+        <td className="py-2.5 text-right text-gray-600">{agent.calls.toLocaleString()}</td>
+        <td className="py-2.5 text-right font-medium">${agent.cost.toFixed(2)}</td>
+        <td className="py-2.5 text-right text-gray-600">${agent.avgCost.toFixed(4)}</td>
+        <td className="py-2.5 text-right text-gray-600">{agent.inputTokens.toLocaleString()}</td>
+        <td className="py-2.5 text-right text-gray-600">{agent.outputTokens.toLocaleString()}</td>
+        <td className="py-2.5 text-right">
+          <div className="flex items-center justify-end gap-2">
+            <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${colors.bar}`} style={{ width: `${agent.pctOfTotal}%` }} />
+            </div>
+            <span className="text-xs text-gray-500 w-10 text-right">{agent.pctOfTotal}%</span>
+          </div>
+        </td>
+      </tr>
+      {isExpanded && agent.tenants.length > 0 && (
+        <>
+          <tr className="bg-gray-50">
+            <td />
+            <td className="py-1.5 text-xs font-medium text-gray-400 pl-4">TENANT</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">CALLS</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">COST</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">AVG/CALL</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">IN TOKENS</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">OUT TOKENS</td>
+            <td />
+          </tr>
+          {agent.tenants.map((t) => (
+            <tr key={t.tenantId} className="bg-gray-50/50 border-b border-gray-100/50">
+              <td />
+              <td className="py-2 pl-6 text-sm text-gray-700">{t.tenantName}</td>
+              <td className="py-2 text-right text-sm text-gray-500">{t.calls.toLocaleString()}</td>
+              <td className="py-2 text-right text-sm font-medium text-gray-700">${t.cost.toFixed(2)}</td>
+              <td className="py-2 text-right text-sm text-gray-500">${t.avgCost.toFixed(4)}</td>
+              <td className="py-2 text-right text-sm text-gray-500">{t.inputTokens.toLocaleString()}</td>
+              <td className="py-2 text-right text-sm text-gray-500">{t.outputTokens.toLocaleString()}</td>
+              <td />
+            </tr>
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
+/** Expandable tenant row with per-agent drilldown */
+function TenantRow({ tenant, pct, isExpanded, onToggle, onViewCalls, tenantAgents }) {
+  return (
+    <>
+      <tr
+        className="border-b border-gray-100 cursor-pointer hover:bg-gray-50"
+        onClick={onToggle}
+      >
+        <td className="py-2.5 text-gray-400">
+          <svg
+            className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </td>
+        <td className="py-2.5 font-medium text-gray-900">{tenant.tenantName}</td>
+        <td className="py-2.5 text-right text-gray-600">{tenant.calls}</td>
+        <td className="py-2.5 text-right text-gray-600">{tenant.inputTokens.toLocaleString()}</td>
+        <td className="py-2.5 text-right text-gray-600">{tenant.outputTokens.toLocaleString()}</td>
+        <td className="py-2.5 text-right font-medium">${tenant.cost.toFixed(2)}</td>
+        <td className="py-2.5 text-right">
+          <div className="flex items-center justify-end gap-2">
+            <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs text-gray-500 w-10 text-right">{pct}%</span>
+          </div>
+        </td>
+        <td className="py-2.5 text-right">
+          <button
+            onClick={(e) => { e.stopPropagation(); onViewCalls(); }}
+            className="text-brand-600 hover:underline text-xs"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      {isExpanded && tenantAgents.length > 0 && (
+        <>
+          <tr className="bg-gray-50">
+            <td />
+            <td className="py-1.5 text-xs font-medium text-gray-400 pl-4">AGENT</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">CALLS</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">IN TOKENS</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">OUT TOKENS</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">COST</td>
+            <td className="py-1.5 text-right text-xs font-medium text-gray-400">AVG/CALL</td>
+            <td />
+          </tr>
+          {tenantAgents.map((a) => {
+            const colors = agentColor(a.agentKey);
+            return (
+              <tr key={a.agentKey} className="bg-gray-50/50 border-b border-gray-100/50">
+                <td />
+                <td className="py-2 pl-4">
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${colors.bar}`} />
+                    {a.label}
+                  </span>
+                </td>
+                <td className="py-2 text-right text-sm text-gray-500">{a.calls.toLocaleString()}</td>
+                <td className="py-2 text-right text-sm text-gray-500">{a.inputTokens.toLocaleString()}</td>
+                <td className="py-2 text-right text-sm text-gray-500">{a.outputTokens.toLocaleString()}</td>
+                <td className="py-2 text-right text-sm font-medium text-gray-700">${a.cost.toFixed(2)}</td>
+                <td className="py-2 text-right text-sm text-gray-500">${a.avgCost.toFixed(4)}</td>
+                <td />
+              </tr>
+            );
+          })}
+        </>
+      )}
+    </>
   );
 }

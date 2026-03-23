@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
+import SmartImport from '../components/products/SmartImport';
 
 const IMPORT_FIELDS = [
   { key: 'name', label: 'Product Name', required: true },
@@ -19,10 +20,15 @@ export default function Products() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showSmartImport, setShowSmartImport] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [deleting, setDeleting] = useState(null); // single product id being deleted
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // 'bulk' | productId | null
+  const [expandedProduct, setExpandedProduct] = useState(null);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [addProductForm, setAddProductForm] = useState({ name: '', category: '', baseUnit: '', barcode: '', costPrice: '', sellingPrice: '' });
+  const [addProductSaving, setAddProductSaving] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -120,12 +126,22 @@ export default function Products() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => setShowSmartImport(true)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            Smart Import
+          </button>
+          <button
             onClick={() => setShowImport(true)}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
           >
-            Import Products
+            Manual Import
           </button>
-          <button className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700">
+          <button
+            onClick={() => setShowAddProduct(true)}
+            className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700"
+          >
             + Add Product
           </button>
         </div>
@@ -251,63 +267,183 @@ export default function Products() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((p) => (
-                <tr key={p.id} className={`hover:bg-gray-50 ${selectedIds.has(p.id) ? 'bg-teal-50/50' : ''}`}>
-                  <td className="pl-4 pr-1 py-3">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-                      checked={selectedIds.has(p.id)}
-                      onChange={() => toggleSelect(p.id)}
-                    />
-                  </td>
-                  <td className="px-3 py-3 font-medium">{p.name}</td>
-                  <td className="px-3 py-3 text-gray-600">{p.category || '—'}</td>
-                  <td className="px-3 py-3 text-gray-600 font-mono text-xs">{p.barcode || '—'}</td>
-                  <td className="px-3 py-3 text-gray-600">{p.baseUnit || '—'}</td>
-                  <td className="px-3 py-3 text-right text-gray-600">
-                    {p.costPrice != null ? `$${Number(p.costPrice).toFixed(2)}` : '—'}
-                  </td>
-                  <td className="px-3 py-3 text-right text-gray-600">
-                    {p.sellingPrice != null ? `$${Number(p.sellingPrice).toFixed(2)}` : '—'}
-                  </td>
-                  <td className="px-3 py-3">
-                    {p.source ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                        {p.source}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">Manual</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-gray-500 text-xs">{formatDate(p.createdAt)}</td>
-                  <td className="px-3 py-3">
-                    <button
-                      onClick={() => setShowDeleteConfirm(p.id)}
-                      disabled={deleting === p.id}
-                      className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
-                      title="Delete product"
-                    >
-                      {deleting === p.id ? (
-                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                        </svg>
-                      )}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((p) => {
+                const isExpanded = expandedProduct === p.id;
+                const hasVariants = p.variants && p.variants.length > 0;
+                return (
+                  <ProductRow
+                    key={p.id}
+                    product={p}
+                    isExpanded={isExpanded}
+                    hasVariants={hasVariants}
+                    isSelected={selectedIds.has(p.id)}
+                    onToggleExpand={() => setExpandedProduct(isExpanded ? null : p.id)}
+                    onToggleSelect={() => toggleSelect(p.id)}
+                    onDelete={() => setShowDeleteConfirm(p.id)}
+                    deleting={deleting === p.id}
+                    formatDate={formatDate}
+                  />
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Import Modal */}
+      {/* Smart Import Modal */}
+      {showSmartImport && (
+        <SmartImport
+          onClose={() => setShowSmartImport(false)}
+          onImportComplete={loadProducts}
+        />
+      )}
+
+      {/* Add Product Slide-out */}
+      {showAddProduct && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
+          <div className="w-[440px] bg-white h-full shadow-xl flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Add Product</h3>
+              <button onClick={() => setShowAddProduct(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={addProductForm.name}
+                  onChange={(e) => setAddProductForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Almonds Raw"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <input
+                  type="text"
+                  value={addProductForm.category}
+                  onChange={(e) => setAddProductForm((f) => ({ ...f, category: e.target.value }))}
+                  placeholder="e.g. Nuts & Seeds"
+                  list="category-suggestions"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                />
+                <datalist id="category-suggestions">
+                  {categories.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Base Unit</label>
+                  <select
+                    value={addProductForm.baseUnit}
+                    onChange={(e) => setAddProductForm((f) => ({ ...f, baseUnit: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-white"
+                  >
+                    <option value="">Select...</option>
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                    <option value="L">L</option>
+                    <option value="ml">ml</option>
+                    <option value="each">each</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
+                  <input
+                    type="text"
+                    value={addProductForm.barcode}
+                    onChange={(e) => setAddProductForm((f) => ({ ...f, barcode: e.target.value }))}
+                    placeholder="UPC / EAN"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price (ex-GST)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-gray-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={addProductForm.costPrice}
+                      onChange={(e) => setAddProductForm((f) => ({ ...f, costPrice: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (ex-GST)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-gray-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={addProductForm.sellingPrice}
+                      onChange={(e) => setAddProductForm((f) => ({ ...f, sellingPrice: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              {addProductForm.costPrice && addProductForm.sellingPrice && parseFloat(addProductForm.sellingPrice) > 0 && (
+                <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                  <span className="text-gray-500">Margin: </span>
+                  <span className="font-semibold text-gray-900">
+                    {(((parseFloat(addProductForm.sellingPrice) - parseFloat(addProductForm.costPrice)) / parseFloat(addProductForm.sellingPrice)) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => setShowAddProduct(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!addProductForm.name.trim()) return;
+                  setAddProductSaving(true);
+                  try {
+                    await api.createProduct({
+                      name: addProductForm.name,
+                      category: addProductForm.category || null,
+                      baseUnit: addProductForm.baseUnit || null,
+                      barcode: addProductForm.barcode || null,
+                      costPrice: addProductForm.costPrice ? parseFloat(addProductForm.costPrice) : null,
+                      sellingPrice: addProductForm.sellingPrice ? parseFloat(addProductForm.sellingPrice) : null,
+                    });
+                    setShowAddProduct(false);
+                    setAddProductForm({ name: '', category: '', baseUnit: '', barcode: '', costPrice: '', sellingPrice: '' });
+                    loadProducts();
+                  } catch (err) {
+                    setError(err.message);
+                  } finally {
+                    setAddProductSaving(false);
+                  }
+                }}
+                disabled={!addProductForm.name.trim() || addProductSaving}
+                className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+              >
+                {addProductSaving ? 'Saving...' : 'Add Product'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Import Modal */}
       {showImport && (
         <ImportWizard
           onClose={() => {
@@ -359,6 +495,141 @@ export default function Products() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Product Row with expandable variants ─────────────────────
+
+function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleExpand, onToggleSelect, onDelete, deleting, formatDate }) {
+  // Group variants by store
+  const variantsByStore = {};
+  if (p.variants) {
+    for (const v of p.variants) {
+      const storeName = v.store?.name || 'Unknown Store';
+      if (!variantsByStore[storeName]) variantsByStore[storeName] = [];
+      variantsByStore[storeName].push(v);
+    }
+  }
+
+  return (
+    <>
+      <tr
+        className={`hover:bg-gray-50 ${isSelected ? 'bg-teal-50/50' : ''} ${hasVariants ? 'cursor-pointer' : ''}`}
+        onClick={hasVariants ? onToggleExpand : undefined}
+      >
+        <td className="pl-4 pr-1 py-3" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+            checked={isSelected}
+            onChange={onToggleSelect}
+          />
+        </td>
+        <td className="px-3 py-3 font-medium">
+          <div className="flex items-center gap-2">
+            {hasVariants && (
+              <svg
+                className={`w-3.5 h-3.5 text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+            <span>{p.name}</span>
+            {hasVariants && (
+              <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full font-medium">
+                {p.variants.length} variants
+              </span>
+            )}
+          </div>
+        </td>
+        <td className="px-3 py-3 text-gray-600">{p.category || '—'}</td>
+        <td className="px-3 py-3 text-gray-600 font-mono text-xs">{p.barcode || '—'}</td>
+        <td className="px-3 py-3 text-gray-600">{p.baseUnit || '—'}</td>
+        <td className="px-3 py-3 text-right text-gray-600">
+          {p.costPrice != null ? `$${Number(p.costPrice).toFixed(2)}` : '—'}
+        </td>
+        <td className="px-3 py-3 text-right text-gray-600">
+          {p.sellingPrice != null ? `$${Number(p.sellingPrice).toFixed(2)}` : '—'}
+        </td>
+        <td className="px-3 py-3">
+          {p.source ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+              {p.source}
+            </span>
+          ) : (
+            <span className="text-gray-400 text-xs">Manual</span>
+          )}
+        </td>
+        <td className="px-3 py-3 text-gray-500 text-xs">{formatDate(p.createdAt)}</td>
+        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+            title="Delete product"
+          >
+            {deleting ? (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+            )}
+          </button>
+        </td>
+      </tr>
+      {isExpanded && hasVariants && Object.entries(variantsByStore).map(([storeName, variants]) => (
+        <tr key={storeName} className="bg-gray-50/70">
+          <td />
+          <td colSpan={9} className="px-3 py-2">
+            <div className="pl-6">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
+                </svg>
+                {storeName}
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-200">
+                    <th className="text-left py-1 font-medium">SKU</th>
+                    <th className="text-left py-1 font-medium">Variant</th>
+                    <th className="text-left py-1 font-medium">Size</th>
+                    <th className="text-right py-1 font-medium">Unit Qty</th>
+                    <th className="text-right py-1 font-medium">Cost</th>
+                    <th className="text-right py-1 font-medium">Price</th>
+                    <th className="text-center py-1 font-medium">Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {variants.map((v) => (
+                    <tr key={v.id} className="border-b border-gray-100 last:border-0">
+                      <td className="py-1.5 font-mono text-gray-500">{v.sku}</td>
+                      <td className="py-1.5 text-gray-800 font-medium">{v.name}</td>
+                      <td className="py-1.5 text-gray-600">{v.size || '—'}</td>
+                      <td className="py-1.5 text-right text-gray-600">{v.unitQty}</td>
+                      <td className="py-1.5 text-right text-gray-600">
+                        {v.currentCost ? `$${Number(v.currentCost).toFixed(2)}` : '—'}
+                      </td>
+                      <td className="py-1.5 text-right text-gray-800 font-medium">
+                        ${Number(v.salePrice).toFixed(2)}
+                      </td>
+                      <td className="py-1.5 text-center">
+                        <span className={`inline-block w-2 h-2 rounded-full ${v.isActive ? 'bg-green-500' : 'bg-gray-300'}`} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }
 

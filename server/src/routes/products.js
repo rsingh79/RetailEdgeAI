@@ -157,9 +157,20 @@ router.get('/:id', async (req, res) => {
 // Create a new product
 router.post('/', async (req, res) => {
   try {
-    const { name, category, baseUnit, barcode } = req.body;
+    const { name, category, baseUnit, barcode, costPrice, sellingPrice, source } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Product name is required' });
+    }
     const product = await req.prisma.product.create({
-      data: { name, category, baseUnit, barcode },
+      data: {
+        name: name.trim(),
+        category: category?.trim() || null,
+        baseUnit: baseUnit?.trim() || null,
+        barcode: barcode?.trim() || null,
+        costPrice: costPrice != null ? parseFloat(costPrice) : null,
+        sellingPrice: sellingPrice != null ? parseFloat(sellingPrice) : null,
+        source: source?.trim() || null,
+      },
     });
     res.status(201).json(product);
   } catch (err) {

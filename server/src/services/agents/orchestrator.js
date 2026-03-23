@@ -17,12 +17,14 @@ import {
   calculateCost,
 } from '../apiUsageTracker.js';
 import { allToolDefs, executeTool } from './toolExecutor.js';
+import { assemblePrompt } from '../promptAssemblyEngine.js';
 
 const MODEL = 'claude-sonnet-4-20250514';
 const MAX_TOOL_ROUNDS = 5;
 const MAX_RESPONSE_TOKENS = 2048;
 
-const SYSTEM_PROMPT = `You are a Business AI Advisor for a small retail business using RetailEdge, a retail management platform. You help the business owner understand their data and make better decisions.
+// Hardcoded fallback — used only if assembly engine fails
+const FALLBACK_SYSTEM_PROMPT = `You are a Business AI Advisor for a small retail business using RetailEdge, a retail management platform. You help the business owner understand their data and make better decisions.
 
 CAPABILITIES:
 - You have tools to query the business's real data: invoices, products, pricing rules, margins, supplier spending, competitor prices, and alerts.
@@ -80,6 +82,26 @@ export async function runAdvisorStreaming({
   const allToolCalls = [];
   const allToolResults = [];
 
+  // ── Assemble tenant-specific system prompt ──
+  let systemPrompt = FALLBACK_SYSTEM_PROMPT;
+  let promptMeta = null;
+  try {
+    const assembly = await assemblePrompt({
+      agentRoleKey: 'business_advisor',
+      tenantId,
+      runtimeContext: {
+        currentDate: new Date().toISOString().split('T')[0],
+        availableTools: allToolDefs.map((t) => t.name),
+      },
+    });
+    if (assembly) {
+      systemPrompt = assembly.prompt;
+      promptMeta = assembly.metadata;
+    }
+  } catch (err) {
+    console.warn('Failed to assemble advisor prompt, using fallback:', err.message);
+  }
+
   // Working copy of messages for the tool loop
   let workingMessages = [...messages];
 
@@ -92,7 +114,7 @@ export async function runAdvisorStreaming({
       model: MODEL,
       messages: workingMessages,
       maxTokens: MAX_RESPONSE_TOKENS,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       tools: allToolDefs,
       requestSummary: { round, messageCount: workingMessages.length },
     });
@@ -139,6 +161,7 @@ export async function runAdvisorStreaming({
         outputTokens: totalOutputTokens,
         costUsd: Math.round(totalCostUsd * 1000000) / 1000000,
         durationMs,
+        promptMeta,
       };
     }
 
@@ -233,5 +256,6 @@ export async function runAdvisorStreaming({
     outputTokens: totalOutputTokens,
     costUsd: Math.round(totalCostUsd * 1000000) / 1000000,
     durationMs,
+    promptMeta,
   };
 }

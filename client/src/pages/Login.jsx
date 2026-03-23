@@ -5,7 +5,7 @@ import { clearPlanCache } from '../hooks/useTenantPlan';
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('sarah@greengrocer.com.au');
+  const [email, setEmail] = useState('sarah@greengrocer.com');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

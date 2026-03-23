@@ -55,6 +55,7 @@ model Tenant {
   driveImportLogs     DriveImportLog[]
   planTierId          String?
   planTier            PlanTier?  @relation(fields: [planTierId], references: [id])
+  conversations       Conversation[]
 }
 
 // ── Auth ──
@@ -69,8 +70,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant    Tenant?    @relation(fields: [tenantId], references: [id])
-  auditLogs AuditLog[]
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id])
+  auditLogs     AuditLog[]
+  conversations Conversation[]
 
   @@index([tenantId])
 }
@@ -166,7 +168,8 @@ model Supplier {
   abn       String?
   email     String?
   phone        String?
-  gstInclusive Boolean  @default(false) // does this supplier's line prices include GST?
+  gstInclusive  Boolean  @default(false) // does this supplier's line prices include GST?
+  hasPerLineGst Boolean  @default(false) // does this supplier show per-line GST amounts on invoices?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -216,6 +219,7 @@ enum InvoiceStatus {
   APPROVED
   EXPORTED
   FAILED
+  DISCARDED   // document was not an invoice (e.g. statement, receipt, PO)
 }
 
 enum FreightMethod {
@@ -235,6 +239,8 @@ model InvoiceLine {
   lineTotal        Float
   freightAlloc     Float   @default(0)
   gstAlloc         Float   @default(0)
+  gstApplicable    Boolean @default(true)  // does this line item attract GST?
+  lineGstAmount    Float?  // per-line GST amount extracted from invoice (null if no per-line GST column)
   packSize         String? // e.g. "10kg bag", "Tray x30"
   baseUnit         String? // e.g. "kg", "each"
   baseUnitCost     Float?  // normalized cost per base unit
@@ -743,4 +749,358 @@ model PlanTierLimit {
 
   @@unique([planTierId, limitKey])
   @@index([planTierId])
+}
+
+// ── Business AI Advisor: Chat ──
+
+model Conversation {
+  id            String    @id @default(cuid())
+  tenantId      String
+  userId        String
+  title         String?                       // Auto-generated from first message
+  lastMessageAt DateTime?
+  messageCount  Int       @default(0)
+  totalCostUsd  Float     @default(0)         // Running total of message costs
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  resolutionStatus String?                    // "resolved", "escalated", "abandoned", "failed"
+  topicTags        String[]  @default([])
+  agentRoleKey     String?                    // which agent role handled this conversation
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  messages Message[]
+
+  @@index([tenantId])
+  @@index([tenantId, userId, lastMessageAt])
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  conversationId  String
+  role            String                      // "user", "assistant", "system"
+  content         String                      // Message text (markdown supported)
+  toolCalls       Json?                       // Tool calls made by assistant
+  toolResults     Json?                       // Results from tool execution
+  inputTokens     Int?                        // Input tokens for this exchange
+  outputTokens    Int?                        // Output tokens for this exchange
+  costUsd         Float?                      // Estimated cost in USD
+  durationMs      Int?                        // Response time in milliseconds
+  feedbackRating  Int?                        // 1 = thumbs down, 5 = thumbs up
+  feedbackComment String?                     // Optional feedback text
+  createdAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+// ── AI Agent Prompt Management ──
+
+model AgentType {
+  id          String   @id @default(cuid())
+  key         String   @unique           // "ocr_extraction", "product_matching", "prompt_management"
+  name        String                      // "Invoice OCR", "Product Matching"
+  description String?
+  model       String   @default("claude-sonnet-4-20250514")
+  maxTokens   Int      @default(4096)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  promptTemplates PromptTemplate[]
+}
+
+model PromptTemplate {
+  id           String   @id @default(cuid())
+  agentTypeId  String
+  version      Int      @default(1)
+  preamble     String   @db.Text        // structural header (role, JSON schema)
+  postamble    String?  @db.Text        // closing instructions
+  isActive     Boolean  @default(true)  // only one active version per agent
+  createdAt    DateTime @default(now())
+  createdBy    String?                  // userId of admin who created this version
+
+  agentType  AgentType         @relation(fields: [agentTypeId], references: [id])
+  conditions PromptCondition[]
+
+  @@unique([agentTypeId, version])
+  @@index([agentTypeId])
+}
+
+model PromptCondition {
+  id               String   @id @default(cuid())
+  promptTemplateId String
+  orderIndex       Int                     // sort order within the prompt
+  category         String   @default("rule") // "rule", "format", "constraint", "example"
+  key              String                   // machine-readable key e.g. "gst_detection"
+  text             String   @db.Text        // the actual instruction text
+  isRequired       Boolean  @default(false) // if true, tenants cannot remove this
+  validationKey    String?                  // named validator fn key e.g. "has_gst_invoices"
+  validationDesc   String?                  // human-readable description of what the test checks
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  promptTemplate     PromptTemplate        @relation(fields: [promptTemplateId], references: [id], onDelete: Cascade)
+  tenantOverrides    TenantPromptOverride[]
+  conflicts          PromptConflict[]
+
+  @@unique([promptTemplateId, key])
+  @@index([promptTemplateId])
+}
+
+model TenantPromptOverride {
+  id                String   @id @default(cuid())
+  tenantId          String
+  promptConditionId String?               // null if this is a tenant-added condition
+  agentTypeKey      String                // denormalized: "ocr_extraction"
+  action            String                // "add", "remove", "replace"
+  customText        String?  @db.Text     // tenant-specific text (for "add" and "replace")
+  orderIndex        Int      @default(999)
+  category          String   @default("rule")
+  isActive          Boolean  @default(true)
+  createdBy         String?               // userId
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  promptCondition PromptCondition? @relation(fields: [promptConditionId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, agentTypeKey])
+  @@index([promptConditionId])
+}
+
+model PromptConflict {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  promptConditionId   String                // the generic condition being challenged
+  tenantOverrideText  String    @db.Text    // the tenant text that conflicts
+  detectedReason      String?               // AI explanation of the conflict
+  resolution          String?               // "keep_generic", "keep_tenant", "merge", null=unresolved
+  resolvedBy          String?               // userId
+  resolvedAt          DateTime?
+  validationPassed    Boolean?              // did the safety test pass?
+  validationOutput    String?   @db.Text    // test output/error
+  createdAt           DateTime  @default(now())
+
+  promptCondition PromptCondition @relation(fields: [promptConditionId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, promptConditionId])
+}
+
+model PromptChangeLog {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  userId              String?
+  agentTypeKey        String                // "ocr_extraction", "product_matching"
+  changeType          String                // "add_override", "remove_override", "replace_condition", "resolve_conflict", "revert"
+  conditionKey        String?               // which generic condition affected
+  previousText        String?  @db.Text
+  newText             String?  @db.Text
+  reason              String   @db.Text     // user's request / AI summary of why
+  conversationExcerpt String?  @db.Text     // relevant chat exchange
+  createdAt           DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, agentTypeKey])
+  @@index([createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Prompt Evolution System (Phase 1 — coexists with old prompt models above)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model AgentRole {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?  @db.Text
+  model       String   @default("claude-sonnet-4-20250514")
+  maxTokens   Int      @default(4096)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  baseVersions          PromptBaseVersion[]
+  tenantConfigs         TenantPromptConfig[]
+  tenantFewShotExamples TenantFewShotExample[]
+  interactionSignals    InteractionSignal[]
+  suggestions           PromptSuggestion[]
+  auditLogs             PromptAuditLog[]
+}
+
+model PromptBaseVersion {
+  id                  String   @id @default(cuid())
+  agentRoleId         String
+  versionNumber       Int
+  content             Json                    // { systemPrompt, sections[], toolDefinitions[], outputFormat }
+  isActive            Boolean  @default(false)
+  parentVersionId     String?
+  changeReason        String   @db.Text
+  performanceSnapshot Json?
+  createdBy           String?
+  createdAt           DateTime @default(now())
+
+  agentRole     AgentRole          @relation(fields: [agentRoleId], references: [id])
+  parentVersion PromptBaseVersion? @relation("VersionLineage", fields: [parentVersionId], references: [id])
+  childVersions PromptBaseVersion[] @relation("VersionLineage")
+
+  tenantConfigs TenantPromptConfig[]
+  signals       InteractionSignal[]
+  auditLogs     PromptAuditLog[]
+
+  @@unique([agentRoleId, versionNumber])
+  @@index([agentRoleId, isActive])
+  @@index([agentRoleId])
+}
+
+model TenantPromptConfig {
+  id                        String   @id @default(cuid())
+  tenantId                  String
+  agentRoleId               String
+  baseVersionId             String
+  versionNumber             Int      @default(1)
+  isActive                  Boolean  @default(true)
+
+  toneSettings              Json?
+  customInstructions        Json?
+  domainTerminology         Json?
+  escalationRules           Json?
+  knowledgeSourcePriorities Json?
+  enabledCapabilities       Json?
+
+  updatedBy                 String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  agentRole   AgentRole         @relation(fields: [agentRoleId], references: [id])
+  baseVersion PromptBaseVersion @relation(fields: [baseVersionId], references: [id])
+  signals     InteractionSignal[]
+  auditLogs   PromptAuditLog[]
+
+  @@unique([tenantId, agentRoleId, versionNumber])
+  @@index([tenantId, agentRoleId, isActive])
+  @@index([tenantId, agentRoleId])
+  @@index([baseVersionId])
+}
+
+model TenantFewShotExample {
+  id                   String    @id @default(cuid())
+  tenantId             String
+  agentRoleId          String
+  inputText            String    @db.Text
+  idealOutputText      String    @db.Text
+  sourceConversationId String?
+  qualityScore         Float     @default(0)
+  timesUsed            Int       @default(0)
+  lastUsedAt           DateTime?
+  isActive             Boolean   @default(false)
+  autoCurated          Boolean   @default(false)
+  tags                 String[]  @default([])
+  createdBy            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  agentRole AgentRole @relation(fields: [agentRoleId], references: [id])
+
+  @@index([tenantId, agentRoleId, isActive])
+  @@index([tenantId, agentRoleId])
+  @@index([tenantId, qualityScore])
+  @@index([sourceConversationId])
+}
+
+model InteractionSignal {
+  id                    String   @id @default(cuid())
+  conversationId        String?
+  tenantId              String
+  agentRoleId           String
+  baseVersionUsed       String
+  configVersionUsed     String?
+
+  resolutionStatus      String   @default("unknown")
+  userSatisfactionScore Int?
+  humanOverride         Boolean  @default(false)
+  humanOverrideDiff     Json?
+  correctionCount       Int      @default(0)
+  escalationOccurred    Boolean  @default(false)
+  failureReason         String?  @db.Text
+
+  topicTags             String[] @default([])
+  tokenCount            Int      @default(0)
+  latencyMs             Int      @default(0)
+  costUsd               Float    @default(0)
+
+  userId                String?
+  timestamp             DateTime @default(now())
+
+  agentRole   AgentRole          @relation(fields: [agentRoleId], references: [id])
+  baseVersion PromptBaseVersion  @relation(fields: [baseVersionUsed], references: [id])
+  config      TenantPromptConfig? @relation(fields: [configVersionUsed], references: [id])
+
+  @@index([tenantId, agentRoleId, timestamp])
+  @@index([tenantId, timestamp])
+  @@index([agentRoleId, baseVersionUsed, timestamp])
+  @@index([baseVersionUsed])
+  @@index([tenantId, resolutionStatus])
+  @@index([conversationId])
+}
+
+model PromptSuggestion {
+  id                String    @id @default(cuid())
+  tenantId          String?
+  agentRoleId       String
+  suggestionType    String
+  suggestionContent Json
+  evidence          Json
+  impactEstimate    Json?
+
+  status            String    @default("pending")
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  reviewNotes       String?   @db.Text
+  appliedAt         DateTime?
+
+  source            String    @default("suggestion_engine")
+  batchId           String?
+  createdAt         DateTime  @default(now())
+
+  agentRole AgentRole @relation(fields: [agentRoleId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, agentRoleId, status])
+  @@index([status, createdAt])
+  @@index([agentRoleId, source])
+  @@index([batchId])
+}
+
+model PromptAuditLog {
+  id              String   @id @default(cuid())
+  tenantId        String?
+  agentRoleId     String
+  actionType      String
+
+  beforeState     Json?
+  afterState      Json
+
+  triggeredBy     String
+  approvedBy      String?
+  suggestionId    String?
+  reason          String?  @db.Text
+
+  baseVersionId   String?
+  tenantConfigId  String?
+
+  timestamp       DateTime @default(now())
+
+  agentRole    AgentRole          @relation(fields: [agentRoleId], references: [id])
+  baseVersion  PromptBaseVersion? @relation(fields: [baseVersionId], references: [id])
+  tenantConfig TenantPromptConfig? @relation(fields: [tenantConfigId], references: [id])
+
+  @@index([tenantId, agentRoleId, timestamp])
+  @@index([tenantId, timestamp])
+  @@index([agentRoleId, timestamp])
+  @@index([triggeredBy, timestamp])
+  @@index([suggestionId])
 }

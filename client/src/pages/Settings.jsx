@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTenantPlan } from '../hooks/useTenantPlan';
 import UpgradePrompt from '../components/UpgradePrompt';
 import IntegrationsTab from '../components/settings/IntegrationsTab';
+import AIAgentsTab from '../components/settings/AIAgentsTab';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('business');
@@ -11,6 +12,7 @@ export default function Settings() {
     { id: 'business', label: 'Business Profile' },
     { id: 'users', label: 'Users & Roles' },
     { id: 'integrations', label: 'Integrations', requiredFeature: 'email_integration' },
+    { id: 'ai-agents', label: 'AI Agents' },
     { id: 'notifications', label: 'Notifications' },
   ];
 
@@ -66,6 +68,10 @@ export default function Settings() {
             requiredPlan="professional"
           />
         )
+      )}
+
+      {activeTab === 'ai-agents' && (
+        <AIAgentsTab />
       )}
 
       {activeTab === 'notifications' && (

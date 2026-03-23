@@ -75,6 +75,52 @@ export const api = {
       body: JSON.stringify({ mapping }),
     }),
 
+  // Smart Product Import (AI-powered)
+  smartImportUpload: (formData) =>
+    fetch(`${API_BASE}/product-import/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      body: formData,
+    }).then(async (r) => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.message || 'Upload failed');
+      return data;
+    }),
+  smartImportChat: (uploadId, message) =>
+    request('/product-import/chat', { method: 'POST', body: JSON.stringify({ uploadId, message }) }),
+  smartImportTest: (uploadId) =>
+    request('/product-import/test', { method: 'POST', body: JSON.stringify({ uploadId }) }),
+  smartImportConfirm: (uploadId, systemName, saveTemplate) =>
+    request('/product-import/confirm', { method: 'POST', body: JSON.stringify({ uploadId, systemName, saveTemplate }) }),
+  smartImportSession: (uploadId) =>
+    request(`/product-import/session/${uploadId}`),
+  smartImportExport: async (systemName) => {
+    const resp = await fetch(`${API_BASE}/product-import/export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+      body: JSON.stringify({ systemName }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.message || 'Export failed');
+    }
+    // Download as file
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const disposition = resp.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="(.+)"/);
+    a.href = url;
+    a.download = match ? match[1] : `${systemName}_export.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
   // Stores
   getStores: () => request('/stores'),
 
@@ -98,15 +144,17 @@ export const api = {
     }),
   approveInvoice: (invoiceId) =>
     request(`/invoices/${invoiceId}/approve`, { method: 'POST' }),
+  reOcr: (invoiceId) =>
+    request(`/invoices/${invoiceId}/reocr`, { method: 'POST' }),
   getExportData: (invoiceId) =>
     request(`/invoices/${invoiceId}/export`),
 
   // Cross-invoice export
   getExportableInvoices: () => request('/invoices/exportable'),
-  getExportItems: (invoiceIds, includeExported = true) => {
+  getExportItems: (invoiceIds, includeOtherExported = false) => {
     const params = new URLSearchParams({
       invoiceIds: invoiceIds.join(','),
-      includeExported: String(includeExported),
+      includeOtherExported: String(includeOtherExported),
     });
     return request(`/invoices/export/items?${params}`);
   },
@@ -240,10 +288,22 @@ export const api = {
       return request(`/admin/api-usage/calls${qs}`);
     },
     getApiCallDetail: (id) => request(`/admin/api-usage/calls/${id}`),
+    getApiAgentUsage: (params) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return request(`/admin/api-usage/agents${qs}`);
+    },
 
     // Settings
     getSettings: () => request('/admin/settings'),
     updateSettings: (data) => request('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+
+    // Prompt Management (Admin)
+    getPromptAgents: () => request('/admin/prompts/agents'),
+    getPromptAgent: (key) => request(`/admin/prompts/agents/${key}`),
+    getTenantPrompt: (tenantId, agentKey) => request(`/admin/prompts/tenants/${tenantId}/${agentKey}`),
+    getTenantOverrides: (tenantId) => request(`/admin/prompts/tenants/${tenantId}/overrides`),
+    getPromptConflicts: () => request('/admin/prompts/conflicts'),
+    getPromptChangeLog: (tenantId, limit) => request(`/admin/prompts/change-log/${tenantId}${limit ? `?limit=${limit}` : ''}`),
 
     // Features & Tiers
     getFeatures: () => request('/admin/tiers/features'),
@@ -279,4 +339,75 @@ export const api = {
     },
     run: () => request('/agents/run', { method: 'POST' }),
   },
+
+  // AI Business Advisor (Chat)
+  chat: {
+    getConversations: () => request('/chat/conversations'),
+    createConversation: (title) =>
+      request('/chat/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ title }),
+      }),
+    getConversation: (id) => request(`/chat/conversations/${id}`),
+    deleteConversation: (id) =>
+      request(`/chat/conversations/${id}`, { method: 'DELETE' }),
+    updateConversation: (id, data) =>
+      request(`/chat/conversations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    sendFeedback: (messageId, rating, comment) =>
+      request(`/chat/messages/${messageId}/feedback`, {
+        method: 'PATCH',
+        body: JSON.stringify({ rating, comment }),
+      }),
+  },
+
+  // ── Prompt Chat ─────────────────────────────────────────────────
+  promptChat: {
+    sendMessage: (message) => request('/prompt-chat/message', { method: 'POST', body: JSON.stringify({ message }) }),
+    confirmAction: (action) => request('/prompt-chat/confirm', { method: 'POST', body: JSON.stringify({ action }) }),
+    getHistory: () => request('/prompt-chat/history'),
+    clearHistory: () => request('/prompt-chat/history', { method: 'DELETE' }),
+    getChangeLog: (limit) => request(`/prompt-chat/change-log${limit ? `?limit=${limit}` : ''}`),
+  },
+
+  // ── Prompt Configuration ────────────────────────────────────────
+  prompts: {
+    getAgents: () => request('/prompts/agents'),
+    getConditions: (agentKey) => request(`/prompts/agents/${agentKey}/conditions`),
+    addOverride: (agentKey, data) => request(`/prompts/agents/${agentKey}/overrides`, { method: 'POST', body: JSON.stringify(data) }),
+    updateOverride: (id, data) => request(`/prompts/overrides/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteOverride: (id) => request(`/prompts/overrides/${id}`, { method: 'DELETE' }),
+    getConflicts: () => request('/prompts/conflicts'),
+    resolveConflict: (id, data) => request(`/prompts/conflicts/${id}/resolve`, { method: 'POST', body: JSON.stringify(data) }),
+    getChangeLog: (limit) => request(`/prompts/change-log${limit ? `?limit=${limit}` : ''}`),
+  },
 };
+
+/**
+ * Start an SSE stream for a chat message.
+ * Returns the raw fetch Response for SSE consumption.
+ *
+ * @param {string} conversationId
+ * @param {string} content — The user's message text
+ * @returns {Promise<Response>}
+ */
+export async function chatStream(conversationId, content) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/chat/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(error.message || error.error || 'Failed to send message');
+  }
+
+  return res;
+}

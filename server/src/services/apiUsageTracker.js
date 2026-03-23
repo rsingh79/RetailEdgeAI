@@ -36,6 +36,9 @@ function calculateCost(model, inputTokens, outputTokens) {
  * @param {string} opts.model        — Claude model name
  * @param {Array}  opts.messages     — Message array for anthropic.messages.create
  * @param {number} opts.maxTokens    — Max tokens for the response
+ * @param {string} [opts.system]     — System prompt
+ * @param {Array}  [opts.tools]      — Tool definitions for tool_use
+ * @param {Object} [opts.tool_choice] — Tool choice config (auto, any, specific)
  * @param {Object} [opts.requestSummary] — Summary of the request (not the full payload)
  * @returns {Promise<Object>} The Anthropic API response
  */
@@ -46,16 +49,21 @@ export async function trackedClaudeCall({
   model,
   messages,
   maxTokens,
+  system,
+  tools,
+  tool_choice,
   requestSummary,
 }) {
   const startTime = Date.now();
 
   try {
-    const response = await getAnthropicClient().messages.create({
-      model,
-      max_tokens: maxTokens,
-      messages,
-    });
+    // Build params — only include optional fields if provided
+    const params = { model, max_tokens: maxTokens, messages };
+    if (system) params.system = system;
+    if (tools?.length) params.tools = tools;
+    if (tool_choice) params.tool_choice = tool_choice;
+
+    const response = await getAnthropicClient().messages.create(params);
 
     const durationMs = Date.now() - startTime;
     const inputTokens = response.usage?.input_tokens || 0;
@@ -118,6 +126,111 @@ export async function trackedClaudeCall({
 
     throw err;
   }
+}
+
+/**
+ * Streaming wrapper around the Anthropic SDK.
+ * Returns the SDK stream object plus a finalize() function to log usage.
+ *
+ * Usage:
+ *   const { stream, finalize } = await trackedClaudeStream({ ... });
+ *   for await (const event of stream) { ... }
+ *   await finalize();  // logs usage to ApiUsageLog
+ *
+ * @param {Object} opts — Same as trackedClaudeCall
+ * @returns {{ stream: object, finalize: () => Promise<Object> }}
+ */
+export function trackedClaudeStream({
+  tenantId,
+  userId,
+  endpoint,
+  model,
+  messages,
+  maxTokens,
+  system,
+  tools,
+  tool_choice,
+  requestSummary,
+}) {
+  const startTime = Date.now();
+
+  // Build params
+  const params = { model, max_tokens: maxTokens, messages };
+  if (system) params.system = system;
+  if (tools?.length) params.tools = tools;
+  if (tool_choice) params.tool_choice = tool_choice;
+
+  const stream = getAnthropicClient().messages.stream(params);
+
+  /**
+   * Call after streaming is done to log usage stats.
+   * Returns the final message object.
+   */
+  async function finalize() {
+    try {
+      const finalMessage = await stream.finalMessage();
+      const durationMs = Date.now() - startTime;
+      const inputTokens = finalMessage.usage?.input_tokens || 0;
+      const outputTokens = finalMessage.usage?.output_tokens || 0;
+      const totalTokens = inputTokens + outputTokens;
+      const costUsd = calculateCost(model, inputTokens, outputTokens);
+
+      const responseText = finalMessage.content
+        ?.filter((b) => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .substring(0, 2000);
+
+      // Fire-and-forget logging
+      basePrisma.apiUsageLog
+        .create({
+          data: {
+            tenantId,
+            userId: userId || null,
+            endpoint,
+            model,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            costUsd,
+            durationMs,
+            status: 'success',
+            requestPayload: requestSummary || null,
+            responsePayload: responseText ? { text: responseText } : null,
+          },
+        })
+        .catch((err) => console.error('Failed to log API usage:', err.message));
+
+      return { finalMessage, inputTokens, outputTokens, costUsd, durationMs };
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+
+      basePrisma.apiUsageLog
+        .create({
+          data: {
+            tenantId,
+            userId: userId || null,
+            endpoint,
+            model,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            costUsd: 0,
+            durationMs,
+            status: 'error',
+            requestPayload: requestSummary || null,
+            responsePayload: { error: err.message },
+          },
+        })
+        .catch((logErr) =>
+          console.error('Failed to log API usage error:', logErr.message)
+        );
+
+      throw err;
+    }
+  }
+
+  return { stream, finalize };
 }
 
 export { calculateCost };

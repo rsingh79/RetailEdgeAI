@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Product Import Agent — UX Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
+
+  /* Screen switcher */
+  .screen-nav { position: fixed; top: 0; left: 0; right: 0; background: #0f172a; z-index: 100; display: flex; gap: 0; padding: 0 24px; }
+  .screen-btn { padding: 12px 20px; color: #94a3b8; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent; }
+  .screen-btn.active { color: #fff; border-bottom-color: #0d9488; }
+  .screen-btn:hover { color: #cbd5e1; }
+
+  .screen { display: none; padding-top: 48px; min-height: 100vh; }
+  .screen.active { display: block; }
+
+  /* Split layout */
+  .split { display: flex; height: calc(100vh - 48px); }
+  .chat-panel { width: 420px; border-right: 1px solid #e2e8f0; background: #fff; display: flex; flex-direction: column; }
+  .mapping-panel { flex: 1; background: #f8fafc; overflow-y: auto; padding: 24px; }
+
+  /* Chat */
+  .chat-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; }
+  .chat-header .avatar { width: 36px; height: 36px; background: #0d9488; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .chat-header .avatar svg { width: 20px; height: 20px; fill: white; }
+  .chat-header h3 { font-size: 14px; font-weight: 600; }
+  .chat-header .badge { font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 92%; font-size: 13px; line-height: 1.6; }
+  .msg.agent { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 12px 12px 12px 4px; padding: 12px 16px; align-self: flex-start; }
+  .msg.user { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px 12px 4px 12px; padding: 12px 16px; align-self: flex-end; }
+  .msg .label { font-size: 10px; font-weight: 600; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .msg code { background: #e2e8f0; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  .msg strong { font-weight: 600; }
+  .msg ul { padding-left: 16px; margin: 6px 0; }
+  .msg li { margin: 3px 0; }
+
+  .chat-input { padding: 12px 16px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; }
+  .chat-input input { flex: 1; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 14px; font-size: 13px; outline: none; }
+  .chat-input input:focus { border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,0.1); }
+  .chat-input button { background: #0d9488; color: white; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+  /* Mapping panel */
+  .section-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .section-sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+
+  /* Upload area */
+  .upload-zone { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 48px; text-align: center; background: #fff; margin-bottom: 24px; }
+  .upload-zone.active { border-color: #0d9488; background: #f0fdfa; }
+  .upload-zone h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .upload-zone p { font-size: 13px; color: #64748b; }
+
+  /* Pattern cards */
+  .pattern-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .pattern-card.needs-review { border-color: #fbbf24; border-left: 4px solid #fbbf24; }
+  .pattern-card.confirmed { border-color: #22c55e; border-left: 4px solid #22c55e; }
+  .pattern-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .pattern-label { font-size: 14px; font-weight: 600; }
+  .pattern-count { font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 10px; border-radius: 99px; }
+  .pattern-status { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+  .pattern-status.pending { background: #fef3c7; color: #92400e; }
+  .pattern-status.confirmed { background: #dcfce7; color: #166534; }
+  .pattern-status.issue { background: #fee2e2; color: #991b1b; }
+
+  /* Mini table */
+  .mini-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 12px; }
+  .mini-table th { text-align: left; padding: 6px 10px; background: #f8fafc; color: #64748b; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; }
+  .mini-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+  .mini-table tr:last-child td { border-bottom: none; }
+  .arrow-cell { color: #0d9488; font-weight: 700; text-align: center; }
+
+  /* Mapping row */
+  .mapping-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .mapping-from { flex: 1; background: #f1f5f9; border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: 500; }
+  .mapping-arrow { color: #0d9488; font-size: 16px; font-weight: 700; }
+  .mapping-to { flex: 1; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: 500; color: #0f766e; }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .btn-primary { background: #0d9488; color: white; }
+  .btn-outline { background: white; color: #0d9488; border: 1px solid #0d9488; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-group { display: flex; gap: 8px; margin-top: 12px; }
+
+  /* Progress */
+  .progress-bar { height: 4px; background: #e2e8f0; border-radius: 99px; margin: 16px 0; overflow: hidden; }
+  .progress-fill { height: 100%; background: #0d9488; border-radius: 99px; transition: width 0.3s; }
+
+  /* Stats row */
+  .stats-row { display: flex; gap: 12px; margin-bottom: 20px; }
+  .stat-card { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; text-align: center; }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  /* Transform rule */
+  .transform-rule { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; font-size: 12px; margin-top: 8px; }
+  .transform-rule code { background: #fef3c7; padding: 1px 5px; border-radius: 3px; }
+
+  /* Test case */
+  .test-case { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin-top: 10px; }
+  .test-case .label { font-size: 10px; font-weight: 600; color: #166534; margin-bottom: 6px; }
+
+  .typing-indicator { display: flex; gap: 4px; padding: 8px 16px; }
+  .typing-dot { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; animation: bounce 1.4s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+</style>
+</head>
+<body>
+
+<!-- Screen Navigation -->
+<nav class="screen-nav">
+  <button class="screen-btn active" onclick="showScreen(0)">1. Upload & Analysis</button>
+  <button class="screen-btn" onclick="showScreen(1)">2. Pattern Review</button>
+  <button class="screen-btn" onclick="showScreen(2)">3. Test Cases</button>
+  <button class="screen-btn" onclick="showScreen(3)">4. Import Complete</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SCREEN 1: Upload & Initial Analysis               -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen active" id="screen-0">
+  <div class="split">
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div class="avatar"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></div>
+        <div>
+          <h3>Product Import Agent</h3>
+          <span class="badge">Online</span>
+        </div>
+      </div>
+      <div class="chat-messages">
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          <strong>Welcome!</strong> I'll help you import your product data. Upload your file (CSV, Excel) and I'll analyze the structure, identify patterns, and create a mapping plan for you to review.
+          <br><br>
+          Just drag & drop your file on the right, or click to browse.
+        </div>
+        <div class="msg user">
+          <div class="label">You</div>
+          I've uploaded our POS export from Lightspeed. It has about 450 products.
+        </div>
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          I've analyzed your file. Here's what I found:
+          <br><br>
+          <strong>File:</strong> <code>lightspeed-products-export.xlsx</code><br>
+          <strong>Rows:</strong> 447 products<br>
+          <strong>Columns:</strong> 14 columns detected
+          <br><br>
+          I identified <strong>3 distinct patterns</strong> in your data that need different transformation rules. Let me show you each one on the right panel.
+          <br><br>
+          <strong>Key observations:</strong>
+          <ul>
+            <li>Column "Item Name" contains both product name AND size (e.g. "Almonds Raw 1kg")</li>
+            <li>Some rows have barcodes, some don't</li>
+            <li>Prices appear to be GST-inclusive — I'll need to confirm</li>
+            <li>3 different weight formats found: "1kg", "500g", "1.5 Litre"</li>
+          </ul>
+        </div>
+      </div>
+      <div class="chat-input">
+        <input type="text" placeholder="Ask about the data or confirm observations..." />
+        <button>Send</button>
+      </div>
+    </div>
+    <div class="mapping-panel">
+      <div class="section-title">File Analysis</div>
+      <div class="section-sub">lightspeed-products-export.xlsx — 447 rows, 14 columns</div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value" style="color: #0d9488;">447</div>
+          <div class="stat-label">Total Rows</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #6366f1;">3</div>
+          <div class="stat-label">Patterns Found</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #f59e0b;">14</div>
+          <div class="stat-label">Columns</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #22c55e;">87%</div>
+          <div class="stat-label">Auto-Mappable</div>
+        </div>
+      </div>
+
+      <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Column Mapping</div>
+      <div class="mapping-row"><div class="mapping-from">Item Name</div><div class="mapping-arrow">→</div><div class="mapping-to">name + size (split needed)</div></div>
+      <div class="mapping-row"><div class="mapping-from">Department</div><div class="mapping-arrow">→</div><div class="mapping-to">category</div></div>
+      <div class="mapping-row"><div class="mapping-from">UPC/EAN</div><div class="mapping-arrow">→</div><div class="mapping-to">barcode</div></div>
+      <div class="mapping-row"><div class="mapping-from">Default Cost</div><div class="mapping-arrow">→</div><div class="mapping-to">costPrice</div></div>
+      <div class="mapping-row"><div class="mapping-from">Price</div><div class="mapping-arrow">→</div><div class="mapping-to">sellingPrice</div></div>
+      <div class="mapping-row"><div class="mapping-from">Custom SKU</div><div class="mapping-arrow">→</div><div class="mapping-to">sku</div></div>
+      <div class="mapping-row" style="opacity: 0.4;"><div class="mapping-from">Created Date</div><div class="mapping-arrow">→</div><div class="mapping-to" style="background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0;">skipped</div></div>
+      <div class="mapping-row" style="opacity: 0.4;"><div class="mapping-from">Tax</div><div class="mapping-arrow">→</div><div class="mapping-to" style="background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0;">skipped (used for GST detection)</div></div>
+
+      <div class="progress-bar"><div class="progress-fill" style="width: 25%;"></div></div>
+      <div style="text-align: center; font-size: 12px; color: #64748b;">Step 1 of 4 — Analyzing file structure</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SCREEN 2: Pattern Review                          -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen" id="screen-1">
+  <div class="split">
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div class="avatar"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></div>
+        <div>
+          <h3>Product Import Agent</h3>
+          <span class="badge">Online</span>
+        </div>
+      </div>
+      <div class="chat-messages">
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          I've identified <strong>3 patterns</strong> in your data. Each pattern needs a different rule to extract the product name and size correctly. Please review each one on the right.
+          <br><br>
+          <strong>Pattern A (312 rows):</strong> Name includes weight at the end.<br>
+          Example: "Almonds Raw <strong>1kg</strong>" → name: "Almonds Raw", size: "1kg", baseUnit: "kg"
+          <br><br>
+          <strong>Pattern B (89 rows):</strong> Name includes pack descriptor.<br>
+          Example: "Olive Oil Extra Virgin <strong>4x2L</strong>" → name: "Olive Oil Extra Virgin", size: "4x2L", baseUnit: "L"
+          <br><br>
+          <strong>Pattern C (46 rows):</strong> No size in name — appears to be "each" items.<br>
+          Example: "Reusable Shopping Bag" → name: "Reusable Shopping Bag", baseUnit: "each"
+          <br><br>
+          Does this look right? I'll show test cases for each on the right.
+        </div>
+        <div class="msg user">
+          <div class="label">You</div>
+          Pattern A looks right. For Pattern B, the "4x2L" means 4 bottles of 2 litres — can you split that into pack size and base unit?
+        </div>
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          Got it! For Pattern B, I'll parse the pack format:
+          <ul>
+            <li><code>4x2L</code> → packSize: "4x2L", baseUnit: "L", unitQty: 8</li>
+            <li><code>12x500ml</code> → packSize: "12x500ml", baseUnit: "L", unitQty: 6</li>
+            <li><code>6x1kg</code> → packSize: "6x1kg", baseUnit: "kg", unitQty: 6</li>
+          </ul>
+          I've updated the rule on the right. Want me to also calculate the per-unit cost from the pack price?
+        </div>
+        <div class="msg user">
+          <div class="label">You</div>
+          Yes please. Also — the prices in the file include GST. Can you strip the 10% GST to get ex-GST prices?
+        </div>
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          Done! I've added two transform rules:
+          <ol>
+            <li><strong>GST removal:</strong> price ÷ 1.1 for all products (I checked the Tax column confirms GST applies)</li>
+            <li><strong>Per-unit cost:</strong> For pack items (Pattern B), costPrice ÷ unitQty = per-unit cost</li>
+          </ol>
+          All 3 patterns are now updated. Check the test cases on the right — if they look correct, we can proceed to the full test run.
+        </div>
+      </div>
+      <div class="chat-input">
+        <input type="text" placeholder="Confirm patterns or ask questions..." />
+        <button>Send</button>
+      </div>
+    </div>
+    <div class="mapping-panel">
+      <div class="section-title">Pattern Analysis</div>
+      <div class="section-sub">3 patterns identified — review and confirm each</div>
+
+      <div class="progress-bar"><div class="progress-fill" style="width: 50%;"></div></div>
+
+      <!-- Pattern A -->
+      <div class="pattern-card confirmed">
+        <div class="pattern-header">
+          <div>
+            <span class="pattern-label">Pattern A: Weight-in-name</span>
+            <span class="pattern-count">312 rows (70%)</span>
+          </div>
+          <span class="pattern-status confirmed">Confirmed</span>
+        </div>
+        <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">Product name ends with a weight/volume measurement</div>
+        <div class="transform-rule">
+          <strong>Rule:</strong> Split last token if it matches <code>/\d+\.?\d*(kg|g|L|ml|litre)/</code> → extract as <code>size</code> + <code>baseUnit</code>
+        </div>
+        <table class="mini-table">
+          <tr><th>Source Row</th><th class="arrow-cell"></th><th>Product Name</th><th>Size</th><th>Base Unit</th><th>Cost (ex-GST)</th></tr>
+          <tr><td>Almonds Raw 1kg</td><td class="arrow-cell">→</td><td>Almonds Raw</td><td>1kg</td><td>kg</td><td>$12.73</td></tr>
+          <tr><td>Honey Manuka 500g</td><td class="arrow-cell">→</td><td>Honey Manuka</td><td>500g</td><td>kg</td><td>$18.18</td></tr>
+          <tr><td>Rice Basmati 5kg</td><td class="arrow-cell">→</td><td>Rice Basmati</td><td>5kg</td><td>kg</td><td>$9.09</td></tr>
+        </table>
+      </div>
+
+      <!-- Pattern B -->
+      <div class="pattern-card confirmed">
+        <div class="pattern-header">
+          <div>
+            <span class="pattern-label">Pattern B: Pack format</span>
+            <span class="pattern-count">89 rows (20%)</span>
+          </div>
+          <span class="pattern-status confirmed">Confirmed</span>
+        </div>
+        <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">Product name ends with a pack descriptor (e.g. 4x2L, 12x500ml)</div>
+        <div class="transform-rule">
+          <strong>Rule:</strong> Parse <code>NxM(unit)</code> → packSize, baseUnit, unitQty = N×M. Per-unit cost = price ÷ unitQty.
+        </div>
+        <table class="mini-table">
+          <tr><th>Source Row</th><th class="arrow-cell"></th><th>Name</th><th>Pack</th><th>Unit</th><th>Qty</th><th>Cost/unit</th></tr>
+          <tr><td>Olive Oil EV 4x2L</td><td class="arrow-cell">→</td><td>Olive Oil EV</td><td>4x2L</td><td>L</td><td>8</td><td>$3.41</td></tr>
+          <tr><td>Coconut Water 12x500ml</td><td class="arrow-cell">→</td><td>Coconut Water</td><td>12x500ml</td><td>L</td><td>6</td><td>$1.82</td></tr>
+          <tr><td>Pasta Sauce 6x700ml</td><td class="arrow-cell">→</td><td>Pasta Sauce</td><td>6x700ml</td><td>L</td><td>4.2</td><td>$2.17</td></tr>
+        </table>
+      </div>
+
+      <!-- Pattern C -->
+      <div class="pattern-card confirmed">
+        <div class="pattern-header">
+          <div>
+            <span class="pattern-label">Pattern C: No size (each items)</span>
+            <span class="pattern-count">46 rows (10%)</span>
+          </div>
+          <span class="pattern-status confirmed">Confirmed</span>
+        </div>
+        <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">No weight/volume in name — treated as "each" items</div>
+        <table class="mini-table">
+          <tr><th>Source Row</th><th class="arrow-cell"></th><th>Name</th><th>Base Unit</th><th>Cost (ex-GST)</th></tr>
+          <tr><td>Reusable Shopping Bag</td><td class="arrow-cell">→</td><td>Reusable Shopping Bag</td><td>each</td><td>$2.73</td></tr>
+          <tr><td>Gift Card $50</td><td class="arrow-cell">→</td><td>Gift Card $50</td><td>each</td><td>$45.45</td></tr>
+        </table>
+      </div>
+
+      <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 8px;">Step 2 of 4 — All patterns confirmed</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SCREEN 3: Test Cases Before Import                -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen" id="screen-2">
+  <div class="split">
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div class="avatar"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></div>
+        <div>
+          <h3>Product Import Agent</h3>
+          <span class="badge">Online</span>
+        </div>
+      </div>
+      <div class="chat-messages">
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          All patterns confirmed. I've run the full transformation on all 447 rows. Here are the results:
+          <br><br>
+          <strong>Test Results:</strong>
+          <ul>
+            <li>✅ <strong>441</strong> rows transformed successfully</li>
+            <li>⚠️ <strong>4</strong> rows have warnings (ambiguous size format)</li>
+            <li>❌ <strong>2</strong> rows failed (missing required name field)</li>
+          </ul>
+          <br>
+          I'm showing a sample from each pattern on the right, plus the problem rows. Please review and let me know if the transformations look correct.
+          <br><br>
+          When you're happy, click <strong>"Import All"</strong> to load the products into RetailEdge.
+        </div>
+        <div class="msg user">
+          <div class="label">You</div>
+          The warning rows — "Flour Plain 2.5 kg" has a space before "kg". Can you handle that?
+        </div>
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          Good catch! I've updated the rule to trim whitespace before the unit. "Flour Plain 2.5 kg" → name: "Flour Plain", size: "2.5kg", baseUnit: "kg". All 4 warnings are now resolved.
+          <br><br>
+          Updated results: ✅ <strong>445</strong> successful, ❌ <strong>2</strong> failed (empty names — I'll skip those).
+          <br><br>
+          Ready to import?
+        </div>
+        <div class="msg user">
+          <div class="label">You</div>
+          Yes, import them all. Skip the 2 failed rows.
+        </div>
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          <div class="typing-indicator">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+          Importing 445 products...
+        </div>
+      </div>
+      <div class="chat-input">
+        <input type="text" placeholder="Ask about specific rows or confirm import..." />
+        <button>Send</button>
+      </div>
+    </div>
+    <div class="mapping-panel">
+      <div class="section-title">Test Run Results</div>
+      <div class="section-sub">Full transformation applied — review before importing</div>
+
+      <div class="progress-bar"><div class="progress-fill" style="width: 75%;"></div></div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value" style="color: #22c55e;">445</div>
+          <div class="stat-label">Successful</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #f59e0b;">0</div>
+          <div class="stat-label">Warnings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #ef4444;">2</div>
+          <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #6366f1;">38</div>
+          <div class="stat-label">Duplicates</div>
+        </div>
+      </div>
+
+      <!-- Sample from each pattern -->
+      <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Sample Transformations</div>
+
+      <div class="test-case">
+        <div class="label">Pattern A — Row 14</div>
+        <table class="mini-table">
+          <tr><th style="width:140px;">Field</th><th>Source Value</th><th style="width:30px;"></th><th>Transformed</th></tr>
+          <tr><td><strong>name</strong></td><td>Cashews Roasted Salted 500g</td><td class="arrow-cell">→</td><td>Cashews Roasted Salted</td></tr>
+          <tr><td><strong>size</strong></td><td><em>(extracted)</em></td><td class="arrow-cell">→</td><td>500g</td></tr>
+          <tr><td><strong>baseUnit</strong></td><td><em>(inferred)</em></td><td class="arrow-cell">→</td><td>kg</td></tr>
+          <tr><td><strong>category</strong></td><td>Nuts & Seeds</td><td class="arrow-cell">→</td><td>Nuts & Seeds</td></tr>
+          <tr><td><strong>costPrice</strong></td><td>$15.40 (inc GST)</td><td class="arrow-cell">→</td><td>$14.00 (ex-GST)</td></tr>
+          <tr><td><strong>sellingPrice</strong></td><td>$22.99 (inc GST)</td><td class="arrow-cell">→</td><td>$20.90 (ex-GST)</td></tr>
+          <tr><td><strong>barcode</strong></td><td>9310055559001</td><td class="arrow-cell">→</td><td>9310055559001</td></tr>
+        </table>
+      </div>
+
+      <div class="test-case">
+        <div class="label">Pattern B — Row 203</div>
+        <table class="mini-table">
+          <tr><th style="width:140px;">Field</th><th>Source Value</th><th style="width:30px;"></th><th>Transformed</th></tr>
+          <tr><td><strong>name</strong></td><td>Sparkling Water 24x375ml</td><td class="arrow-cell">→</td><td>Sparkling Water</td></tr>
+          <tr><td><strong>packSize</strong></td><td><em>(extracted)</em></td><td class="arrow-cell">→</td><td>24x375ml</td></tr>
+          <tr><td><strong>baseUnit</strong></td><td><em>(inferred)</em></td><td class="arrow-cell">→</td><td>L</td></tr>
+          <tr><td><strong>unitQty</strong></td><td><em>(calculated)</em></td><td class="arrow-cell">→</td><td>9 (24 × 0.375L)</td></tr>
+          <tr><td><strong>costPrice</strong></td><td>$28.60 (inc GST)</td><td class="arrow-cell">→</td><td>$26.00 (ex-GST, pack)</td></tr>
+          <tr><td><strong>costPerUnit</strong></td><td><em>(calculated)</em></td><td class="arrow-cell">→</td><td>$2.89/L</td></tr>
+        </table>
+      </div>
+
+      <!-- Failed rows -->
+      <div style="font-size: 14px; font-weight: 600; margin: 20px 0 12px; color: #ef4444;">Failed Rows (will be skipped)</div>
+      <div class="pattern-card" style="border-color: #fca5a5; border-left: 4px solid #ef4444;">
+        <table class="mini-table">
+          <tr><th>Row</th><th>Issue</th><th>Source Data</th></tr>
+          <tr><td>#89</td><td style="color: #ef4444;">Missing product name</td><td>Name: "", Dept: "Misc", Price: $0.00</td></tr>
+          <tr><td>#331</td><td style="color: #ef4444;">Missing product name</td><td>Name: "", Dept: "", Price: $0.00</td></tr>
+        </table>
+      </div>
+
+      <div class="btn-group" style="justify-content: center; margin-top: 24px;">
+        <button class="btn btn-outline">Back to Patterns</button>
+        <button class="btn btn-primary" style="padding: 12px 32px; font-size: 14px;">Import 445 Products</button>
+      </div>
+
+      <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">Step 3 of 4 — Review test cases</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- SCREEN 4: Import Complete                         -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen" id="screen-3">
+  <div class="split">
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div class="avatar"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></div>
+        <div>
+          <h3>Product Import Agent</h3>
+          <span class="badge">Online</span>
+        </div>
+      </div>
+      <div class="chat-messages">
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          Import complete! Here's the summary:
+          <br><br>
+          <strong>Results:</strong>
+          <ul>
+            <li>✅ <strong>407</strong> new products created</li>
+            <li>🔄 <strong>38</strong> existing products updated (matched by barcode)</li>
+            <li>⏭️ <strong>2</strong> rows skipped (empty names)</li>
+          </ul>
+          <br>
+          I've saved this mapping as a template called <strong>"Lightspeed POS"</strong>. Next time you upload from Lightspeed, I'll apply the same rules automatically — you'll just need to confirm.
+          <br><br>
+          Want to review any specific products, or are we done?
+        </div>
+        <div class="msg user">
+          <div class="label">You</div>
+          Looks great, thanks!
+        </div>
+        <div class="msg agent">
+          <div class="label">Import Agent</div>
+          You're welcome! Your products are now live in RetailEdge. You can find them on the <strong>Products</strong> page. If you upload another file from Lightspeed in the future, I'll remember these patterns.
+        </div>
+      </div>
+      <div class="chat-input">
+        <input type="text" placeholder="Ask anything about the import..." />
+        <button>Send</button>
+      </div>
+    </div>
+    <div class="mapping-panel">
+      <div class="section-title">Import Complete</div>
+      <div class="section-sub">445 products processed from lightspeed-products-export.xlsx</div>
+
+      <div class="progress-bar"><div class="progress-fill" style="width: 100%;"></div></div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value" style="color: #22c55e;">407</div>
+          <div class="stat-label">Created</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #3b82f6;">38</div>
+          <div class="stat-label">Updated</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #94a3b8;">2</div>
+          <div class="stat-label">Skipped</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color: #0d9488;">100%</div>
+          <div class="stat-label">Success Rate</div>
+        </div>
+      </div>
+
+      <!-- Saved template -->
+      <div class="pattern-card confirmed" style="background: #f0fdf4;">
+        <div class="pattern-header">
+          <span class="pattern-label">Template Saved: "Lightspeed POS"</span>
+          <span class="pattern-status confirmed">Saved</span>
+        </div>
+        <div style="font-size: 12px; color: #64748b;">
+          Next import from this POS will auto-apply these rules:
+        </div>
+        <ul style="font-size: 12px; margin-top: 8px; padding-left: 16px; color: #475569;">
+          <li>Split "Item Name" → product name + size/pack</li>
+          <li>Strip GST (÷ 1.1) from all prices</li>
+          <li>Parse pack formats (NxM unit) → unitQty</li>
+          <li>"each" fallback for items without weight</li>
+          <li>Map: Department → category, UPC/EAN → barcode, Custom SKU → sku</li>
+        </ul>
+      </div>
+
+      <!-- Import breakdown by pattern -->
+      <div style="font-size: 14px; font-weight: 600; margin: 20px 0 12px;">Breakdown by Pattern</div>
+      <div class="pattern-card">
+        <table class="mini-table">
+          <tr><th>Pattern</th><th>Rows</th><th>Created</th><th>Updated</th><th>Status</th></tr>
+          <tr><td>A: Weight-in-name</td><td>312</td><td>280</td><td>32</td><td style="color:#22c55e;">✅ All good</td></tr>
+          <tr><td>B: Pack format</td><td>89</td><td>85</td><td>4</td><td style="color:#22c55e;">✅ All good</td></tr>
+          <tr><td>C: Each items</td><td>46</td><td>42</td><td>2</td><td style="color:#22c55e;">✅ All good</td></tr>
+          <tr><td style="color: #94a3b8;">Skipped</td><td style="color: #94a3b8;">2</td><td style="color: #94a3b8;">—</td><td style="color: #94a3b8;">—</td><td style="color: #94a3b8;">Empty name</td></tr>
+        </table>
+      </div>
+
+      <div class="btn-group" style="justify-content: center; margin-top: 24px;">
+        <button class="btn btn-outline" onclick="window.location='/'">Go to Products</button>
+        <button class="btn btn-primary">Import Another File</button>
+      </div>
+
+      <div style="text-align: center; font-size: 12px; color: #64748b; margin-top: 12px;">Step 4 of 4 — Complete</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showScreen(idx) {
+  document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === idx));
+  document.querySelectorAll('.screen-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+}
+</script>
+</body>
+</html>

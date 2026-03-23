@@ -392,8 +392,8 @@ export default function IntegrationsTab() {
     try {
       await api.drive.addFolder({
         integrationId: drivePendingId,
-        folderId: folder.id,
-        folderName: folder.name,
+        driveFolderId: folder.id,
+        driveFolderName: folder.name,
       });
       setDrivePendingId(null);
       setShowDriveFolderPicker(false);
@@ -899,6 +899,7 @@ export default function IntegrationsTab() {
                 {/* File patterns */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">File Patterns</label>
+                  <p className="text-xs text-gray-500 mb-2">To add a new file pattern, type *.extension (e.g. *.jpeg, *.tiff) and click Add</p>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -912,14 +913,19 @@ export default function IntegrationsTab() {
                       Add
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {folderConfig.filePatterns.map((p) => (
-                      <span key={p} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs flex items-center gap-1">
-                        {p}
-                        <button onClick={() => removePattern(p)} className="text-blue-400 hover:text-red-500">&times;</button>
-                      </span>
-                    ))}
-                  </div>
+                  {folderConfig.filePatterns.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-xs text-gray-500 mb-1 block">Active patterns:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {folderConfig.filePatterns.map((p) => (
+                          <span key={p} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs flex items-center gap-1">
+                            {p}
+                            <button onClick={() => removePattern(p)} className="text-blue-400 hover:text-red-500">&times;</button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Poll interval */}
@@ -1018,6 +1024,7 @@ export default function IntegrationsTab() {
                 {/* File patterns */}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">File Patterns</label>
+                  <p className="text-xs text-gray-500 mb-2">To add a new file pattern, type *.extension (e.g. *.jpeg, *.tiff) and click Add</p>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -1031,14 +1038,19 @@ export default function IntegrationsTab() {
                       Add
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {folderConfig.filePatterns.map((p) => (
-                      <span key={p} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs flex items-center gap-1">
-                        {p}
-                        <button onClick={() => removePattern(p)} className="text-blue-400 hover:text-red-500">&times;</button>
-                      </span>
-                    ))}
-                  </div>
+                  {folderConfig.filePatterns.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-xs text-gray-500 mb-1 block">Active patterns:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {folderConfig.filePatterns.map((p) => (
+                          <span key={p} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs flex items-center gap-1">
+                            {p}
+                            <button onClick={() => removePattern(p)} className="text-blue-400 hover:text-red-500">&times;</button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Poll interval */}

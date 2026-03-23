@@ -1,0 +1,603 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROMPT EVOLUTION SYSTEM — Schema Design Document
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// This file defines the data models for the Tenant-Aware Prompt Evolution System.
+// It is a DESIGN DOCUMENT — not yet merged into schema.prisma.
+//
+// RELATIONSHIP TO EXISTING MODELS:
+//
+//   REPLACES                          WITH
+//   ────────────────────────────────   ──────────────────────────────────
+//   AgentType                       → AgentRole (renamed, enriched)
+//   PromptTemplate + PromptCondition → PromptBaseVersion (unified, versioned)
+//   TenantPromptOverride            → TenantPromptConfig (structured, versioned)
+//   PromptConflict                  → (folded into PromptSuggestion workflow)
+//   PromptChangeLog                 → PromptAuditLog (immutable, richer)
+//
+//   NEW (no predecessor)
+//   ──────────────────────────────────
+//   TenantFewShotExample            — curated examples per tenant
+//   InteractionSignal               — per-conversation metrics
+//   PromptSuggestion                — AI-generated improvement proposals
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. AgentRole — Registry of AI agent roles in the system
+// ─────────────────────────────────────────────────────────────────────────────
+// Evolves from: AgentType
+// Reason for rename: "AgentType" implied a generic type; "AgentRole" clarifies
+// that each record represents a specific functional role in the system.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AgentRole {
+  id          String   @id @default(cuid())
+  key         String   @unique              // "ocr_extraction", "product_matching", "business_advisor", "prompt_management"
+  name        String                         // "Invoice OCR", "Product Matching", "Business Advisor"
+  description String?  @db.Text
+  model       String   @default("claude-sonnet-4-20250514")
+  maxTokens   Int      @default(4096)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  baseVersions          PromptBaseVersion[]
+  tenantConfigs         TenantPromptConfig[]
+  tenantFewShotExamples TenantFewShotExample[]
+  interactionSignals    InteractionSignal[]
+  suggestions           PromptSuggestion[]
+  auditLogs             PromptAuditLog[]
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. PromptBaseVersion — Versioned registry of default prompts (Tier 1)
+// ─────────────────────────────────────────────────────────────────────────────
+// Evolves from: PromptTemplate + PromptCondition (merged)
+//
+// Design decisions:
+//   - PromptTemplate.preamble/postamble + PromptCondition[] are merged into a
+//     single `content` JSON field. The old atomic-condition model was too rigid
+//     for the new structured config system — tenant customization now happens
+//     via TenantPromptConfig (structured fields), not by toggling individual
+//     text conditions. The base prompt is treated as a coherent document.
+//   - `parentVersionId` creates a version tree, not a flat list. This supports
+//     branching: the meta-agent may create a variant from v3 while v5 is active.
+//   - `performanceSnapshot` captures metrics AT TIME OF CREATION so the
+//     meta-agent can compare "before vs after" when evaluating version upgrades.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PromptBaseVersion {
+  id                  String   @id @default(cuid())
+  agentRoleId         String
+  versionNumber       Int
+  content             Json                    // Full prompt structure, see content schema below
+  isActive            Boolean  @default(false) // exactly one active per agentRole
+  parentVersionId     String?                 // which version this evolved from (null for v1)
+  changeReason        String   @db.Text       // why this version was created
+  performanceSnapshot Json?                   // metrics snapshot at creation time, see schema below
+  createdBy           String?                 // userId (null if system/meta-agent generated)
+  createdAt           DateTime @default(now())
+
+  agentRole     AgentRole          @relation(fields: [agentRoleId], references: [id])
+  parentVersion PromptBaseVersion? @relation("VersionLineage", fields: [parentVersionId], references: [id])
+  childVersions PromptBaseVersion[] @relation("VersionLineage")
+
+  tenantConfigs TenantPromptConfig[]          // configs that pin to this version
+  signals       InteractionSignal[]           // signals recorded against this version
+  auditLogs     PromptAuditLog[]
+
+  // ── Hot path: "get active version for agent" ──
+  @@unique([agentRoleId, versionNumber])
+  @@index([agentRoleId, isActive])
+  @@index([agentRoleId])
+}
+
+// content JSON schema:
+// {
+//   "systemPrompt": "string — the full system prompt text",
+//   "sections": [                              // optional structured breakdown
+//     {
+//       "key": "string — e.g. 'role', 'capabilities', 'rules', 'output_format'",
+//       "title": "string — human-readable section name",
+//       "content": "string — section text",
+//       "isRequired": "boolean — cannot be overridden by tenant config",
+//       "validationKey": "string? — named validator for removal safety"
+//     }
+//   ],
+//   "toolDefinitions": ["string[]? — tool names this agent version expects"],
+//   "outputFormat": "string? — expected output format (json_schema, markdown, etc.)"
+// }
+//
+// performanceSnapshot JSON schema:
+// {
+//   "tenantCount": "int — how many tenants were on this version",
+//   "avgSatisfaction": "float? — average user satisfaction (1-5)",
+//   "avgResolutionRate": "float? — % conversations resolved successfully",
+//   "avgHumanOverrideRate": "float? — % interactions needing human correction",
+//   "avgLatencyMs": "int? — average response latency",
+//   "sampleSize": "int — number of interactions measured",
+//   "measuredAt": "datetime — when snapshot was taken"
+// }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. TenantPromptConfig — Per-tenant structured overrides (Tier 2)
+// ─────────────────────────────────────────────────────────────────────────────
+// Evolves from: TenantPromptOverride
+//
+// Design decisions:
+//   - STRUCTURED fields replace raw text overrides. The old model stored
+//     arbitrary prompt text; the new model uses typed JSON fields that the
+//     prompt assembly engine interprets deterministically.
+//   - Versioned per tenant: `versionNumber` allows rollback to previous config.
+//   - `baseVersionId` pins this config to a specific base prompt version.
+//     When the system admin upgrades the base, tenant configs are NOT auto-migrated.
+//     A migration check runs and flags incompatibilities.
+//   - `customInstructions` replaces the old add/remove/replace condition model.
+//     Each instruction is a plain-English rule with metadata, not a raw prompt fragment.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TenantPromptConfig {
+  id                       String   @id @default(cuid())
+  tenantId                 String
+  agentRoleId              String
+  baseVersionId            String                // which PromptBaseVersion this extends
+  versionNumber            Int      @default(1)  // tenant config version (for rollback)
+  isActive                 Boolean  @default(true) // exactly one active per tenant+agent
+
+  // ── Structured configuration fields ──
+  toneSettings             Json?    // see schema below
+  customInstructions       Json?    // see schema below
+  domainTerminology        Json?    // see schema below
+  escalationRules          Json?    // see schema below
+  knowledgeSourcePriorities Json?   // see schema below
+  enabledCapabilities      Json?    // see schema below
+
+  updatedBy                String?  // userId of last editor
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  agentRole   AgentRole        @relation(fields: [agentRoleId], references: [id])
+  baseVersion PromptBaseVersion @relation(fields: [baseVersionId], references: [id])
+  signals     InteractionSignal[]
+  auditLogs   PromptAuditLog[]
+
+  // ── Hot path: "get active config for tenant + agent" ──
+  @@unique([tenantId, agentRoleId, versionNumber])
+  @@index([tenantId, agentRoleId, isActive])
+  @@index([tenantId, agentRoleId])
+  @@index([baseVersionId])
+}
+
+// toneSettings JSON schema:
+// {
+//   "formality": "string — 'casual' | 'neutral' | 'formal' | 'technical'",
+//   "verbosity": "string — 'concise' | 'balanced' | 'detailed'",
+//   "personality": "string? — free-text personality descriptor, e.g. 'friendly and encouraging'",
+//   "language": "string? — preferred language/dialect, e.g. 'Australian English'",
+//   "currencyFormat": "string? — e.g. '$X,XXX.XX AUD'"
+// }
+//
+// customInstructions JSON schema:
+// [
+//   {
+//     "id": "string — unique within this config (cuid or uuid)",
+//     "text": "string — plain-English rule, e.g. 'Always flag invoices over $5000 for review'",
+//     "priority": "int — 1 (highest) to 100 (lowest), determines order in assembled prompt",
+//     "scope": "string? — 'all' | specific section key from PromptBaseVersion.sections",
+//     "source": "string — 'admin' | 'suggestion_engine' | 'meta_agent'",
+//     "addedAt": "datetime",
+//     "addedBy": "string? — userId"
+//   }
+// ]
+//
+// domainTerminology JSON schema:
+// [
+//   {
+//     "term": "string — e.g. 'PLU'",
+//     "definition": "string — e.g. 'Price Look-Up code, a 4-5 digit number used for produce items'",
+//     "context": "string? — when to use this term, e.g. 'when processing fresh produce invoices'"
+//   }
+// ]
+//
+// escalationRules JSON schema:
+// [
+//   {
+//     "id": "string",
+//     "condition": "string — plain-English trigger, e.g. 'Invoice total exceeds $10,000'",
+//     "action": "string — 'flag_for_review' | 'notify_admin' | 'block_processing' | 'add_note'",
+//     "severity": "string — 'info' | 'warning' | 'critical'",
+//     "message": "string? — custom message to include when triggered",
+//     "isActive": "boolean"
+//   }
+// ]
+//
+// knowledgeSourcePriorities JSON schema:
+// [
+//   {
+//     "sourceType": "string — 'supplier_mappings' | 'product_catalog' | 'pricing_rules' | 'audit_history' | 'competitor_data'",
+//     "priority": "int — 1 (highest) to 10 (lowest)",
+//     "isEnabled": "boolean",
+//     "notes": "string? — e.g. 'prefer supplier mappings over fuzzy matching for this tenant'"
+//   }
+// ]
+//
+// enabledCapabilities JSON schema:
+// {
+//   "autoMatch": "boolean — allow automatic product matching without review",
+//   "autoPrice": "boolean — allow automatic pricing recommendations",
+//   "gstDetection": "boolean — enable GST analysis",
+//   "packSizeExtraction": "boolean — extract pack sizes from invoices",
+//   "competitorComparison": "boolean — include competitor data in analysis",
+//   "toolUse": "boolean — allow agent to call data tools (Business Advisor)"
+// }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. TenantFewShotExample — Curated examples per tenant (Tier 2)
+// ─────────────────────────────────────────────────────────────────────────────
+// New model — no predecessor in current schema.
+//
+// Design decisions:
+//   - Examples are stored per tenant+agent, not globally. Global examples
+//     belong in the PromptBaseVersion.content.sections.
+//   - `sourceConversationId` links back to the interaction that generated this
+//     example. Nullable because examples can be manually authored.
+//   - `qualityScore` is computed from the interaction signal: high satisfaction +
+//     no human override + resolved = high quality candidate.
+//   - `isActive` + `autoCurated` allow the suggestion engine to propose examples
+//     that require admin approval before going live.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TenantFewShotExample {
+  id                     String    @id @default(cuid())
+  tenantId               String
+  agentRoleId            String
+  inputText              String    @db.Text     // the user input / scenario
+  idealOutputText        String    @db.Text     // the ideal agent response
+  sourceConversationId   String?               // conversation this was extracted from
+  qualityScore           Float     @default(0)  // 0.0-1.0, computed from interaction quality
+  timesUsed              Int       @default(0)  // how many times included in assembled prompt
+  lastUsedAt             DateTime?
+  isActive               Boolean   @default(false) // false until admin approves
+  autoCurated            Boolean   @default(false) // true if selected by suggestion engine
+  tags                   String[]  @default([])    // topic tags for relevant example selection
+  createdBy              String?                // userId (null if auto-curated)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  agentRole AgentRole @relation(fields: [agentRoleId], references: [id])
+
+  @@index([tenantId, agentRoleId, isActive])   // hot path: select active examples for assembly
+  @@index([tenantId, agentRoleId])
+  @@index([tenantId, qualityScore])             // suggestion engine: find best examples
+  @@index([sourceConversationId])
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. InteractionSignal — Per-conversation metrics
+// ─────────────────────────────────────────────────────────────────────────────
+// New model — no direct predecessor. Aggregates data currently scattered
+// across Message (feedbackRating), ApiUsageLog (tokens, cost), AuditLog
+// (match overrides), and InvoiceLineMatch (isManual).
+//
+// Design decisions:
+//   - ONE signal per agent interaction (conversation turn, OCR extraction,
+//     matching run — not per-message). This is the unit of analysis for
+//     the suggestion engine and meta-agent.
+//   - `baseVersionUsed` + `configVersionUsed` create a snapshot of which
+//     prompt assembly was active for this interaction, enabling before/after
+//     comparison when prompt versions change.
+//   - `humanOverrideDiff` stores a structured diff, not raw text. This allows
+//     the suggestion engine to identify patterns in what humans correct.
+//   - `topicTags` are auto-classified by the agent post-interaction. Used for
+//     topic-level failure analysis.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InteractionSignal {
+  id                    String   @id @default(cuid())
+  conversationId        String?                  // null for non-conversational agents (OCR, matching)
+  tenantId              String
+  agentRoleId           String
+  baseVersionUsed       String                   // PromptBaseVersion.id used for this interaction
+  configVersionUsed     String?                  // TenantPromptConfig.id used (null if default-only)
+
+  // ── Outcome signals ──
+  resolutionStatus      String   @default("unknown") // "resolved", "escalated", "abandoned", "failed", "unknown"
+  userSatisfactionScore Int?                     // 1-5 (from Message.feedbackRating or explicit)
+  humanOverride         Boolean  @default(false) // did a human edit/correct the AI output?
+  humanOverrideDiff     Json?                    // structured diff of what changed, see schema below
+  correctionCount       Int      @default(0)     // number of user rephrases / retry attempts
+  escalationOccurred    Boolean  @default(false) // was this escalated to a human?
+  failureReason         String?  @db.Text        // if failed, why
+
+  // ── Classification ──
+  topicTags             String[] @default([])    // auto-classified topic tags
+
+  // ── Performance ──
+  tokenCount            Int      @default(0)     // total tokens (input + output)
+  latencyMs             Int      @default(0)     // total response time
+  costUsd               Float    @default(0)     // total cost
+
+  // ── Metadata ──
+  userId                String?                  // who triggered this interaction
+  timestamp             DateTime @default(now())
+
+  agentRole   AgentRole          @relation(fields: [agentRoleId], references: [id])
+  baseVersion PromptBaseVersion  @relation(fields: [baseVersionUsed], references: [id])
+  config      TenantPromptConfig? @relation(fields: [configVersionUsed], references: [id])
+
+  // ── Query pattern 2: signals for tenant over time window (suggestion engine) ──
+  @@index([tenantId, agentRoleId, timestamp])
+  @@index([tenantId, timestamp])
+
+  // ── Query pattern 3: cross-tenant metrics grouped by base version (meta-agent) ──
+  @@index([agentRoleId, baseVersionUsed, timestamp])
+  @@index([baseVersionUsed])
+
+  // ── Failure analysis ──
+  @@index([tenantId, resolutionStatus])
+  @@index([conversationId])
+}
+
+// humanOverrideDiff JSON schema:
+// {
+//   "type": "string — 'ocr_correction' | 'match_override' | 'price_override' | 'response_edit'",
+//   "field": "string? — which field was corrected, e.g. 'gstInclusive', 'matchedProduct'",
+//   "before": "any — the AI's original value",
+//   "after": "any — the human-corrected value",
+//   "context": "string? — additional context about why the override happened"
+// }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. PromptSuggestion — AI-generated improvement proposals
+// ─────────────────────────────────────────────────────────────────────────────
+// New model — partially replaces PromptConflict (conflict detection is now
+// one type of suggestion).
+//
+// Design decisions:
+//   - `tenantId` is nullable: null means this is a cross-tenant suggestion
+//     (from the meta-agent) proposing a base prompt upgrade.
+//   - `suggestionContent` is structured JSON, not free text. The type field
+//     determines the schema of the content.
+//   - `evidence` links to specific interaction signals and conversations,
+//     giving the reviewer concrete data to evaluate the suggestion.
+//   - `impactEstimate` is the AI's prediction of how this change would improve
+//     metrics. Optional — the suggestion engine may not always be confident enough.
+//   - Status workflow: pending → (approved | rejected) → applied
+//     "applied" means the change was actually written to TenantPromptConfig
+//     or PromptBaseVersion.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PromptSuggestion {
+  id                String    @id @default(cuid())
+  tenantId          String?                    // null = cross-tenant suggestion for base prompt
+  agentRoleId       String
+  suggestionType    String                     // see enum below
+  suggestionContent Json                       // structured proposal, see schema below
+  evidence          Json                       // supporting data, see schema below
+  impactEstimate    Json?                      // predicted improvement, see schema below
+
+  // ── Review workflow ──
+  status            String    @default("pending") // "pending", "approved", "rejected", "applied", "superseded"
+  reviewedBy        String?                    // userId of reviewer
+  reviewedAt        DateTime?
+  reviewNotes       String?   @db.Text         // reviewer's comments
+  appliedAt         DateTime?                  // when the suggestion was written to config/base
+
+  // ── Origin ──
+  source            String    @default("suggestion_engine") // "suggestion_engine" | "meta_agent" | "conflict_detection"
+  batchId           String?                    // groups suggestions from the same analysis run
+
+  createdAt         DateTime  @default(now())
+
+  agentRole AgentRole @relation(fields: [agentRoleId], references: [id])
+
+  // ── Query pattern 4: pending suggestions for a tenant (admin dashboard) ──
+  @@index([tenantId, status])
+  @@index([tenantId, agentRoleId, status])
+  @@index([status, createdAt])                  // admin: all pending across system
+  @@index([agentRoleId, source])                // meta-agent: find its own suggestions
+  @@index([batchId])
+}
+
+// suggestionType values:
+//   "add_instruction"     — propose a new custom instruction
+//   "remove_instruction"  — propose removing a custom instruction
+//   "modify_instruction"  — propose changing an existing instruction
+//   "add_term"            — propose a new domain terminology mapping
+//   "modify_escalation"   — propose changing an escalation rule
+//   "add_few_shot"        — propose curating a conversation as a few-shot example
+//   "modify_tone"         — propose changing tone settings
+//   "upgrade_base"        — propose updating the base prompt version (meta-agent only)
+//   "apply_peer_config"   — propose applying a config that worked for a similar tenant
+//   "conflict_resolution" — a detected conflict needing resolution (replaces PromptConflict)
+//
+// suggestionContent JSON schema (varies by type):
+// {
+//   "type": "string — matches suggestionType",
+//   "targetField": "string? — which config field to modify",
+//   "currentValue": "any? — what the field currently contains",
+//   "proposedValue": "any — what it should change to",
+//   "rationale": "string — AI-generated explanation of why this change is recommended",
+//   "affectedSections": ["string[] — base prompt section keys affected"]
+// }
+//
+// evidence JSON schema:
+// {
+//   "signalIds": ["string[] — InteractionSignal IDs supporting this suggestion"],
+//   "conversationIds": ["string[] — Conversation IDs with relevant examples"],
+//   "metrics": {
+//     "failureRate": "float? — % of interactions that failed in the relevant topic",
+//     "overrideRate": "float? — % of interactions with human overrides",
+//     "satisfactionDelta": "float? — difference vs baseline satisfaction",
+//     "sampleSize": "int — number of interactions analyzed"
+//   },
+//   "timeWindow": {
+//     "from": "datetime",
+//     "to": "datetime"
+//   }
+// }
+//
+// impactEstimate JSON schema:
+// {
+//   "expectedSatisfactionDelta": "float? — predicted change in satisfaction score",
+//   "expectedOverrideReduction": "float? — predicted % reduction in human overrides",
+//   "expectedResolutionImprovement": "float? — predicted % improvement in resolution rate",
+//   "confidence": "float — 0.0-1.0, how confident the AI is in this estimate",
+//   "reasoning": "string — brief explanation of the prediction"
+// }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. PromptAuditLog — Immutable record of all prompt changes
+// ─────────────────────────────────────────────────────────────────────────────
+// Evolves from: PromptChangeLog
+//
+// Design decisions:
+//   - `beforeState` and `afterState` store full JSON snapshots, not just
+//     the changed field. This allows complete reconstruction of prompt state
+//     at any point in time.
+//   - `triggeredBy` replaces the old `changeType` with a broader taxonomy
+//     covering all mutation sources (admin, suggestion engine, meta-agent, rollback).
+//   - `approvedBy` is separate from `triggeredBy` because automated suggestions
+//     require human approval before application.
+//   - This table is append-only. Rows are never updated or deleted.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PromptAuditLog {
+  id              String   @id @default(cuid())
+  tenantId        String?                      // null for base prompt changes
+  agentRoleId     String
+  actionType      String                       // see enum below
+
+  // ── State snapshots ──
+  beforeState     Json?    // full state before change (null for creation)
+  afterState      Json     // full state after change
+
+  // ── Provenance ──
+  triggeredBy     String                       // "admin", "suggestion_engine", "meta_agent", "rollback", "migration", "system"
+  approvedBy      String?                      // userId (null if auto-applied or system action)
+  suggestionId    String?                      // link to PromptSuggestion if this change came from one
+  reason          String?  @db.Text            // human-readable reason for the change
+
+  timestamp       DateTime @default(now())
+
+  agentRole       AgentRole          @relation(fields: [agentRoleId], references: [id])
+  baseVersion     PromptBaseVersion? @relation(fields: [baseVersionId], references: [id])
+  baseVersionId   String?                      // if this audit entry relates to a base version change
+  tenantConfig    TenantPromptConfig? @relation(fields: [tenantConfigId], references: [id])
+  tenantConfigId  String?                      // if this audit entry relates to a tenant config change
+
+  @@index([tenantId, agentRoleId, timestamp])   // tenant prompt history
+  @@index([tenantId, timestamp])                // all changes for a tenant
+  @@index([agentRoleId, timestamp])             // all changes for an agent role
+  @@index([triggeredBy, timestamp])             // filter by source
+  @@index([suggestionId])                       // trace suggestion → audit
+}
+
+// actionType values:
+//   "base_version_created"     — new base prompt version published
+//   "base_version_activated"   — base prompt version set as active
+//   "base_version_deactivated" — base prompt version removed from active
+//   "tenant_config_created"    — new tenant config version created
+//   "tenant_config_updated"    — tenant config fields modified
+//   "tenant_config_activated"  — tenant config version set as active
+//   "tenant_config_rolled_back" — reverted to previous tenant config version
+//   "few_shot_added"           — few-shot example added
+//   "few_shot_removed"         — few-shot example deactivated
+//   "suggestion_applied"       — a PromptSuggestion was applied
+//   "conflict_resolved"        — a conflict suggestion was resolved
+//   "migration"                — automatic migration during base version upgrade
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INDEX JUSTIFICATION — Key Query Patterns
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// QUERY 1: Get current active prompt config for tenant + agent_role
+//   Called: Every agent invocation (hot path, must be <5ms)
+//   Uses:
+//     PromptBaseVersion: @@index([agentRoleId, isActive])
+//       → SELECT * FROM PromptBaseVersion WHERE agentRoleId = ? AND isActive = true
+//     TenantPromptConfig: @@index([tenantId, agentRoleId, isActive])
+//       → SELECT * FROM TenantPromptConfig WHERE tenantId = ? AND agentRoleId = ? AND isActive = true
+//     TenantFewShotExample: @@index([tenantId, agentRoleId, isActive])
+//       → SELECT * FROM TenantFewShotExample WHERE tenantId = ? AND agentRoleId = ? AND isActive = true
+//   Result: Three parallel queries, each hitting a covering index. Cached 5 min.
+//
+// QUERY 2: Get interaction signals for tenant over time window
+//   Called: Suggestion engine (periodic, ~hourly per tenant)
+//   Uses:
+//     InteractionSignal: @@index([tenantId, agentRoleId, timestamp])
+//       → SELECT * FROM InteractionSignal
+//         WHERE tenantId = ? AND agentRoleId = ? AND timestamp BETWEEN ? AND ?
+//   Supports: failure pattern detection, satisfaction trends, override rate calc
+//
+// QUERY 3: Get cross-tenant metrics grouped by base version
+//   Called: Meta-agent (periodic, ~daily)
+//   Uses:
+//     InteractionSignal: @@index([agentRoleId, baseVersionUsed, timestamp])
+//       → SELECT baseVersionUsed, AVG(userSatisfactionScore), COUNT(*) ...
+//         FROM InteractionSignal
+//         WHERE agentRoleId = ? AND timestamp > ?
+//         GROUP BY baseVersionUsed
+//   Also: @@index([baseVersionUsed]) for joining with PromptBaseVersion
+//
+// QUERY 4: Get pending suggestions for a tenant
+//   Called: Admin dashboard (on page load)
+//   Uses:
+//     PromptSuggestion: @@index([tenantId, status])
+//       → SELECT * FROM PromptSuggestion WHERE tenantId = ? AND status = 'pending'
+//     Also: @@index([status, createdAt]) for system-wide pending queue
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TENANT MODEL ADDITIONS — Relations to add to existing Tenant model
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Add to the Tenant model in schema.prisma:
+//
+//   tenantPromptConfigs     TenantPromptConfig[]
+//   tenantFewShotExamples   TenantFewShotExample[]
+//   interactionSignals      InteractionSignal[]
+//   promptSuggestions       PromptSuggestion[]
+//   promptAuditLogs         PromptAuditLog[]
+//
+// NOTE: These models are NOT added to TENANT_SCOPED_MODELS in prisma.js because
+// they need to be accessed from multiple contexts:
+//   - Runtime prompt assembly uses basePrisma with explicit tenantId filter
+//   - Meta-agent queries across all tenants via basePrisma
+//   - Admin routes use basePrisma for cross-tenant views
+//   - Tenant routes use explicit tenantId filtering
+// The existing pattern from TenantPromptOverride is maintained.
+//
+// However, RLS policies SHOULD be created for TenantPromptConfig,
+// TenantFewShotExample, InteractionSignal, and PromptAuditLog (where tenantId
+// is not null) as defense-in-depth.
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONVERSATION MODEL ADDITIONS — Fields to add to existing Conversation model
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Add to the Conversation model in schema.prisma:
+//
+//   resolutionStatus    String?   // "resolved", "escalated", "abandoned", "failed"
+//   topicTags           String[]  @default([])
+//   agentRoleKey        String?   // which agent role handled this conversation
+//   signalId            String?   // link to the InteractionSignal for this conversation
+//
+// This enriches the existing Conversation model without breaking current code.
+// The signal relationship allows navigating from conversation → signal → metrics.
+//
+// ═══════════════════════════════════════════════════════════════════════════════

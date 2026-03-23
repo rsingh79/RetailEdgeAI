@@ -222,6 +222,90 @@ Ranges: 0-40 = Critical, 41-60 = Needs Attention, 61-80 = Healthy, 81-100 = Exce
 
 ---
 
+### 3.5 Product Import Agent
+
+**New agent** — AI-powered product catalog import that analyses file structure and maps columns automatically.
+
+**File**: `server/src/services/productImportAgent.js`
+
+**Capabilities**:
+
+| Function | Description | LLM Required? |
+|----------|-------------|---------------|
+| `analyseFileStructure` | Detect headers, sample rows, system format (Shopify, Lightspeed, WooCommerce, generic) | Yes (Claude) |
+| `proposeColumnMapping` | Map detected columns to RetailEdge product fields | Yes (Claude) |
+| `groupParentChildRows` | Generic parent/child row grouping engine for variant detection | No (rule engine) |
+| `testImport` | Dry run import with preview of products and variants | No (data transform) |
+| `confirmImport` | Create products and variants in database, save template | No (DB writes) |
+| `exportWithUpdatedPrices` | Reconstruct original file format with current prices | No (template-based) |
+
+**UI**: Split-screen chat interface (`SmartImport.jsx`):
+- Left panel: Conversational agent for iterative refinement
+- Right panel: Column mapping visualization, grouping patterns, test results
+
+**Template System**: On successful import, saves complete file blueprint (headers, column positions, grouping rules, system name) for future round-trip export.
+
+---
+
+### 3.6 Prompt Management Agent
+
+**File**: `server/src/services/promptChatAgent.js`
+
+Manages prompt configuration through a conversational interface. Allows tenant admins to refine AI agent behavior through natural language.
+
+**Capabilities**:
+
+| Function | Description | LLM Required? |
+|----------|-------------|---------------|
+| `reviewPromptConfig` | Show current effective prompt for an agent | No |
+| `addOverride` | Add custom instruction to tenant config | No (DB write) |
+| `removeOverride` | Remove custom instruction | No (DB write) |
+| `previewEffectivePrompt` | Show assembled prompt with all overrides applied | No |
+
+---
+
+### 3.7 Suggestion Engine Agent
+
+**File**: `server/src/services/suggestionEngine.js` (631 lines)
+
+Automated per-tenant analysis of interaction signals to generate prompt improvement proposals.
+
+**Capabilities**:
+
+| Function | Description | LLM Required? |
+|----------|-------------|---------------|
+| `aggregateSignals` | Group signals by topic, compute resolution/override/satisfaction rates | No (SQL) |
+| `identifyFailurePatterns` | Detect high override rate (>40%), low satisfaction (<3.0) | No (threshold logic) |
+| `clusterHumanOverrides` | Categorize overrides: wrong_product_match, no_match_found, price_override | No (classification) |
+| `generateProposals` | Create structured improvement suggestions from patterns | Yes (Claude Haiku) |
+| `autoSuggestFewShots` | Curate few-shot examples from high-satisfaction interactions | No (SQL scoring) |
+
+**Schedule**: Runs daily per tenant per agent role. Stores suggestions in `PromptSuggestion` table for admin review.
+
+---
+
+### 3.8 Meta-Optimizer Agent
+
+**File**: `server/src/services/metaOptimizer.js` (760 lines)
+
+Cross-tenant learning system that identifies effective prompt configurations and proposes platform-wide improvements.
+
+**Capabilities**:
+
+| Function | Description | LLM Required? |
+|----------|-------------|---------------|
+| `computeCrossTenantStats` | Compare resolution/override/satisfaction rates across tenants | No (SQL) |
+| `identifyOutperformers` | Find tenants with 15%+ improvement over defaults | No (comparison) |
+| `generateDefaultUpgrades` | Propose base prompt improvements from outperformer patterns | Yes (Claude) |
+| `createCandidateVersion` | Create new PromptBaseVersion (isActive: false) for review | No (DB write) |
+| `activateCandidate` | Canary rollout of new base version | No (DB update) |
+| `rollbackVersion` | Revert to previous active version | No (DB update) |
+| `generateRecommendations` | Suggest improvements for default tenants based on outperformer configs | Yes (Claude) |
+
+**Schedule**: Runs weekly. Platform admin reviews candidates via Admin > Meta-Optimizer dashboard.
+
+---
+
 ## 4. Context Architecture
 
 ### 4.1 Three-Layer Context Model

@@ -13,7 +13,7 @@
 
 ### Test Execution
 ```bash
-# Run all tests (231 tests, 9 files)
+# Run all tests (273 tests, 12 files)
 cd server && npx vitest run
 
 # Run specific test file
@@ -44,7 +44,10 @@ npx vitest run --coverage
 | `pricing-service.test.js` | 31 | Pricing calculation engine |
 | `gmail-integration.test.js` | 31 | Gmail OAuth + polling + dedup |
 | `folder-integration.test.js` | 36 | Folder polling + validation + dedup |
-| **Total** | **231** | |
+| `signal-collector.test.js` | 15 | Signal capture + buffer flush |
+| `suggestion-engine.test.js` | 16 | Suggestion engine pipeline |
+| `meta-optimizer.test.js` | 11 | Cross-tenant meta-optimization |
+| **Total** | **273** | |
 
 ---
 
@@ -275,6 +278,63 @@ npx vitest run --coverage
 | FP-35 | hashFileBuffer unique per content | Different content → different hash |
 | FP-36 | hashFileBuffer handles empty buffer | Valid hash returned |
 
+### 3.10 Signal Collector (15 tests)
+
+| ID | Test Case | Expected Result |
+|---|---|---|
+| SC-01 | Record prompt_meta signal | Signal buffered with baseVersionId, configId |
+| SC-02 | Record correction_count signal | Consecutive user messages counted |
+| SC-03 | Record usage signal | Tokens, latency, cost captured |
+| SC-04 | Record outcome signal | Resolved/failed status recorded |
+| SC-05 | Record satisfaction signal | User feedback score captured |
+| SC-06 | Record escalation signal | Escalation event captured |
+| SC-07 | Partial accumulation across multiple calls | Signals merge correctly for same conversation |
+| SC-08 | Buffer flush writes to InteractionSignal table | DB records created on flush |
+| SC-09 | Buffer respects max size limit | Overflow signals handled gracefully |
+| SC-10 | Flush resolves agentRoleId from agentRoleKey | Correct FK populated |
+| SC-11 | Empty buffer flush is no-op | No DB writes on empty buffer |
+| SC-12 | Signal with unknown agentRoleKey | Graceful error handling, signal skipped |
+| SC-13 | Concurrent signal emission | Thread-safe buffer management |
+| SC-14 | Full conversation simulation | All signal types emitted correctly end-to-end |
+| SC-15 | Buffer drain clears buffer after flush | Buffer empty after successful flush |
+
+### 3.11 Suggestion Engine (16 tests)
+
+| ID | Test Case | Expected Result |
+|---|---|---|
+| SG-01 | Aggregate signals by topic | Correct grouping and counts |
+| SG-02 | Aggregate signals by agent role | Per-agent breakdowns correct |
+| SG-03 | Detect high override rate pattern | Flagged when override > 40% |
+| SG-04 | Detect low satisfaction pattern | Flagged when avg satisfaction < 3.0 |
+| SG-05 | Detect topic-specific failure | Topic with concentrated overrides identified |
+| SG-06 | Cluster human overrides by type | wrong_product_match, no_match_found, price_override |
+| SG-07 | Generate improvement proposals | LLM returns structured suggestions |
+| SG-08 | Store suggestions with pending status | PromptSuggestion records created |
+| SG-09 | Batch ID assigned to suggestion group | All suggestions in run share batchId |
+| SG-10 | Auto-curate few-shot examples | High-satisfaction interactions selected |
+| SG-11 | Skip tenants with insufficient signals | Minimum signal threshold enforced |
+| SG-12 | No suggestions when no failure patterns | Empty result, no unnecessary LLM calls |
+| SG-13 | Suggestion includes evidence references | Evidence cites specific topics and rates |
+| SG-14 | Multiple agent roles processed independently | Each role has separate suggestions |
+| SG-15 | Full pipeline end-to-end | Signals → patterns → suggestions complete |
+| SG-16 | Suggestion deduplication | Similar suggestions not duplicated across runs |
+
+### 3.12 Meta-Optimizer (11 tests)
+
+| ID | Test Case | Expected Result |
+|---|---|---|
+| MO-01 | Cross-tenant statistics computation | Stats aggregated across tenants |
+| MO-02 | Outperformer detection (15%+ improvement) | Tenants with custom configs beating defaults identified |
+| MO-03 | Default vs customized tenant comparison | Correct baseline vs improved metrics |
+| MO-04 | Generate default upgrade proposals | LLM proposes base prompt improvements |
+| MO-05 | Create candidate PromptBaseVersion | New version created with isActive=false |
+| MO-06 | Generate cross-tenant recommendations | Default tenants receive improvement suggestions |
+| MO-07 | Canary rollout activation | New version activated for subset of tenants |
+| MO-08 | Rollback candidate version | Reverts to previous active version |
+| MO-09 | Multi-tenant simulation | Correct behavior with many tenants |
+| MO-10 | Insufficient data handling | Graceful skip when too few signals |
+| MO-11 | Existing tenant configs preserved on upgrade | Pinned baseVersionId not overwritten |
+
 ---
 
 ## 4. Integration Test Scenarios
@@ -341,7 +401,44 @@ npx vitest run --coverage
 8. Decide to adjust price or hold
 ```
 
-### Scenario 6: Multi-Tenant Admin Management
+### Scenario 6: Smart Product Import
+```
+1. Navigate to Products > Smart Import
+2. Upload Shopify CSV file, system name auto-detected
+3. AI agent analyses headers and sample rows
+4. Agent proposes column mapping and parent/child grouping
+5. User reviews mapping in right panel, adjusts if needed
+6. Click "Test Import" → preview products and variants
+7. Confirm import → products and variants created
+8. Template auto-saved with file blueprint
+9. Later: export with updated prices in original format
+```
+
+### Scenario 7: Prompt Evolution Lifecycle
+```
+1. New tenant onboards → assemblePrompt returns base version verbatim
+2. Tenant uses advisor chat → signals captured (satisfaction, overrides)
+3. Daily: suggestion engine detects high override rate on product matching
+4. Suggestion generated: "Add instruction about size variants"
+5. Tenant admin reviews in Settings > AI Agents → approves
+6. TenantPromptConfig updated, cache invalidated
+7. Next chat uses improved prompt → override rate drops
+8. Weekly: meta-optimizer detects improvement → proposes base upgrade
+9. Platform admin activates candidate with canary rollout
+```
+
+### Scenario 8: Invoice Statement Detection
+```
+1. Supplier sends monthly statement via email
+2. Gmail polling picks up attachment
+3. OCR classifies documentType as "statement"
+4. Invoice auto-assigned DISCARDED status
+5. Audit log entry: "Document discarded - type: statement"
+6. Statement does NOT appear in review queue
+7. Admin can see discarded documents in invoice list with filter
+```
+
+### Scenario 9: Multi-Tenant Admin Management
 ```
 1. System admin views platform overview
 2. 50 tenants: 30 active, 15 trial, 3 locked, 2 expired

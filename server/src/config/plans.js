@@ -18,7 +18,7 @@ export const PLAN_CONFIG = {
     maxUsers: 15,
     maxStores: 10,
     maxApiCallsPerMonth: 500,
-    features: ['invoices', 'products', 'pricing', 'reports', 'gmail_integration', 'folder_polling', 'drive_integration'],
+    features: ['invoices', 'products', 'pricing', 'reports', 'gmail_integration', 'folder_polling', 'drive_integration', 'ai_advisor'],
   },
   enterprise: {
     label: 'Enterprise',
@@ -28,7 +28,7 @@ export const PLAN_CONFIG = {
     maxApiCallsPerMonth: 2000,
     features: [
       'invoices', 'products', 'pricing', 'reports',
-      'gmail_integration', 'folder_polling', 'drive_integration', 'competitor_intelligence',
+      'gmail_integration', 'folder_polling', 'drive_integration', 'competitor_intelligence', 'ai_advisor',
     ],
   },
 };

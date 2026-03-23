@@ -370,6 +370,25 @@ export async function processGmailAttachment(prisma, attachment, tenantId, userI
     const ocrResult = await extractInvoiceData(buffer, mimetype, tenantId, userId);
     const result = await applyOcrToInvoice(prisma, invoice.id, ocrResult);
 
+    // ── Document type check: discard non-invoices ──
+    if (result?.discarded) {
+      await prisma.gmailImportLog.create({
+        data: {
+          tenantId,
+          gmailMessageId: gmailMessageId || `discarded-${Date.now()}`,
+          fileHash,
+          supplierName: result.supplierName || null,
+          senderEmail,
+          subject,
+          attachmentName: filename,
+          status: 'discarded',
+          duplicateReason: `not_invoice:${result.documentType}`,
+          invoiceId: invoice.id,
+        },
+      });
+      return { status: 'discarded', documentType: result.documentType, invoiceId: invoice.id };
+    }
+
     // ── Dedup Layer 3: Supplier + Invoice Number + Date ──
     const supplierName = ocrResult.supplier?.name || null;
     const invoiceNumber = ocrResult.invoiceNumber || null;

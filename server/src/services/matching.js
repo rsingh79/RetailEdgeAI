@@ -10,6 +10,7 @@
 
 import { calculateSuggestedPrice } from './pricing.js';
 import { trackedClaudeCall } from './apiUsageTracker.js';
+import { assemblePrompt } from './promptAssemblyEngine.js';
 
 const CONFIDENCE_THRESHOLD = 0.8;
 const CANDIDATE_MIN_SCORE = 0.8;
@@ -353,7 +354,46 @@ async function aiBatchMatch(prisma, unmatchedLines, tenantId) {
       return `${i + 1}. "${l.description}" (pack: ${l.packSize || 'N/A'}, qty: ${l.quantity || 'N/A'}, unit price: $${l.unitPrice || 'N/A'}, best fuzzy score: ${bestScore})`;
     }).join('\n');
 
-    const prompt = `You are a product matching assistant for a retail/grocery store. Match each invoice line to products in the catalog.
+    // Load tenant-specific prompt instructions from DB
+    let preamble = 'You are a product matching assistant for a retail/grocery store. Match each invoice line to products in the catalog.';
+    let conditionsText = `For each invoice line, find ALL reasonable candidate matches from the catalog, ranked by confidence. Consider:
+- Product name similarity (ignore pack sizes, weights, and country of origin in the invoice description)
+- Category relevance
+- A "Sunflower Kernels" invoice line should match "Sunflower Kernel" not "Pistachio Kernels"
+- Only include candidates with confidence >= 0.6 (skip weak/irrelevant matches)`;
+    let postamble = `Reply with ONLY a JSON array, one entry per invoice line (in order):
+[{"line": 1, "matches": [{"product": <catalog number>, "confidence": <0.0-1.0>, "reason": "<brief>"}]}]
+Each "matches" array should be sorted by confidence (highest first).
+Use an empty matches array [] if no catalog item is a reasonable match.`;
+
+    try {
+      const assembly = await assemblePrompt({
+        agentRoleKey: 'product_matching',
+        tenantId,
+      });
+      if (assembly) {
+        // The assembled prompt contains the full instruction text.
+        // For matching, we split it: the systemPrompt IS the instructions,
+        // and the catalog/lines data is injected by this function below.
+        // We use the full assembled prompt as the preamble+conditions+postamble.
+        const fullPrompt = assembly.prompt;
+        // Split on the output format section if it exists
+        const outputMarker = 'Reply with ONLY a JSON array';
+        const markerIdx = fullPrompt.indexOf(outputMarker);
+        if (markerIdx > 0) {
+          preamble = '';
+          conditionsText = fullPrompt.substring(0, markerIdx).trim();
+          postamble = fullPrompt.substring(markerIdx).trim();
+        } else {
+          preamble = '';
+          conditionsText = fullPrompt;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to assemble matching prompt, using fallback:', err.message);
+    }
+
+    const prompt = `${preamble}
 
 PRODUCT CATALOG (${allProducts.length} products):
 ${catalogList}
@@ -361,16 +401,9 @@ ${catalogList}
 INVOICE LINES TO MATCH (${unmatchedLines.length} lines):
 ${linesList}
 
-For each invoice line, find ALL reasonable candidate matches from the catalog, ranked by confidence. Consider:
-- Product name similarity (ignore pack sizes, weights, and country of origin in the invoice description)
-- Category relevance
-- A "Sunflower Kernels" invoice line should match "Sunflower Kernel" not "Pistachio Kernels"
-- Only include candidates with confidence >= 0.6 (skip weak/irrelevant matches)
+${conditionsText}
 
-Reply with ONLY a JSON array, one entry per invoice line (in order):
-[{"line": 1, "matches": [{"product": <catalog number>, "confidence": <0.0-1.0>, "reason": "<brief>"}]}]
-Each "matches" array should be sorted by confidence (highest first).
-Use an empty matches array [] if no catalog item is a reasonable match.`;
+${postamble}`;
 
     const response = await trackedClaudeCall({
       tenantId,

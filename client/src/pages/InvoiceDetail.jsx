@@ -19,6 +19,8 @@ export default function InvoiceDetail() {
   const [editingLine, setEditingLine] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [fileBlobUrl, setFileBlobUrl] = useState(null);
+  const [costBasis, setCostBasis] = useState({}); // lineId → 'inc' | 'exc'
+  const [reOcrLoading, setReOcrLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -98,9 +100,35 @@ export default function InvoiceDetail() {
     }
   };
 
+  const handleReOcr = async () => {
+    if (!confirm('Re-run OCR on this invoice? This will replace all current line items with freshly extracted data.')) return;
+    setReOcrLoading(true);
+    setError(null);
+    try {
+      const result = await api.reOcr(invoiceId);
+      // Reload the full invoice to get updated lines
+      const updated = await api.getInvoice(invoiceId);
+      setInvoice(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setReOcrLoading(false);
+    }
+  };
+
   const handleConfirm = async () => {
     setSaving(true);
     try {
+      // Save chosen cost basis (inc/exc GST) to each line's baseUnitCost
+      await Promise.all(
+        (invoice.lines || []).map((line) => {
+          const cost = getCostToUse(line);
+          if (cost != null && Math.abs(cost - (line.baseUnitCost || 0)) > 0.001) {
+            return api.updateInvoiceLine(invoiceId, line.id, { baseUnitCost: cost });
+          }
+          return Promise.resolve();
+        })
+      );
       await api.updateInvoice(invoiceId, { status: 'IN_REVIEW' });
       navigate('/review/' + invoiceId);
     } catch (err) {
@@ -132,6 +160,54 @@ export default function InvoiceDetail() {
   const formatDate = (d) => {
     if (!d) return '';
     return new Date(d).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  // ── GST helpers ──────────────────────────────────────────────
+  const GST_RATE = 0.10;
+  const addGst = (v) => v != null ? Math.round(v * (1 + GST_RATE) * 100) / 100 : null;
+  const removeGst = (v) => v != null ? Math.round((v / (1 + GST_RATE)) * 100) / 100 : null;
+
+  // Per-line: does baseUnitCost already include GST for this line?
+  // - gstInclusive=true → lineTotal includes GST → baseUnitCost includes GST (for GST-applicable lines)
+  // - gstInclusive=false, gst>0 → GST was allocated → baseUnitCost includes GST (for GST-applicable lines)
+  // - gstInclusive=false, gst=0 → no GST → baseUnitCost does NOT include GST
+  const lineBucIncludesGst = (line) => {
+    if (!line.gstApplicable) return false;
+    return invoice.gstInclusive || (invoice.gst > 0);
+  };
+
+  const costExGst = (line) => {
+    if (line.baseUnitCost == null) return null;
+    if (!line.gstApplicable) return line.baseUnitCost;
+    return lineBucIncludesGst(line) ? removeGst(line.baseUnitCost) : line.baseUnitCost;
+  };
+  const costIncGst = (line) => {
+    if (line.baseUnitCost == null) return null;
+    if (!line.gstApplicable) return line.baseUnitCost;
+    return lineBucIncludesGst(line) ? line.baseUnitCost : addGst(line.baseUnitCost);
+  };
+  const getLineCostBasis = (lineId) => costBasis[lineId] || 'inc';
+  const getCostToUse = (line) =>
+    getLineCostBasis(line.id) === 'inc' ? costIncGst(line) : costExGst(line);
+  const setAllCostBasis = (basis) => {
+    const updated = {};
+    (invoice.lines || []).forEach((l) => { updated[l.id] = basis; });
+    setCostBasis(updated);
+  };
+
+  const handleGstToggle = async (line) => {
+    setSaving(true);
+    try {
+      const result = await api.updateInvoiceLine(invoiceId, line.id, {
+        gstApplicable: !line.gstApplicable,
+      });
+      // Endpoint returns the full invoice when gstApplicable changes
+      setInvoice(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -172,6 +248,28 @@ export default function InvoiceDetail() {
             </span>
           )}
           <button
+            onClick={handleReOcr}
+            disabled={reOcrLoading || saving}
+            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            {reOcrLoading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Re-scanning...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                </svg>
+                Re-OCR
+              </>
+            )}
+          </button>
+          <button
             onClick={handleConfirm}
             disabled={saving || invoice.status === 'FAILED'}
             className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -192,7 +290,20 @@ export default function InvoiceDetail() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <span className="text-sm font-semibold">Invoice Preview</span>
-              <span className="text-xs text-gray-400">{fileUrl?.split('/').pop()}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">{fileUrl?.split('/').pop()}</span>
+                {fileBlobUrl && (
+                  <button
+                    onClick={() => window.open(fileBlobUrl, '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes')}
+                    className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded transition"
+                    title="Open in new window"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="bg-gray-100 min-h-[500px]">
               {isPdf ? (
@@ -236,6 +347,14 @@ export default function InvoiceDetail() {
                 </span>
               </div>
               <div>
+                <span className="text-gray-500 block text-xs">GST Treatment</span>
+                <span className={`inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium ${
+                  invoice.gstInclusive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                }`}>
+                  {invoice.gstInclusive ? 'Prices Inc GST' : invoice.gstInclusive === false ? 'Prices Ex GST' : 'Unknown'}
+                </span>
+              </div>
+              <div>
                 <span className="text-gray-500 block text-xs">Freight Allocation</span>
                 <select
                   className="mt-1 px-2 py-1 border border-gray-300 rounded text-xs w-full"
@@ -258,14 +377,32 @@ export default function InvoiceDetail() {
             </div>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                <tr className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
                   <th className="px-4 py-2.5 w-10">#</th>
                   <th className="px-3 py-2.5">Description</th>
-                  <th className="px-3 py-2.5 text-right">Qty</th>
-                  <th className="px-3 py-2.5 text-right">Unit Price</th>
-                  <th className="px-3 py-2.5 text-right">Total</th>
+                  <th className="px-3 py-2.5">Qty</th>
+                  <th className="px-3 py-2.5">
+                    <div>Unit Price</div>
+                    <div className="font-normal normal-case tracking-normal text-gray-400">(inc / ex GST)</div>
+                  </th>
+                  <th className="px-3 py-2.5">
+                    <div>Total</div>
+                    <div className="font-normal normal-case tracking-normal text-gray-400">(inc / ex GST)</div>
+                  </th>
                   <th className="px-3 py-2.5">Pack Size</th>
                   <th className="px-3 py-2.5">Base Unit</th>
+                  <th className="px-3 py-2.5">Freight Alloc</th>
+                  <th className="px-2 py-2.5 w-14">
+                    <div>GST</div>
+                  </th>
+                  <th className="px-3 py-2.5">
+                    <div>Total Cost to Use</div>
+                    <div className="flex items-center justify-center gap-1 mt-0.5 font-normal normal-case tracking-normal">
+                      <button className="text-[10px] text-teal-600 hover:underline" onClick={() => setAllCostBasis('inc')}>all inc</button>
+                      <span className="text-gray-300">|</span>
+                      <button className="text-[10px] text-teal-600 hover:underline" onClick={() => setAllCostBasis('exc')}>all exc</button>
+                    </div>
+                  </th>
                   <th className="px-3 py-2.5 w-16"></th>
                 </tr>
               </thead>
@@ -322,6 +459,19 @@ export default function InvoiceDetail() {
                             onChange={(e) => setEditValues({ ...editValues, baseUnit: e.target.value })}
                           />
                         </td>
+                        <td className="px-3 py-2 text-right text-xs text-gray-400">
+                          {line.freightAlloc ? `$${Number(line.freightAlloc).toFixed(2)}` : '—'}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={line.gstApplicable}
+                            onChange={() => handleGstToggle(line)}
+                            disabled={saving}
+                            className="w-4 h-4 text-teal-600 rounded border-gray-300 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right text-xs text-gray-400">—</td>
                         <td className="px-3 py-2 flex gap-1">
                           <button
                             onClick={() => saveLineEdit(line.id)}
@@ -346,14 +496,77 @@ export default function InvoiceDetail() {
                       </>
                     ) : (
                       <>
-                        <td className="px-4 py-3 text-gray-400">{line.lineNumber}</td>
+                        <td className="px-4 py-3 text-center text-gray-400">{line.lineNumber}</td>
                         <td className="px-3 py-3 font-medium">{line.description}</td>
-                        <td className="px-3 py-3 text-right">{line.quantity}</td>
-                        <td className="px-3 py-3 text-right">${Number(line.unitPrice).toFixed(2)}</td>
-                        <td className="px-3 py-3 text-right font-medium">${Number(line.lineTotal).toFixed(2)}</td>
-                        <td className="px-3 py-3 text-gray-500">{line.packSize || '—'}</td>
-                        <td className="px-3 py-3 text-gray-500">{line.baseUnit || '—'}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-3 py-3 text-center">{line.quantity}</td>
+                        <td className="px-3 py-3 text-center">
+                          {!line.gstApplicable ? (
+                            <div>${Number(line.unitPrice).toFixed(2)}</div>
+                          ) : invoice.gstInclusive ? (
+                            <>
+                              <div>${Number(line.unitPrice).toFixed(2)}</div>
+                              <div className="text-xs text-gray-400">${removeGst(line.unitPrice)?.toFixed(2)} ex</div>
+                            </>
+                          ) : (
+                            <>
+                              <div>${addGst(line.unitPrice)?.toFixed(2)}</div>
+                              <div className="text-xs text-gray-400">${Number(line.unitPrice).toFixed(2)} ex</div>
+                            </>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {!line.gstApplicable ? (
+                            <div className="font-medium">${Number(line.lineTotal).toFixed(2)}</div>
+                          ) : invoice.gstInclusive ? (
+                            <>
+                              <div className="font-medium">${Number(line.lineTotal).toFixed(2)}</div>
+                              <div className="text-xs text-gray-400">${removeGst(line.lineTotal)?.toFixed(2)} ex</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="font-medium">${addGst(line.lineTotal)?.toFixed(2)}</div>
+                              <div className="text-xs text-gray-400">${Number(line.lineTotal).toFixed(2)} ex</div>
+                            </>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center text-gray-500">{line.packSize || '—'}</td>
+                        <td className="px-3 py-3 text-center text-gray-500">{line.baseUnit || '—'}</td>
+                        <td className="px-3 py-3 text-center text-gray-500">
+                          {line.freightAlloc ? `$${Number(line.freightAlloc).toFixed(2)}` : '—'}
+                        </td>
+                        <td className="px-2 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={line.gstApplicable}
+                            onChange={() => handleGstToggle(line)}
+                            disabled={saving}
+                            className="w-4 h-4 text-teal-600 rounded border-gray-300 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {line.baseUnitCost != null ? (
+                            <div className="space-y-1">
+                              <div className="font-semibold text-teal-700">
+                                ${getCostToUse(line)?.toFixed(2)}/{line.baseUnit || 'unit'}
+                              </div>
+                              {line.gstApplicable ? (
+                                <select
+                                  className="text-xs border border-gray-200 rounded px-1.5 py-0.5 text-gray-600 bg-white"
+                                  value={getLineCostBasis(line.id)}
+                                  onChange={(e) => setCostBasis(prev => ({ ...prev, [line.id]: e.target.value }))}
+                                >
+                                  <option value="inc">Inc GST</option>
+                                  <option value="exc">Exc GST</option>
+                                </select>
+                              ) : (
+                                <span className="text-[10px] text-gray-400">GST-free</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center">
                           <button
                             onClick={() => startEditLine(line)}
                             className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"

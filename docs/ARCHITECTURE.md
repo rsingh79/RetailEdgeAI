@@ -9,15 +9,17 @@ RetailEdge is a monorepo web application with a React 19 single-page application
 │                        Client (React 19)                     │
 │  Vite 7 · Tailwind CSS 4 · React Router 7 · xlsx            │
 │  ┌─────────────┐ ┌─────────────┐ ┌──────────────────────┐   │
-│  │ Pages       │ │ Components  │ │ Services             │   │
+│  │ Pages       │ │ Components  │ │ Services / Hooks     │   │
 │  │ Dashboard   │ │ Layout      │ │ api.js (HTTP client)  │   │
 │  │ Invoices    │ │ Settings    │ │ useTenantPlan hook    │   │
-│  │ Review      │ │ Competitor  │ │                       │   │
-│  │ Export      │ │ UpgradePmt  │ │                       │   │
-│  │ Products    │ │             │ │                       │   │
+│  │ Review      │ │ Competitor  │ │ useChat hook          │   │
+│  │ BatchReview │ │ Advisor/*   │ │                       │   │
+│  │ Export      │ │ Review/*    │ │                       │   │
+│  │ Products    │ │ UpgradePmt  │ │                       │   │
 │  │ Pricing     │ │             │ │                       │   │
 │  │ Settings    │ │             │ │                       │   │
 │  │ Competitor  │ │             │ │                       │   │
+│  │ BizAdvisor  │ │             │ │                       │   │
 │  │ Admin/*     │ │             │ │                       │   │
 │  └─────────────┘ └─────────────┘ └──────────────────────┘   │
 └───────────────────────────┬─────────────────────────────────┘
@@ -31,22 +33,28 @@ RetailEdge is a monorepo web application with a React 19 single-page application
 │  │ tenantScope → requirePlan → [route handler]          │     │
 │  └─────────────────────────────────────────────────────┘     │
 │  ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐     │
-│  │ Routes       │ │ Services     │ │ Background Jobs  │     │
-│  │ auth         │ │ ocr          │ │ gmailScheduler   │     │
-│  │ invoices     │ │ invoiceProc  │ │ folderScheduler  │     │
-│  │ products     │ │ matching     │ │                  │     │
-│  │ pricing      │ │ pricing      │ │                  │     │
-│  │ stores       │ │ gmail        │ │                  │     │
-│  │ gmail        │ │ folder       │ │                  │     │
-│  │ folder       │ │ shopifyImp   │ │                  │     │
-│  │ competitor   │ │ apiTracker   │ │                  │     │
-│  │ admin/*      │ │              │ │                  │     │
-│  └──────────────┘ └──────────────┘ └──────────────────┘     │
+│  │ Routes       │ │ Services       │ │ Background Jobs    │   │
+│  │ auth         │ │ ocr            │ │ gmailScheduler     │   │
+│  │ invoices     │ │ invoiceProc    │ │ folderScheduler    │   │
+│  │ products     │ │ matching       │ │ signalCollector    │   │
+│  │ pricing      │ │ pricing        │ │ conversationClnup  │   │
+│  │ stores       │ │ gmail          │ │                    │   │
+│  │ gmail        │ │ folder         │ │                    │   │
+│  │ folder       │ │ shopifyImp     │ │                    │   │
+│  │ competitor   │ │ apiTracker     │ │                    │   │
+│  │ chat         │ │ agents/*       │ │                    │   │
+│  │ product-imp  │ │ promptAssembly │ │                    │   │
+│  │ suggestions  │ │ signalCollect  │ │                    │   │
+│  │ drive        │ │ suggestionEng  │ │                    │   │
+│  │ prompts      │ │ metaOptimizer  │ │                    │   │
+│  │ prompt-chat  │ │ productImpAgt  │ │                    │   │
+│  │ admin/*      │ │ drive          │ │                    │   │
+│  └──────────────┘ └────────────────┘ └────────────────────┘   │
 └───────────────────────────┬─────────────────────────────────┘
                             │ Prisma Client (tenant-scoped)
 ┌───────────────────────────▼─────────────────────────────────┐
 │                   PostgreSQL 16 (Docker)                      │
-│  Row-Level Security · 32 Models · Indexes · RLS Policies     │
+│  Row-Level Security · 40+ Models · Indexes · RLS Policies    │
 └─────────────────────────────────────────────────────────────┘
 
 External Services:
@@ -249,8 +257,14 @@ The `requirePlan(feature)` middleware returns `403 PLAN_UPGRADE_REQUIRED` if the
 ┌──────────────────────────────────────────────────────────┐
 │                      EXPORT                               │
 │                                                          │
-│  Cross-invoice export view → grouped by store            │
+│  Invoice tables: "Ready to Export" / "Previously         │
+│    Exported" with sortable Last Exported column           │
+│  Per-system export checkboxes: POS, Shopify, Instore     │
+│  Duplicate POS detection: modal to choose price          │
+│  Only exports items where cost/price changed             │
 │  Inline price editing → mark as exported                 │
+│  Re-export support for previously exported invoices      │
+│  Output: POS CSV, Shopify CSV, INSTORE_UPDATE.xlsx       │
 │  Status: APPROVED → EXPORTED                             │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -350,6 +364,13 @@ The `requirePlan(feature)` middleware returns `403 PLAN_UPGRADE_REQUIRED` if the
 │  │   When fuzzy confidence < 80%             │
 │  │   Suggests best product match             │
 │  │                                           │
+│  ├─ Business Advisor: AI chat agent           │
+│  │   Streaming SSE responses                  │
+│  │   Orchestrator + domain-specific tools     │
+│  │   Tools: invoice, product, pricing,        │
+│  │          competitor analysis                │
+│  │   Conversation history (DB-persisted)      │
+│  │                                            │
 │  └─ Pricing: AI recommendation [placeholder] │
 │      Market-based suggestions (future)       │
 └──────────────┬───────────────────────────────┘
@@ -361,6 +382,91 @@ The `requirePlan(feature)` middleware returns `403 PLAN_UPGRADE_REQUIRED` if the
 │  claude-haiku-3.5        │
 └──────────────────────────┘
 ```
+
+### 7.4 Prompt Evolution System (3-Tier)
+
+The Prompt Evolution System provides a continuous improvement pipeline for all AI agent prompts. It operates in three tiers:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    PROMPT EVOLUTION SYSTEM                        │
+│                                                                  │
+│  TIER 1: Versioned Base Prompts                                  │
+│  ├─ AgentRole (business_advisor, product_matching, ocr_extract)  │
+│  ├─ PromptBaseVersion (versioned system prompts per role)        │
+│  └─ Managed by platform admins, canary rollout support           │
+│                                                                  │
+│  TIER 2: Per-Tenant Config Overrides                             │
+│  ├─ TenantPromptConfig (custom instructions, tone, terminology)  │
+│  ├─ TenantFewShotExample (curated examples per agent)            │
+│  └─ Managed by tenant admins via Settings > AI Agents            │
+│                                                                  │
+│  TIER 3: Meta-Optimization (Cross-Tenant Learning)               │
+│  ├─ metaOptimizer.js — compares default vs customized tenants    │
+│  ├─ Identifies outperformers (15%+ improvement)                  │
+│  └─ Proposes base prompt upgrades with canary rollout            │
+└──────────────────────────────────────────────────────────────────┘
+
+Assembly Pipeline (promptAssemblyEngine.js — 6 steps):
+  1. Load base prompt (PromptBaseVersion for agent role)
+  2. Load tenant config (TenantPromptConfig, if exists)
+  3. Merge: tone + custom instructions + domain terminology
+  4. Select few-shot examples (top 3 by quality score)
+  5. Inject runtime context (date, available tools)
+  6. Return assembled prompt with metadata + cache
+
+Signal Capture (signalCollector.js):
+  ├─ 6 signal types: prompt_meta, correction_count, usage,
+  │   outcome, satisfaction, escalation
+  ├─ Async buffer with 5-second flush interval
+  └─ Writes InteractionSignal records to DB
+
+Suggestion Engine (suggestionEngine.js — daily):
+  ├─ Aggregates signals per tenant per agent
+  ├─ Detects failure patterns (high override, low satisfaction)
+  ├─ Generates improvement proposals via LLM
+  └─ Stores PromptSuggestion (status: pending → approved/rejected)
+
+Conversation Cleanup (conversationCleanup.js):
+  └─ Detects abandoned conversations (no activity for 30+ min)
+```
+
+### 7.5 Smart Product Import Agent
+
+AI-powered product catalog import that works with any file format (Shopify, Lightspeed, WooCommerce, generic CSV/XLSX).
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                  SMART PRODUCT IMPORT                             │
+│                                                                  │
+│  Upload → Analyse → Chat → Test → Import → Export                │
+│                                                                  │
+│  productImportAgent.js:                                          │
+│  ├─ Claude analyses file structure (headers, sample rows)        │
+│  ├─ Generic parent/child row grouping engine                     │
+│  ├─ System name captured at upload for round-trip export         │
+│  └─ Template auto-saved with complete file blueprint             │
+│                                                                  │
+│  UI: Split-screen chat (SmartImport.jsx)                         │
+│  ├─ Left panel: Agent conversation                               │
+│  ├─ Right panel: Column mapping, patterns, test results          │
+│  └─ Test run shows preview before actual import                  │
+│                                                                  │
+│  Export: Reconstruct original file format with updated prices    │
+│  └─ Uses saved template blueprint for format fidelity            │
+│                                                                  │
+│  Route: /api/product-import/*                                    │
+│  Endpoints: upload, chat, test, confirm, export, session         │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 7.6 Invoice Statement Detection
+
+OCR now classifies document type during extraction:
+- Supported types: `invoice`, `statement`, `credit_note`, `purchase_order`, `receipt`, `unknown`
+- Non-invoice documents are automatically assigned `DISCARDED` status
+- Audit log entry created for each discarded document
+- Works across all ingestion paths (manual upload, Gmail, folder polling, Google Drive)
 
 ---
 
@@ -395,11 +501,27 @@ Tenant (1) ──── (*) User
    │
    ├──── (1) FolderIntegration ──── (*) FolderImportLog
    │
-   └──── (*) ApiUsageLog
+   ├──── (*) ApiUsageLog
+   │
+   ├──── (*) Conversation ──── (*) Message
+   │         (+ resolutionStatus, topicTags, agentRoleKey)
+   │
+   ├──── (*) TenantPromptConfig ──── (*) TenantFewShotExample
+   │
+   └──── (*) InteractionSignal
 
 Platform-wide (no tenant):
    PlatformSettings (singleton)
    TenantAccessLog
+   AgentRole ──── (*) PromptBaseVersion
+              └── (*) PromptSuggestion
+              └── (*) PromptAuditLog
+
+Prompt Management (Phase 1 — legacy, coexists with evolution system):
+   AgentType ──── (*) PromptTemplate ──── (*) PromptCondition
+              └── (*) TenantPromptOverride
+              └── (*) PromptConflict
+              └── (*) PromptChangeLog
 ```
 
 ---
@@ -448,7 +570,17 @@ Two background schedulers run as in-process cron jobs (via `node-cron`):
 │  ├─ For each: check lastPollAt + interval      │
 │  └─ If due: pollFolderForInvoices()            │
 │                                                │
-│  Both schedulers:                              │
+│  signalCollector (interval: every 5 seconds)    │
+│  ├─ Flushes buffered InteractionSignals to DB  │
+│  ├─ Resolves agentRoleId from agentRoleKey     │
+│  └─ Non-blocking, fire-and-forget pattern      │
+│                                                │
+│  conversationCleanup (scheduled: periodic)     │
+│  ├─ Detects abandoned conversations            │
+│  ├─ No activity for 30+ minutes                │
+│  └─ Updates resolutionStatus accordingly       │
+│                                                │
+│  Both ingestion schedulers:                    │
 │  ├─ Run in the same Express process            │
 │  ├─ Started in app.listen() callback           │
 │  ├─ Use isRunning flag to prevent overlap      │
@@ -501,11 +633,14 @@ retail-store-management/
 │   │   │   ├── Invoices.jsx
 │   │   │   ├── InvoiceDetail.jsx
 │   │   │   ├── Review.jsx
+│   │   │   ├── BatchReview.jsx
 │   │   │   ├── Export.jsx
+│   │   │   ├── BusinessAdvisor.jsx
 │   │   │   ├── Products.jsx
 │   │   │   ├── Pricing.jsx
 │   │   │   ├── Settings.jsx
 │   │   │   ├── CompetitorIntelligence.jsx
+│   │   │   ├── AIDashboard.jsx
 │   │   │   └── admin/
 │   │   │       ├── AdminOverview.jsx
 │   │   │       ├── AdminTenants.jsx
@@ -519,15 +654,30 @@ retail-store-management/
 │   │   │   │   ├── TopBar.jsx
 │   │   │   │   ├── WorkflowBreadcrumb.jsx
 │   │   │   │   └── AdminLayout.jsx
+│   │   │   ├── advisor/
+│   │   │   │   ├── ChatPanel.jsx       # Main advisor chat interface
+│   │   │   │   ├── ChatInput.jsx       # Message input with suggestions
+│   │   │   │   ├── ChatMessage.jsx     # Individual message rendering
+│   │   │   │   ├── StreamingMessage.jsx# SSE streaming display
+│   │   │   │   ├── ConversationList.jsx# Chat history sidebar
+│   │   │   │   ├── QuickActions.jsx    # Predefined action buttons
+│   │   │   │   └── MessageFeedback.jsx # Thumbs up/down feedback
+│   │   │   ├── review/
+│   │   │   │   └── InvoiceSidePanel.jsx# Invoice detail overlay
+│   │   │   ├── chat/                  # Smart Import chat UI
+│   │   │   ├── products/
+│   │   │   │   └── ProductRow.jsx     # Expandable variant rows
 │   │   │   ├── settings/
-│   │   │   │   └── IntegrationsTab.jsx
+│   │   │   │   ├── IntegrationsTab.jsx
+│   │   │   │   └── AIAgentsTab.jsx    # Per-agent prompt config
 │   │   │   ├── competitor/
 │   │   │   │   └── CompetitorDashboard.jsx
 │   │   │   └── UpgradePrompt.jsx
 │   │   ├── services/
 │   │   │   └── api.js                 # HTTP client
 │   │   └── hooks/
-│   │       └── useTenantPlan.js       # Feature gating hook
+│   │       ├── useTenantPlan.js       # Feature gating hook
+│   │       └── useChat.js             # AI advisor chat hook (SSE streaming)
 │   ├── public/
 │   │   └── gmail-setup-guide.html     # Gmail configuration guide
 │   └── vite.config.js
@@ -549,11 +699,20 @@ retail-store-management/
 │   │   │   ├── gmail.js
 │   │   │   ├── folder.js
 │   │   │   ├── competitor.js
+│   │   │   ├── chat.js                # AI advisor chat (SSE streaming)
+│   │   │   ├── drive.js               # Google Drive integration
+│   │   │   ├── productImport.js       # Smart product import
+│   │   │   ├── suggestions.js         # Tenant suggestion review
+│   │   │   ├── prompts.js             # Prompt management
+│   │   │   ├── promptChat.js          # Prompt chat
 │   │   │   └── admin/
 │   │   │       ├── overview.js
 │   │   │       ├── tenants.js
 │   │   │       ├── apiUsage.js
-│   │   │       └── settings.js
+│   │   │       ├── settings.js
+│   │   │       ├── tiers.js
+│   │   │       ├── prompts.js
+│   │   │       └── metaOptimizer.js   # Cross-tenant optimization
 │   │   ├── services/
 │   │   │   ├── ocr.js                 # Claude Vision OCR
 │   │   │   ├── invoiceProcessor.js    # Apply OCR + cost allocation
@@ -564,14 +723,35 @@ retail-store-management/
 │   │   │   ├── gmailScheduler.js      # Background Gmail sync
 │   │   │   ├── folder.js              # Path validation + polling + dedup
 │   │   │   ├── folderScheduler.js     # Background folder sync
-│   │   │   └── apiUsageTracker.js     # Claude API call logging
+│   │   │   ├── apiUsageTracker.js     # Claude API call logging
+│   │   │   ├── promptAssemblyEngine.js # 6-step prompt assembly
+│   │   │   ├── signalCollector.js    # Async signal buffer + flush
+│   │   │   ├── suggestionEngine.js   # Per-tenant improvement analysis
+│   │   │   ├── metaOptimizer.js      # Cross-tenant learning
+│   │   │   ├── conversationCleanup.js # Abandoned conversation detection
+│   │   │   ├── productImportAgent.js # AI-powered product import
+│   │   │   ├── promptComposer.js     # Prompt composition (legacy)
+│   │   │   ├── promptConflictDetector.js # Conflict detection (legacy)
+│   │   │   ├── promptValidators.js   # Prompt validation (legacy)
+│   │   │   ├── promptChatAgent.js    # Prompt chat agent (legacy)
+│   │   │   ├── drive.js              # Google Drive integration
+│   │   │   └── agents/
+│   │   │       ├── orchestrator.js    # AI agent orchestrator
+│   │   │       ├── toolExecutor.js    # Tool dispatch for agent
+│   │   │       └── tools/
+│   │   │           ├── invoiceTools.js    # Invoice analysis tools
+│   │   │           ├── productTools.js    # Product catalog tools
+│   │   │           ├── pricingTools.js    # Pricing analysis tools
+│   │   │           └── competitorTools.js # Competitor intel tools
 │   │   ├── lib/
 │   │   │   ├── prisma.js              # Tenant-scoped Prisma client
 │   │   │   └── encryption.js          # AES-256-GCM encrypt/decrypt
 │   │   └── config/
 │   │       └── plans.js               # Plan definitions + feature gating
 │   ├── prisma/
-│   │   ├── schema.prisma              # Database schema (32 models)
+│   │   ├── schema.prisma              # Database schema (40+ models)
+│   ├── seed-prompts.js            # Seed prompt data
+│   ├── seed-prompt-evolution.js   # Seed AgentRoles + base versions
 │   │   └── migrations/                # Prisma migrations
 │   ├── tests/
 │   │   ├── helpers/
@@ -585,13 +765,19 @@ retail-store-management/
 │   │   ├── matching-engine.test.js
 │   │   ├── plan-gating.test.js
 │   │   ├── pricing-service.test.js
-│   │   └── tenant-isolation.test.js
+│   │   ├── tenant-isolation.test.js
+│   │   ├── signal-collector.test.js   # Signal capture (15 tests)
+│   │   ├── suggestion-engine.test.js  # Suggestion engine (16 tests)
+│   │   └── meta-optimizer.test.js     # Meta-optimizer (11 tests)
 │   └── vitest.config.js
 ├── docs/
 │   ├── ARCHITECTURE.md                # This document
 │   ├── BUSINESS_REQUIREMENTS.md
 │   ├── TEST_CASES.md
 │   ├── SEQUENCE_DIAGRAMS.md
+│   ├── PROMPT-EVOLUTION-SYSTEM.md     # Complete prompt evolution docs
+│   ├── BUSINESS_AI_AGENT_DESIGN.md    # AI agent system design
+│   ├── BUSINESS_AI_AGENT_IMPLEMENTATION_PLAN.md
 │   ├── GMAIL_SETUP.md
 │   └── backlog/
 │       ├── stripe-integration.md

@@ -65,6 +65,9 @@ RetailEdge is a multi-tenant SaaS platform that helps small-to-medium retailers 
 | INV-10 | Delete invoices with full cascade (lines, matches, import logs) | Must |
 | INV-11 | Re-OCR: re-run OCR extraction on an existing invoice to refresh data | Should |
 | INV-12 | Per-line GST detection: detect GST applicability per line item and store gstAmount | Should |
+| INV-13 | Statement detection: OCR classifies documentType (invoice, statement, credit_note, purchase_order, receipt, unknown) | Must |
+| INV-14 | Non-invoice documents (statements, etc.) auto-discarded with DISCARDED status and audit log entry | Must |
+| INV-15 | Statement detection works across all ingestion paths (upload, email, folder, drive) | Must |
 
 ### 3.3 Product Matching
 
@@ -102,6 +105,11 @@ RetailEdge is a multi-tenant SaaS platform that helps small-to-medium retailers 
 | PRD-05 | Save and reuse import templates per system (Shopify, Lightspeed, WooCommerce, Generic) | Should |
 | PRD-06 | Product search: fuzzy matching by name, exact match by barcode or SKU | Must |
 | PRD-07 | Bulk delete products | Should |
+| PRD-08 | Smart Product Import: AI-powered file analysis with Claude, generic parent/child row grouping, split-screen chat UI with mapping/patterns/test results | Must |
+| PRD-09 | System name captured at upload time for round-trip import/export | Must |
+| PRD-10 | Template auto-saved with complete file blueprint for export reconstruction | Must |
+| PRD-11 | Export endpoint reconstructs original file format with updated prices | Must |
+| PRD-12 | Expandable product rows showing variants grouped by store with SKU, variant name, size, unit qty, cost, price, active status | Should |
 
 ### 3.6 Gmail Integration (Professional+)
 
@@ -202,6 +210,29 @@ RetailEdge is a multi-tenant SaaS platform that helps small-to-medium retailers 
 | ADV-08 | Quick action buttons: predefined prompts for common analysis tasks | Should |
 | ADV-09 | Message feedback: thumbs up/down on AI responses for quality tracking | Should |
 | ADV-10 | Rate limiting: per-tenant chat request throttling to control API costs | Must |
+
+### 3.14 Prompt Evolution System
+
+| ID | Requirement | Priority |
+|---|---|---|
+| PES-01 | 3-tier prompt architecture: versioned base prompts, per-tenant config overrides, cross-tenant meta-optimization | Must |
+| PES-02 | 6-step prompt assembly engine with caching (promptAssemblyEngine.js) | Must |
+| PES-03 | Interaction signal capture: 6 signal types (prompt_meta, correction_count, usage, outcome, satisfaction, escalation) with async buffer flush | Must |
+| PES-04 | Suggestion engine: per-tenant AI-generated improvement proposals from aggregated signals | Should |
+| PES-05 | Meta-optimizer: cross-tenant learning, identify outperformers (15%+ improvement), propose base prompt upgrades | Should |
+| PES-06 | Canary rollout for base prompt version upgrades | Should |
+| PES-07 | Settings > AI Agents tab: per-agent prompt configuration, override management, effective prompt preview, change log viewer | Must |
+| PES-08 | Abandoned conversation detection and cleanup | Should |
+| PES-09 | Few-shot example auto-curation from successful interactions | Should |
+
+### 3.15 Admin API Usage Enhancements
+
+| ID | Requirement | Priority |
+|---|---|---|
+| AUE-01 | Per-agent API cost breakdown: total cost, avg cost/call, % of total | Must |
+| AUE-02 | Expandable agent rows showing per-tenant usage within each agent | Should |
+| AUE-03 | Expandable tenant rows showing per-agent usage within each tenant | Should |
+| AUE-04 | Endpoint: GET /api/admin/api-usage/agents | Must |
 
 ### 3.13 Workflow UI
 

@@ -4,9 +4,9 @@
 
 | Field | Value |
 |-------|-------|
-| Version | 1.0 |
-| Date | 2026-03-20 |
-| Status | Draft |
+| Version | 1.1 |
+| Date | 2026-03-23 |
+| Status | In Progress (Phase 1 Complete) |
 | Related | [BUSINESS_AI_AGENT_DESIGN.md](./BUSINESS_AI_AGENT_DESIGN.md) |
 
 ---
@@ -14,29 +14,37 @@
 ## Implementation Phases Overview
 
 ```
-Phase 1 ─── Foundation + Internal Chat ──────── Weeks 1-4
+Phase 1 ─── Foundation + Internal Chat ──────── Weeks 1-4  ✅ COMPLETE
   │         DB schema, orchestrator, internal
   │         data agents, basic chat UI
   │
-Phase 2 ─── Knowledge Base + Context ────────── Weeks 5-7
+Phase 2 ─── Knowledge Base + Context ────────── Weeks 5-7  ⬜ NOT STARTED
   │         KB system, persona model, business
   │         snapshot, scheduled jobs
   │
-Phase 3 ─── Goals, Plans & Strategy ─────────── Weeks 8-9
+Phase 3 ─── Goals, Plans & Strategy ─────────── Weeks 8-9  ⬜ NOT STARTED
   │         Goal setting, action plans,
   │         strategy agent, outcome tracking
   │
-Phase 4 ─── External Intelligence ───────────── Weeks 10-11
+Phase 4 ─── External Intelligence ───────────── Weeks 10-11  ⬜ NOT STARTED
   │         Tavily, Perplexity, Google Trends
   │         integration, caching, rate limits
   │
-Phase 5 ─── Shared Intelligence ─────────────── Weeks 12-14
+Phase 5 ─── Shared Intelligence ─────────────── Weeks 12-14  ⬜ NOT STARTED
   │         Benchmarks, recommendation scores,
   │         trend detection, consent management
   │
-Phase 6 ─── Polish & Production ─────────────── Weeks 15-16
+Phase 6 ─── Polish & Production ─────────────── Weeks 15-16  ⬜ NOT STARTED
             Performance, monitoring, admin
             dashboard, documentation, launch
+
+NOTE: The following systems were built outside this plan and are now operational:
+- Prompt Evolution System (3-tier) — see docs/PROMPT-EVOLUTION-SYSTEM.md
+- Smart Product Import Agent — productImportAgent.js
+- Invoice Statement Detection — OCR documentType classification
+- Admin API Usage per-agent breakdown
+- Product Variants UI with expandable rows
+- Settings > AI Agents tab
 ```
 
 ---
@@ -333,16 +341,16 @@ Iterate on system prompt with real conversations:
 
 ### Phase 1 Deliverables
 
-| Deliverable | Status Criteria |
-|-------------|----------------|
-| Chat DB schema + migrations | Migrations applied, RLS active |
-| Chat API endpoints (6) | All returning correct data |
-| SSE streaming | Tokens stream in real-time |
-| 3 sub-agents (invoice, product, competitor) | Each returns structured data |
-| Tool executor | Claude correctly calls tools and uses results |
-| Chat UI (full page) | Conversation list, chat, streaming, feedback |
-| Rate limiting | Enforced per tier |
-| Tenant isolation | Verified via test |
+| Deliverable | Status |
+|-------------|--------|
+| Chat DB schema + migrations | DONE — Conversation + Message models with RLS |
+| Chat API endpoints (6) | DONE — All endpoints operational |
+| SSE streaming | DONE — Real-time token streaming via SSE |
+| 3 sub-agents (invoice, product, competitor) | DONE — Tool functions returning structured data |
+| Tool executor | DONE — Claude tool_use loop with up to 5 rounds |
+| Chat UI (full page) | DONE — ChatPanel, ChatInput, StreamingMessage, ConversationList, QuickActions, MessageFeedback |
+| Rate limiting | DONE — Per-tier message throttling |
+| Tenant isolation | DONE — Verified via existing test suite |
 
 ---
 
@@ -1132,3 +1140,57 @@ SERPAPI_KEY=                     # Alternative for Google Trends
 | Avg cost per message | <$0.10 | <$0.03 |
 | Recommendations acted on | 30% | 50% |
 | Recommendation positive outcomes | 60% | 75% |
+
+---
+
+## Addendum: Features Built Outside Original Plan
+
+The following systems were implemented independently from this plan and are now operational. They complement the Business AI Agent architecture.
+
+### A. Prompt Evolution System (Complete)
+
+A 3-tier system for continuous AI prompt improvement. Full documentation in `docs/PROMPT-EVOLUTION-SYSTEM.md`.
+
+| Component | File | Status |
+|-----------|------|--------|
+| Prompt Assembly Engine (6-step) | `promptAssemblyEngine.js` (623 lines) | DONE |
+| Signal Collector (async buffer) | `signalCollector.js` (310 lines) | DONE |
+| Suggestion Engine (per-tenant) | `suggestionEngine.js` (631 lines) | DONE |
+| Meta-Optimizer (cross-tenant) | `metaOptimizer.js` (760 lines) | DONE |
+| Conversation Cleanup | `conversationCleanup.js` (118 lines) | DONE |
+| AI Agents Settings Tab | `AIAgentsTab.jsx` | DONE |
+| 42 tests (3 test files) | signal-collector, suggestion-engine, meta-optimizer | DONE |
+
+### B. Smart Product Import Agent (Complete)
+
+| Component | File | Status |
+|-----------|------|--------|
+| Import Agent (AI analysis) | `productImportAgent.js` | DONE |
+| Split-screen Chat UI | `SmartImport.jsx` | DONE |
+| Route: /api/product-import/* | `productImport.js` | DONE |
+| Template auto-save + export | Built into import agent | DONE |
+
+### C. Invoice Statement Detection (Complete)
+
+| Component | Status |
+|-----------|--------|
+| OCR documentType classification | DONE |
+| DISCARDED status in InvoiceStatus enum | DONE |
+| Auto-discard with audit log | DONE |
+| Works across all ingestion paths | DONE |
+
+### D. Admin API Usage Per-Agent Breakdown (Complete)
+
+| Component | Status |
+|-----------|--------|
+| GET /api/admin/api-usage/agents endpoint | DONE |
+| Expandable agent rows (per-tenant within agent) | DONE |
+| Expandable tenant rows (per-agent within tenant) | DONE |
+
+### E. Product Variants UI (Complete)
+
+| Component | Status |
+|-----------|--------|
+| Expandable product rows with ProductRow component | DONE |
+| Variants grouped by store | DONE |
+| Sub-table: SKU, variant name, size, unit qty, cost, price, active | DONE |

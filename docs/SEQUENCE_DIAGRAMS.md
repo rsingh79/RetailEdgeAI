@@ -542,7 +542,176 @@ sequenceDiagram
 
 ---
 
-## 11. Middleware Pipeline (Request Lifecycle)
+## 11. Smart Product Import Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Client as React Client (SmartImport)
+    participant API as Express API
+    participant Agent as Product Import Agent
+    participant Claude as Claude API
+    participant DB as PostgreSQL
+
+    User->>Client: Upload CSV/XLSX file
+    Client->>API: POST /api/product-import/upload<br/>(multipart/form-data + systemName)
+    API->>API: Parse file (xlsx), extract headers + sample rows
+    API->>DB: Create import session (sessionId)
+    API-->>Client: { sessionId, headers, sampleRows, systemName }
+
+    Client->>Client: Show split-screen UI<br/>(chat left, mapping/patterns right)
+
+    User->>Client: Send message in chat
+    Client->>API: POST /api/product-import/chat<br/>{ sessionId, message }
+    API->>Agent: analyseFile(session, message)
+    Agent->>Claude: Analyse file structure<br/>(headers, sample data, system name)
+    Claude-->>Agent: Column mapping + parent/child grouping rules
+    Agent-->>API: { mapping, patterns, response }
+    API-->>Client: Agent response + mapping preview
+
+    User->>Client: Click "Test Import"
+    Client->>API: POST /api/product-import/test<br/>{ sessionId }
+    API->>Agent: testImport(session)
+    Agent->>Agent: Apply mapping + grouping rules
+    Agent->>Agent: Generic parent/child row grouping
+    Agent-->>API: { products[], variants[], warnings[] }
+    API-->>Client: Test results preview
+
+    User->>Client: Click "Confirm Import"
+    Client->>API: POST /api/product-import/confirm<br/>{ sessionId }
+    API->>DB: Create Products + ProductVariants
+    API->>DB: Save ImportTemplate (file blueprint)
+    API-->>Client: { imported: N products, M variants }
+
+    Note over User,DB: === Later: Export with updated prices ===
+
+    User->>Client: Request export
+    Client->>API: GET /api/product-import/export<br/>{ templateId }
+    API->>DB: Load template blueprint + current prices
+    API->>API: Reconstruct original file format
+    API-->>Client: Generated file (original format, updated prices)
+```
+
+---
+
+## 12. Prompt Assembly Engine Flow
+
+```mermaid
+sequenceDiagram
+    participant Caller as Agent Service<br/>(OCR / Matching / Advisor)
+    participant Engine as Prompt Assembly Engine
+    participant Cache as In-Memory Cache
+    participant DB as PostgreSQL
+
+    Caller->>Engine: assemblePrompt(agentRoleKey, tenantId)
+
+    Engine->>Cache: Check cache (agentRoleKey:tenantId)
+    alt Cache hit (not expired)
+        Cache-->>Engine: Cached prompt + metadata
+        Engine-->>Caller: { prompt, model, maxTokens, metadata }
+    else Cache miss
+        Engine->>DB: Step 1: Load PromptBaseVersion<br/>(active version for agentRoleKey)
+        DB-->>Engine: Base system prompt
+
+        Engine->>DB: Step 2: Load TenantPromptConfig<br/>(for tenantId + agentRoleKey)
+        DB-->>Engine: Custom instructions, tone, terminology
+
+        Engine->>Engine: Step 3: Merge<br/>tone + custom instructions + domain terms
+
+        Engine->>DB: Step 4: Select TenantFewShotExample<br/>(top 3 by qualityScore)
+        DB-->>Engine: Few-shot examples
+
+        Engine->>Engine: Step 5: Inject runtime context<br/>(date, available tools, tenant info)
+
+        Engine->>Engine: Step 6: Assemble final prompt
+
+        Engine->>Cache: Store in cache (TTL-based)
+        Engine-->>Caller: { prompt, model, maxTokens, metadata }
+    end
+
+    Note over Caller: metadata includes:<br/>baseVersionId, tenantConfigId,<br/>exampleIdsUsed, totalTokenEstimate
+```
+
+---
+
+## 13. Signal Capture Flow
+
+```mermaid
+sequenceDiagram
+    participant Chat as chat.js / invoices.js
+    participant SC as Signal Collector
+    participant Buffer as In-Memory Buffer
+    participant DB as PostgreSQL
+
+    Note over Chat,DB: === During Request Processing ===
+
+    Chat->>SC: recordPromptMeta(convId, { baseVersionId, configId })
+    SC->>Buffer: Add to buffer { type: prompt_meta, ... }
+
+    Chat->>SC: recordUsage(convId, { tokens, latency, cost })
+    SC->>Buffer: Add to buffer { type: usage, ... }
+
+    Chat->>SC: recordOutcome(convId, { resolved: true })
+    SC->>Buffer: Add to buffer { type: outcome, ... }
+
+    Note over SC,DB: === Every 5 seconds (background flush) ===
+
+    SC->>Buffer: Drain buffer (up to 200 signals)
+    Buffer-->>SC: Batch of pending signals
+
+    loop For each signal in batch
+        SC->>DB: Resolve agentRoleId from agentRoleKey
+        SC->>DB: INSERT InteractionSignal
+    end
+
+    Note over Chat,DB: === On User Feedback ===
+
+    Chat->>SC: recordSatisfaction(convId, { score: 1 })
+    SC->>Buffer: Add to buffer { type: satisfaction, ... }
+    Note over SC: Flushed in next 5-second cycle
+```
+
+---
+
+## 14. Suggestion Engine Flow
+
+```mermaid
+sequenceDiagram
+    participant Cron as Daily Scheduler
+    participant SE as Suggestion Engine
+    participant Claude as Claude API (Haiku)
+    participant DB as PostgreSQL
+
+    Cron->>SE: runSuggestionEngine({ tenantId, agentRoleKey })
+
+    SE->>DB: Step 1: Aggregate InteractionSignals<br/>(last 30 days for tenant + agent)
+    DB-->>SE: Signal aggregates by topic
+
+    SE->>SE: Step 2: Identify failure patterns<br/>- High override rate (>40%)<br/>- Low satisfaction (<3.0 avg)<br/>- Topic-specific issues
+
+    SE->>SE: Step 3: Cluster human overrides<br/>- wrong_product_match<br/>- no_match_found<br/>- price_override
+
+    SE->>Claude: Step 4: Generate improvement proposals<br/>(aggregated evidence + current config)
+    Claude-->>SE: Structured suggestions<br/>{ type, instruction, evidence, confidence }
+
+    SE->>DB: Step 5: Store PromptSuggestion records<br/>(status: pending, batchId)
+
+    SE->>SE: Step 6: Auto-curate few-shot examples<br/>from high-satisfaction interactions
+    SE->>DB: Create TenantFewShotExample records
+
+    Note over SE,DB: === Tenant Admin Reviews ===
+
+    SE->>DB: Admin: POST /suggestions/:id/review<br/>{ action: approved }
+    DB->>DB: Update TenantPromptConfig<br/>with new instruction
+    DB->>DB: Invalidate assembly cache
+    Note over SE: Next assemblePrompt() uses improved config
+```
+
+---
+
+## 15. Middleware Pipeline (Request Lifecycle)
+
+> Note: Previously section 11.
 
 ```mermaid
 sequenceDiagram

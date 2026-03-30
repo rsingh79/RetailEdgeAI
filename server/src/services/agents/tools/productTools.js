@@ -78,7 +78,7 @@ export const productToolDefs = [
 export const productToolExecutors = {
   async search_products(input, prisma) {
     const limit = Math.min(input.limit || 20, 50);
-    const where = {};
+    const where = { archivedAt: null };
 
     if (input.query) {
       where.name = { contains: input.query, mode: 'insensitive' };
@@ -150,6 +150,7 @@ export const productToolExecutors = {
     // Get all products with both cost and selling price
     const products = await prisma.product.findMany({
       where: {
+        archivedAt: null,
         costPrice: { not: null, gt: 0 },
         sellingPrice: { not: null, gt: 0 },
       },
@@ -188,6 +189,7 @@ export const productToolExecutors = {
   async get_category_performance(input, prisma) {
     const products = await prisma.product.findMany({
       where: {
+        archivedAt: null,
         costPrice: { not: null },
         sellingPrice: { not: null },
       },
@@ -242,25 +244,46 @@ export const productToolExecutors = {
     const days = Math.min(input.days || 180, 365);
     const since = new Date(Date.now() - days * 86400000);
 
-    // Find matching products
-    const products = await prisma.product.findMany({
+    // Step A — Find active products by name
+    const activeProducts = await prisma.product.findMany({
       where: {
+        archivedAt: null,
         name: { contains: input.productName, mode: 'insensitive' },
       },
-      select: { id: true, name: true, costPrice: true, sellingPrice: true },
+      select: { id: true, name: true, costPrice: true, sellingPrice: true, source: true },
       take: 5,
     });
 
-    if (products.length === 0) {
-      return { error: `No product found matching "${input.productName}"` };
+    const activeProductIds = activeProducts.map((p) => p.id);
+
+    // Step B — Find archived products that point to active ones via canonicalProductId
+    const archivedProducts = activeProductIds.length > 0
+      ? await prisma.product.findMany({
+          where: {
+            canonicalProductId: { in: activeProductIds },
+            archivedAt: { not: null },
+          },
+          select: { id: true, name: true, source: true, archivedAt: true, canonicalProductId: true },
+        })
+      : [];
+
+    const archivedProductIds = archivedProducts.map((p) => p.id);
+
+    // Step C — Combine all product IDs
+    const allProductIds = [...activeProductIds, ...archivedProductIds];
+
+    if (allProductIds.length === 0) {
+      return {
+        product_name: input.productName,
+        cost_history: [],
+        message: 'No products found with that name',
+      };
     }
 
-    const productIds = products.map((p) => p.id);
-
-    // Get invoice line matches for these products over time
+    // Step D — Get invoice line matches for all IDs over time
     const matches = await prisma.invoiceLineMatch.findMany({
       where: {
-        productId: { in: productIds },
+        productId: { in: allProductIds },
         newCost: { not: null },
         createdAt: { gte: since },
       },
@@ -284,7 +307,7 @@ export const productToolExecutors = {
 
     return {
       period: `last ${days} days`,
-      products: products.map((p) => ({
+      products: activeProducts.map((p) => ({
         name: p.name,
         currentCost: p.costPrice,
         currentPrice: p.sellingPrice,
@@ -310,6 +333,7 @@ export const productToolExecutors = {
                 ((m.newCost - m.previousCost) / m.previousCost) * 1000
               ) / 10
             : null,
+        isArchived: archivedProductIds.includes(m.productId),
       })),
     };
   },

@@ -8,7 +8,7 @@
  * 4. applyImport()    — Deterministic: bulk create/upsert products using agreed rules
  */
 
-import { trackedClaudeCall } from '../apiUsageTracker.js';
+import { generate } from '../ai/aiServiceRouter.js';
 import { assemblePrompt } from '../promptAssemblyEngine.js';
 
 // ── In-memory session store (uploadId → session) ──
@@ -128,26 +128,41 @@ ${JSON.stringify(sampleData, null, 2)}
 
 Identify column mappings, data patterns, and any transformations needed.`;
 
-  const response = await trackedClaudeCall({
+  const aiResult = await generate('product_import_analysis', systemPrompt, userPrompt, {
     tenantId,
     userId,
-    endpoint: 'product_import',
-    model: 'claude-sonnet-4-20250514',
     maxTokens: 4096,
-    messages: [
-      { role: 'user', content: userPrompt },
-    ],
-    system: systemPrompt,
-    requestSummary: { type: 'product_import_analysis', columns: headers.length, rows: totalRows },
   });
 
-  const text = response.content
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
+  const text = aiResult.response || '';
 
-  const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
-  return JSON.parse(cleaned);
+  let result = null;
+  try {
+    const clean = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    result = JSON.parse(clean);
+  } catch (err) {
+    console.error(
+      '[ProductImportAgent] analyzeFile JSON parse failed:',
+      err.message
+    );
+    console.error('Raw response preview:', text.substring(0, 500));
+    throw new Error(
+      'The AI analysis returned an unexpected format. ' +
+      'Please try uploading the file again.'
+    );
+  }
+
+  if (!result || !result.columnMapping) {
+    throw new Error(
+      'The AI analysis did not return a column mapping. ' +
+      'Please try uploading the file again.'
+    );
+  }
+
+  return result;
 }
 
 // ── Step 2: Chat — user clarifies, agent updates rules ──
@@ -155,7 +170,15 @@ Identify column mappings, data patterns, and any transformations needed.`;
 export async function chat({ session, userMessage, tenantId, userId }) {
   session.messages.push({ role: 'user', content: userMessage });
 
-  const systemPrompt = `You are the Product Import Agent for RetailEdge. You're in the middle of helping a user import products.
+  const systemPrompt = `CRITICAL: You must ALWAYS respond with valid JSON. Never respond with plain text or markdown outside of a JSON structure. Every response must be a single JSON object with this exact structure:
+{
+  "reply": "your message to the user here",
+  "updates": { ... } or null,
+  "allPatternsConfirmed": true or false
+}
+If you cannot provide updates, set updates to null. If the import is not yet confirmed set allPatternsConfirmed to false. Never include any text outside the JSON object. Never wrap the JSON in markdown code fences.
+
+You are the Product Import Agent for RetailEdge. You're in the middle of helping a user import products.
 
 CURRENT STATE:
 - File: ${session.fileName} (${session.totalRows} rows, ${session.headers.length} columns)
@@ -182,42 +205,72 @@ RESPONSE FORMAT — return ONLY valid JSON:
 Set allPatternsConfirmed=true ONLY when the user has explicitly confirmed all patterns look correct.
 If updates.X is null, it means no change to that field.`;
 
-  const response = await trackedClaudeCall({
+  const result = await generate('product_import_analysis', systemPrompt, null, {
     tenantId,
     userId,
-    endpoint: 'product_import',
-    model: 'claude-sonnet-4-20250514',
-    maxTokens: 2048,
     messages: session.messages.map((m) => ({ role: m.role, content: m.content })),
-    system: systemPrompt,
-    requestSummary: { type: 'product_import_chat', messageCount: session.messages.length },
+    maxTokens: 2048,
   });
 
-  const text = response.content
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
+  const text = result.response || '';
 
-  const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
-  const result = JSON.parse(cleaned);
+  // ── Safe JSON parse ──────────────────────────
+  let parsed = null;
+  let reply = text; // fallback to raw text
 
-  // Apply updates to session
-  if (result.updates) {
-    if (result.updates.patterns) session.patterns = result.updates.patterns;
-    if (result.updates.columnMapping) session.columnMapping = result.updates.columnMapping;
-    if (result.updates.transformRules) session.transformRules = result.updates.transformRules;
-    if (result.updates.gstDetected != null) session.gstDetected = result.updates.gstDetected;
-    if (result.updates.gstRate != null) session.gstRate = result.updates.gstRate;
+  try {
+    const clean = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    if (clean.startsWith('{') || clean.startsWith('[')) {
+      parsed = JSON.parse(clean);
+      reply = parsed.reply || text;
+    } else {
+      console.warn(
+        '[ProductImportAgent] Chat response was not JSON:',
+        text.substring(0, 100)
+      );
+      parsed = { reply: text, updates: null, allPatternsConfirmed: false };
+    }
+  } catch (err) {
+    console.warn(
+      '[ProductImportAgent] JSON parse failed:',
+      err.message,
+      '— raw response:',
+      text.substring(0, 200)
+    );
+    parsed = { reply: text, updates: null, allPatternsConfirmed: false };
+    reply = text;
+  }
+  // ── End safe JSON parse ──────────────────────
+
+  // Apply updates to session only if parse succeeded
+  if (parsed?.updates) {
+    if (parsed.updates.patterns) session.patterns = parsed.updates.patterns;
+    if (parsed.updates.columnMapping) session.columnMapping = parsed.updates.columnMapping;
+    if (parsed.updates.transformRules) session.transformRules = parsed.updates.transformRules;
+    if (parsed.updates.gstDetected !== undefined) session.gstDetected = parsed.updates.gstDetected;
+    if (parsed.updates.gstRate !== undefined) session.gstRate = parsed.updates.gstRate;
   }
 
-  if (result.allPatternsConfirmed) {
+  if (parsed?.allPatternsConfirmed) {
     session.status = 'confirmed';
+    reply = (parsed.reply || reply) +
+      '\n\n**Ready to import!** Click the ' +
+      '**Import ' + (session.totalRows || '') + ' Products**' +
+      ' button to run the import with ' +
+      'duplicate detection and approval review.';
   }
 
-  session.messages.push({ role: 'assistant', content: result.reply });
+  session.messages.push({
+    role: 'assistant',
+    content: typeof parsed?.reply === 'string' ? parsed.reply : reply,
+  });
 
   return {
-    reply: result.reply,
+    reply,
     patterns: session.patterns,
     columnMapping: session.columnMapping,
     status: session.status,
@@ -675,4 +728,7 @@ setInterval(() => {
       sessions.delete(key);
     }
   }
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000).unref();
+
+// Exported for reuse by the product import pipeline normalisation engine
+export { normalizeUnit, splitNameAndSize, inferBaseUnit, calculateUnitQty };

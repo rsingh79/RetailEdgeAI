@@ -11,11 +11,9 @@
  * Final text response uses streaming for real-time UX.
  */
 
-import {
-  trackedClaudeCall,
-  trackedClaudeStream,
-  calculateCost,
-} from '../apiUsageTracker.js';
+import { generate } from '../ai/aiServiceRouter.js';
+import { rerank as routerRerank } from '../ai/aiServiceRouter.js';
+import { calculateCost } from '../apiUsageTracker.js';
 import { allToolDefs, executeTool } from './toolExecutor.js';
 import { assemblePrompt } from '../promptAssemblyEngine.js';
 
@@ -48,6 +46,52 @@ LIMITATIONS:
 - You can only access data that exists in RetailEdge. If data is missing, suggest what the user should add.
 - You cannot make changes to the system (no creating invoices, changing prices, etc.). You can only read and analyse.
 - Be transparent about what you don't know.`;
+
+/**
+ * Rerank tool results by relevance to the user's original question.
+ * Returns a relevance hint string to inject into the conversation,
+ * guiding Claude to focus on the most relevant tool outputs.
+ *
+ * @param {string} userQuestion - The original user message
+ * @param {Array} toolResults - Array of {tool, result} from tool rounds
+ * @param {string} tenantId - For logging
+ * @returns {Promise<string|null>} Relevance hint or null if reranking skipped/failed
+ */
+async function rerankToolResults(userQuestion, toolResults, tenantId) {
+  try {
+    if (toolResults.length < 3) return null;
+
+    const documents = toolResults.map((tr) => {
+      const resultStr =
+        typeof tr.result === 'string' ? tr.result : JSON.stringify(tr.result);
+      return `[${tr.tool}] ${resultStr}`.substring(0, 2000);
+    });
+
+    const result = await routerRerank(
+      'advisor_context_rerank',
+      userQuestion,
+      documents,
+      {
+        tenantId,
+        topN: Math.min(toolResults.length, 10),
+      },
+    );
+
+    if (!result.results || result.results.length === 0) return null;
+
+    const ranked = result.results
+      .map((r) => `${toolResults[r.index].tool}: relevance ${r.relevanceScore.toFixed(2)}`)
+      .join(', ');
+
+    return (
+      `Based on relevance analysis, focus primarily on these tool results ` +
+      `(in order of relevance to the user's question): [${ranked}]`
+    );
+  } catch (err) {
+    console.warn('[Advisor] Reranking failed, using original order:', err.message);
+    return null;
+  }
+}
 
 /**
  * Send an SSE event to the client.
@@ -107,38 +151,29 @@ export async function runAdvisorStreaming({
 
   // ── Tool-use loop (non-streaming, fast) ──
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await trackedClaudeCall({
+    const result = await generate('advisor_tool_round', systemPrompt, null, {
       tenantId,
       userId,
-      endpoint: 'advisor_tool',
-      model: MODEL,
       messages: workingMessages,
-      maxTokens: MAX_RESPONSE_TOKENS,
-      system: systemPrompt,
       tools: allToolDefs,
-      requestSummary: { round, messageCount: workingMessages.length },
+      maxTokens: MAX_RESPONSE_TOKENS,
     });
 
-    totalInputTokens += response.usage?.input_tokens || 0;
-    totalOutputTokens += response.usage?.output_tokens || 0;
+    totalInputTokens += result.inputTokens || 0;
+    totalOutputTokens += result.outputTokens || 0;
     totalCostUsd += calculateCost(
       MODEL,
-      response.usage?.input_tokens || 0,
-      response.usage?.output_tokens || 0
+      result.inputTokens || 0,
+      result.outputTokens || 0
     );
 
     // Check if Claude wants to use tools
-    const toolUseBlocks = response.content.filter(
-      (b) => b.type === 'tool_use'
-    );
+    const toolUseBlocks = result.toolUse || [];
 
     if (toolUseBlocks.length === 0) {
       // No tools — Claude gave a final text answer in the non-streaming call.
       // Extract text and send it as a single SSE chunk.
-      const textContent = response.content
-        .filter((b) => b.type === 'text')
-        .map((b) => b.text)
-        .join('');
+      const textContent = result.response || '';
 
       if (textContent) {
         sendSSE(res, 'text', { text: textContent });
@@ -167,7 +202,7 @@ export async function runAdvisorStreaming({
 
     // ── Execute tools ──
     // Add assistant's response (with tool_use blocks) to working messages
-    workingMessages.push({ role: 'assistant', content: response.content });
+    workingMessages.push({ role: 'assistant', content: result.raw.content });
 
     const toolResultBlocks = [];
     for (const toolBlock of toolUseBlocks) {
@@ -205,22 +240,43 @@ export async function runAdvisorStreaming({
   }
 
   // ── If we exhausted tool rounds, do a final streaming response ──
+
+  // Rerank tool results by relevance before the final synthesis
+  if (allToolResults.length >= 3) {
+    const userQuestion =
+      messages.length > 0 ? messages[messages.length - 1].content : '';
+    const relevanceHint = await rerankToolResults(
+      typeof userQuestion === 'string' ? userQuestion : JSON.stringify(userQuestion),
+      allToolResults,
+      tenantId,
+    );
+    if (relevanceHint) {
+      workingMessages.push({
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `[System note: ${relevanceHint}]`,
+          },
+        ],
+      });
+    }
+  }
+
   sendSSE(res, 'tool_progress', {
     tool: 'synthesis',
     status: 'running',
   });
 
-  const { stream, finalize } = trackedClaudeStream({
+  const streamResult = await generate('advisor_stream', systemPrompt, null, {
     tenantId,
     userId,
-    endpoint: 'advisor_stream',
-    model: MODEL,
     messages: workingMessages,
     maxTokens: MAX_RESPONSE_TOKENS,
-    system: SYSTEM_PROMPT,
+    stream: true,
     // No tools on the final round — force a text answer
-    requestSummary: { round: 'final_stream', messageCount: workingMessages.length },
   });
+  const stream = streamResult.rawStream;
 
   let fullText = '';
 
@@ -230,13 +286,14 @@ export async function runAdvisorStreaming({
     sendSSE(res, 'text', { text: textDelta });
   });
 
-  // Wait for stream to complete
-  const { inputTokens, outputTokens, costUsd, durationMs: streamDuration } =
-    await finalize();
+  // Wait for stream to complete and collect usage
+  const finalMessage = await stream.finalMessage();
+  const streamInputTokens = finalMessage.usage?.input_tokens || 0;
+  const streamOutputTokens = finalMessage.usage?.output_tokens || 0;
 
-  totalInputTokens += inputTokens;
-  totalOutputTokens += outputTokens;
-  totalCostUsd += costUsd;
+  totalInputTokens += streamInputTokens;
+  totalOutputTokens += streamOutputTokens;
+  totalCostUsd += calculateCost(MODEL, streamInputTokens, streamOutputTokens);
 
   const durationMs = Date.now() - startTime;
 

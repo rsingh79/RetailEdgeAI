@@ -1,4 +1,4 @@
-import { trackedClaudeCall } from './apiUsageTracker.js';
+import { generate } from './ai/aiServiceRouter.js';
 import { assemblePrompt } from './promptAssemblyEngine.js';
 
 // Hardcoded fallback — used only if DB prompt system has no active template
@@ -122,25 +122,14 @@ export async function extractInvoiceData(fileBuffer, mimeType, tenantId, userId)
     };
   }
 
-  const response = await trackedClaudeCall({
+  const contentBlocks = [contentBlock, { type: 'text', text: promptText }];
+  const result = await generate('ocr_extraction', null, contentBlocks, {
     tenantId,
     userId,
-    endpoint: 'ocr',
-    model: 'claude-sonnet-4-20250514',
     maxTokens: 4096,
-    messages: [
-      {
-        role: 'user',
-        content: [contentBlock, { type: 'text', text: promptText }],
-      },
-    ],
-    requestSummary: { type: 'invoice_ocr', mimeType, fileSize: fileBuffer.length },
   });
 
-  const text = response.content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('');
+  const text = result.response || '';
 
   // Parse the JSON response — strip any accidental markdown fencing
   const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();

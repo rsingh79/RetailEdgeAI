@@ -9,7 +9,7 @@
  *             and skips if that batch already exists.
  */
 import { basePrisma } from '../lib/prisma.js';
-import { trackedClaudeCall } from './apiUsageTracker.js';
+import { generate } from './ai/aiServiceRouter.js';
 import crypto from 'crypto';
 
 const MAX_SUGGESTIONS_PER_RUN = 5;
@@ -465,28 +465,12 @@ For each suggestion, provide:
 Return as a JSON array. Maximum ${MAX_SUGGESTIONS_PER_RUN} suggestions.`;
 
   try {
-    const response = await trackedClaudeCall({
+    const result = await generate('suggestion_generation', systemPrompt, userPrompt, {
       tenantId,
-      userId: null,
-      endpoint: 'suggestion_engine',
-      model: 'claude-haiku-3-5-20241022',
       maxTokens: 2000,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-      requestSummary: {
-        type: 'suggestion_generation',
-        agentRoleKey,
-        failurePatternCount: failurePatterns.length,
-        overrideClusterCount: overrideClusters.length,
-        signalCount: stats.total,
-      },
     });
 
-    const text = response.content
-      ?.filter((b) => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim();
+    const text = (result.response || '').trim();
 
     // Parse JSON — strip markdown fencing if present
     const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();

@@ -1,5 +1,5 @@
 import { basePrisma } from '../lib/prisma.js';
-import { trackedClaudeCall } from './apiUsageTracker.js';
+import { generate } from './ai/aiServiceRouter.js';
 import { getGenericConditions } from './promptComposer.js';
 
 /**
@@ -24,32 +24,19 @@ Reply with ONLY valid JSON (no markdown):
 {"contradicts": true/false, "reason": "brief explanation"}`;
 
   try {
-    const response = await trackedClaudeCall({
+    const aiResult = await generate('conflict_detection', null, prompt, {
       tenantId,
-      userId: null,
-      endpoint: 'conflict_detection',
-      model: 'claude-haiku-3-5-20241022',
-      messages: [{ role: 'user', content: prompt }],
       maxTokens: 200,
-      requestSummary: {
-        type: 'conflict_detection',
-        genericTextLength: genericText.length,
-        tenantTextLength: tenantText.length,
-      },
     });
 
-    const text = response.content
-      ?.filter((b) => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim();
+    const text = (aiResult.response || '').trim();
 
     const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
-    const result = JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
 
     return {
-      hasConflict: result.contradicts === true,
-      reason: result.reason || '',
+      hasConflict: parsed.contradicts === true,
+      reason: parsed.reason || '',
     };
   } catch (err) {
     console.error('Conflict detection failed:', err.message);

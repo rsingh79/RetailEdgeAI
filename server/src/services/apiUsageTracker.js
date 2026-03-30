@@ -1,3 +1,8 @@
+// DEPRECATED: AI calls now route through services/ai/aiServiceRouter.js
+// This file is kept for reference. The router handles logging to both
+// ai_service_log (new) and ApiUsageLog (legacy, for rate limiter compatibility).
+// Remove this file once rate limiting and admin dashboard migrate to ai_service_log.
+
 import Anthropic from '@anthropic-ai/sdk';
 import { basePrisma } from '../lib/prisma.js';
 

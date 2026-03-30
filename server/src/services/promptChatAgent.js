@@ -1,5 +1,5 @@
 import { basePrisma } from '../lib/prisma.js';
-import { trackedClaudeCall } from './apiUsageTracker.js';
+import { generate } from './ai/aiServiceRouter.js';
 import { getEffectivePrompt, getGenericConditions, invalidatePromptCache } from './promptComposer.js';
 import { detectConflicts } from './promptConflictDetector.js';
 import { runValidator } from './promptValidators.js';
@@ -93,24 +93,14 @@ export async function handleChatMessage(tenantId, userId, userMessage, conversat
     { role: 'user', content: userMessage },
   ];
 
-  const response = await trackedClaudeCall({
+  const result = await generate('prompt_management', null, null, {
     tenantId,
     userId,
-    endpoint: 'prompt_management',
-    model: 'claude-sonnet-4-20250514',
     messages,
     maxTokens: 2000,
-    requestSummary: {
-      type: 'prompt_chat',
-      messageLength: userMessage.length,
-      historyLength: conversationHistory.length,
-    },
   });
 
-  const text = response.content
-    ?.filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
+  const text = result.response || '';
 
   // Parse proposed action if present
   let proposedAction = null;

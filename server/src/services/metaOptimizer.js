@@ -12,7 +12,7 @@
  * Safety: NEVER auto-deploys changes. All changes require platform admin approval.
  */
 import { basePrisma } from '../lib/prisma.js';
-import { trackedClaudeCall } from './apiUsageTracker.js';
+import { generate } from './ai/aiServiceRouter.js';
 import crypto from 'crypto';
 
 const MIN_TENANTS_FOR_ANALYSIS = 3;
@@ -436,27 +436,12 @@ For each proposal, provide:
 Return as JSON array. Maximum 3 proposals.`;
 
   try {
-    const response = await trackedClaudeCall({
+    const result = await generate('meta_optimizer', systemPrompt, userPrompt, {
       tenantId: 'system',
-      userId: null,
-      endpoint: 'meta_optimizer',
-      model: 'claude-haiku-3-5-20241022',
       maxTokens: 2000,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-      requestSummary: {
-        type: 'default_upgrade_proposal',
-        agentRoleKey: agentRole.key,
-        outperformerCount: outperformers.length,
-        baselineTenants: baseline.tenantCount,
-      },
     });
 
-    const text = response.content
-      ?.filter((b) => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim();
+    const text = (result.response || '').trim();
 
     const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
     const parsed = JSON.parse(cleaned);

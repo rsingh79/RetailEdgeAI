@@ -12,7 +12,7 @@
  */
 
 import { Router } from 'express';
-import { buildAuthUrl, syncProducts } from '../services/shopify.js';
+import { buildAuthUrl, syncProducts, syncOrders, matchVariants, linkVariant, dismissVariants } from '../services/shopify.js';
 import basePrisma from '../lib/prisma.js';
 
 const router = Router();
@@ -40,7 +40,10 @@ router.get('/status', async (req, res) => {
       shop: integration.shop,
       isActive: integration.isActive,
       lastSyncAt: integration.lastSyncAt,
+      lastOrderSyncAt: integration.lastOrderSyncAt,
       productCount: integration.productCount,
+      orderCount: integration.orderCount,
+      pushPricesOnExport: integration.pushPricesOnExport,
       scopes: integration.scopes,
       connectedAt: integration.createdAt,
       recentLogs,
@@ -83,6 +86,63 @@ router.post('/sync', async (req, res) => {
   }
 });
 
+// ── POST /sync-orders — Trigger order sync from Shopify ──────
+
+router.post('/sync-orders', async (req, res) => {
+  try {
+    const stats = await syncOrders(req.prisma, req.user.tenantId);
+    res.json({
+      message: 'Order sync complete',
+      ...stats,
+    });
+  } catch (err) {
+    console.error('Shopify order sync error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET /orders — List synced Shopify orders ──────────────────
+
+router.get('/orders', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await Promise.all([
+      req.prisma.shopifyOrder.findMany({
+        where: { tenantId: req.user.tenantId },
+        include: {
+          lines: {
+            include: {
+              productVariant: {
+                include: { product: { select: { name: true } } },
+              },
+            },
+          },
+        },
+        orderBy: { orderedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      req.prisma.shopifyOrder.count({ where: { tenantId: req.user.tenantId } }),
+    ]);
+
+    res.json({
+      orders,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error('Shopify orders error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ── GET /import-logs — View sync history ─────────────────────
 
 router.get('/import-logs', async (req, res) => {
@@ -115,6 +175,24 @@ router.get('/import-logs', async (req, res) => {
   }
 });
 
+// ── PATCH /settings — Update integration settings ────────────
+
+router.patch('/settings', async (req, res) => {
+  try {
+    const { pushPricesOnExport } = req.body;
+    const updated = await req.prisma.shopifyIntegration.update({
+      where: { tenantId: req.user.tenantId },
+      data: {
+        ...(pushPricesOnExport !== undefined && { pushPricesOnExport: Boolean(pushPricesOnExport) }),
+      },
+    });
+    res.json({ pushPricesOnExport: updated.pushPricesOnExport });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ message: 'Shopify not connected' });
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ── DELETE /disconnect — Remove Shopify integration ──────────
 
 router.delete('/disconnect', async (req, res) => {
@@ -135,6 +213,51 @@ router.delete('/disconnect', async (req, res) => {
     res.json({ disconnected: true, shop: integration.shop });
   } catch (err) {
     console.error('Shopify disconnect error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── POST /match-variants — Auto-match Shopify variants to local products ──
+
+router.post('/match-variants', async (req, res) => {
+  try {
+    const result = await matchVariants(req.prisma, req.user.tenantId);
+    res.json(result);
+  } catch (err) {
+    console.error('Shopify match-variants error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── POST /match-variants/link — Manually link a Shopify variant to a local variant ──
+
+router.post('/match-variants/link', async (req, res) => {
+  try {
+    const { shopifyVariantId, shopifyProductId, localVariantId } = req.body;
+    if (!shopifyVariantId || !localVariantId) {
+      return res.status(400).json({ message: 'shopifyVariantId and localVariantId are required' });
+    }
+    const updated = await linkVariant(req.prisma, localVariantId, shopifyVariantId, shopifyProductId);
+    res.json({ linked: true, variant: updated });
+  } catch (err) {
+    console.error('Shopify link-variant error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── POST /match-variants/dismiss — Dismiss unmatched Shopify variants ──
+
+router.post('/match-variants/dismiss', async (req, res) => {
+  try {
+    const { shopifyVariantId, shopifyVariantIds } = req.body;
+    const ids = shopifyVariantIds || (shopifyVariantId ? [shopifyVariantId] : []);
+    if (ids.length === 0) {
+      return res.status(400).json({ message: 'shopifyVariantId or shopifyVariantIds required' });
+    }
+    const result = await dismissVariants(req.user.tenantId, ids);
+    res.json(result);
+  } catch (err) {
+    console.error('Shopify dismiss-variants error:', err);
     res.status(500).json({ message: err.message });
   }
 });

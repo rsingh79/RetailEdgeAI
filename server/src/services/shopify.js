@@ -11,12 +11,19 @@
 import crypto from 'crypto';
 import { encrypt, decrypt } from '../lib/encryption.js';
 import basePrisma from '../lib/prisma.js';
+import { fuzzyNameScore } from './matching.js';
+import { embedProduct } from './ai/embeddingMaintenance.js';
+import { shopifyToCanonical } from './shopifyPipelineAdapter.js';
+import { createImportJob, runImportPipeline } from './importJobService.js';
+
+// Side-effect import: registers the 'shopify' integration hook at module load
+import './shopifyPipelineAdapter.js';
 
 const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const SHOPIFY_REDIRECT_URI = process.env.SHOPIFY_REDIRECT_URI;
 const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || '2026-01';
-const SHOPIFY_SCOPES = 'read_products,write_products';
+const SHOPIFY_SCOPES = 'read_products,write_products,read_orders,read_customers';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -374,6 +381,18 @@ function transformShopifyProduct(shopifyProduct) {
 
 /**
  * Full product sync: fetch from Shopify API → upsert into RetailEdge DB.
+ *
+ * Phase 1 — Identity matches (safe to auto-apply):
+ *   1. shopifyVariantId stored on ProductVariant (exact Shopify ID match)
+ *   2. Barcode match on Product (catches manual CSV imports from Shopify)
+ *   Products matched by identity are updated immediately with variant processing.
+ *
+ * Phase 2 — Unmatched products routed through the import pipeline:
+ *   CatalogMatcher (source-aware name + Fuse.js + embedding) → ConfidenceScorer
+ *   → ApprovalClassifier → auto-approved or queued for human review.
+ *   Shopify variant data stored in integrationMetadata, processed by the
+ *   post-creation hook after product creation.
+ *
  * Returns sync stats and creates a ShopifyImportLog.
  */
 export async function syncProducts(prisma, tenantId) {
@@ -383,6 +402,9 @@ export async function syncProducts(prisma, tenantId) {
     productsCreated: 0,
     productsUpdated: 0,
     variantsCreated: 0,
+    productsPipelined: 0,
+    productsAutoApproved: 0,
+    productsQueuedForReview: 0,
     errors: [],
   };
 
@@ -404,8 +426,7 @@ export async function syncProducts(prisma, tenantId) {
   stats.productsPulled = shopifyProducts.length;
 
   if (shopifyProducts.length === 0) {
-    // Log and return early
-    await createImportLog(tenantId, stats, startTime);
+    await createShopifyImportLog(tenantId, stats, startTime, 'products');
     return stats;
   }
 
@@ -423,72 +444,136 @@ export async function syncProducts(prisma, tenantId) {
     });
   }
 
-  // 4. Transform and upsert products + variants
+  // ── Phase 1: Identity matches (layers 1-2) ──────────────────
+  const matched = [];
+  const unmatched = [];
+
   for (const shopifyProduct of shopifyProducts) {
     try {
       const transformed = transformShopifyProduct(shopifyProduct);
 
-      // Find existing product by name + source (case-insensitive)
-      const existing = await prisma.product.findFirst({
-        where: {
-          name: { equals: transformed.name, mode: 'insensitive' },
-          source: 'Shopify',
-        },
-      });
-
-      let product;
-      if (existing) {
-        product = await prisma.product.update({
-          where: { id: existing.id },
-          data: {
-            category: transformed.category || existing.category,
-            barcode: transformed.barcode || existing.barcode,
-          },
+      // Layer 1: shopifyVariantId match (exact Shopify ID on ProductVariant)
+      let product = null;
+      const shopifyVariantIds = transformed.variants.map((v) => v.shopifyVariantId).filter(Boolean);
+      if (shopifyVariantIds.length > 0) {
+        const existingVariant = await prisma.productVariant.findFirst({
+          where: { shopifyVariantId: { in: shopifyVariantIds } },
+          include: { product: true },
         });
-        stats.productsUpdated++;
-      } else {
-        product = await prisma.product.create({
+        if (existingVariant) product = existingVariant.product;
+      }
+
+      // Layer 2: barcode match (covers manual Shopify CSV imports)
+      if (!product && transformed.barcode) {
+        product = await prisma.product.findFirst({
+          where: { barcode: transformed.barcode, archivedAt: null },
+        });
+      }
+
+      if (product) {
+        // Identity match found — update product + process variants immediately
+        product = await prisma.product.update({
+          where: { id: product.id },
           data: {
-            name: transformed.name,
-            category: transformed.category,
-            barcode: transformed.barcode,
+            category: transformed.category || product.category,
+            barcode: transformed.barcode || product.barcode,
             source: 'Shopify',
           },
         });
-        stats.productsCreated++;
-      }
+        embedProduct({ id: product.id, name: product.name, category: product.category, tenantId }).catch(() => {});
+        stats.productsUpdated++;
 
-      // Upsert variants
-      for (const v of transformed.variants) {
-        await prisma.productVariant.upsert({
-          where: { storeId_sku: { storeId: store.id, sku: v.sku } },
-          create: {
-            productId: product.id,
-            storeId: store.id,
-            sku: v.sku,
-            name: v.name,
-            size: v.size,
-            unitQty: v.unitQty,
-            currentCost: v.currentCost,
-            salePrice: v.salePrice,
-            isActive: true,
-          },
-          update: {
-            name: v.name,
-            size: v.size,
-            unitQty: v.unitQty,
-            currentCost: v.currentCost,
-            salePrice: v.salePrice,
-            isActive: true,
-          },
-        });
-        stats.variantsCreated++;
+        // Upsert variants — store shopifyVariantId + shopifyProductId
+        for (const v of transformed.variants) {
+          await prisma.productVariant.upsert({
+            where: { storeId_sku: { storeId: store.id, sku: v.sku } },
+            create: {
+              productId: product.id,
+              storeId: store.id,
+              sku: v.sku,
+              name: v.name,
+              size: v.size,
+              unitQty: v.unitQty,
+              currentCost: v.currentCost,
+              salePrice: v.salePrice,
+              shopifyVariantId: v.shopifyVariantId,
+              shopifyProductId: v.shopifyProductId,
+              isActive: true,
+            },
+            update: {
+              name: v.name,
+              size: v.size,
+              unitQty: v.unitQty,
+              salePrice: v.salePrice,
+              shopifyVariantId: v.shopifyVariantId,
+              shopifyProductId: v.shopifyProductId,
+              isActive: true,
+            },
+          });
+          stats.variantsCreated++;
+        }
+
+        matched.push({ shopifyProduct, transformed, localProduct: product });
+      } else {
+        // No identity match — route through pipeline in Phase 2
+        unmatched.push({ shopifyProduct, transformed });
       }
     } catch (err) {
-      stats.errors.push({
-        product: shopifyProduct.title,
-        error: err.message,
+      stats.errors.push({ product: shopifyProduct.title, error: err.message });
+    }
+  }
+
+  // ── Phase 2: Route unmatched through import pipeline ─────────
+  if (unmatched.length > 0) {
+    console.log(
+      `[Shopify Sync] ${matched.length} products matched by identity. ` +
+      `${unmatched.length} routing through import pipeline.`
+    );
+
+    try {
+      // Create an ImportJob for this sync run
+      const importJob = await createImportJob({
+        tenantId,
+        sourceType: 'SHOPIFY_SYNC',
+        sourceName: integration.shop,
+        fileName: `shopify-sync-${new Date().toISOString()}`,
+        totalRows: unmatched.length,
+      }, prisma);
+
+      // Convert unmatched Shopify products to CanonicalProduct format
+      const canonicalProducts = unmatched.map(({ shopifyProduct, transformed }, i) => {
+        const cp = shopifyToCanonical(shopifyProduct, transformed, tenantId);
+        cp.rowIndex = i;
+        cp.importJobId = importJob.id;
+        return cp;
       });
+
+      // Run through the import pipeline
+      const pipelineResult = await runImportPipeline({
+        importJobId: importJob.id,
+        products: canonicalProducts,
+        tenantId,
+        prisma,
+        dryRun: false,
+        sourceType: 'SHOPIFY_SYNC',
+        sourceName: integration.shop,
+        syncMode: 'FULL',
+      });
+
+      stats.productsPipelined = unmatched.length;
+      stats.productsAutoApproved = pipelineResult.rowsCreated || 0;
+      stats.productsQueuedForReview = pipelineResult.rowsPendingApproval || 0;
+      stats.productsCreated += pipelineResult.rowsCreated || 0;
+      stats.productsUpdated += pipelineResult.rowsUpdated || 0;
+
+      console.log(
+        `[Shopify Sync] Pipeline result: ${pipelineResult.rowsCreated} auto-approved, ` +
+        `${pipelineResult.rowsPendingApproval} queued for review, ` +
+        `${pipelineResult.rowsSkipped} skipped`
+      );
+    } catch (err) {
+      console.error('[Shopify Sync] Pipeline failed:', err.message);
+      stats.errors.push({ product: 'pipeline', error: err.message });
     }
   }
 
@@ -502,25 +587,31 @@ export async function syncProducts(prisma, tenantId) {
   });
 
   // 6. Create import log
-  await createImportLog(tenantId, stats, startTime);
+  await createShopifyImportLog(tenantId, stats, startTime, 'products');
 
   return stats;
 }
 
-async function createImportLog(tenantId, stats, startTime) {
+async function createShopifyImportLog(tenantId, stats, startTime, syncType = 'products') {
   const durationMs = Date.now() - startTime;
+  const totalCreated = (stats.productsCreated || 0) + (stats.ordersCreated || 0);
+  const totalUpdated = (stats.productsUpdated || 0) + (stats.ordersUpdated || 0);
   const status = stats.errors.length > 0
-    ? (stats.productsCreated + stats.productsUpdated > 0 ? 'partial' : 'failed')
+    ? (totalCreated + totalUpdated > 0 ? 'partial' : 'failed')
     : 'success';
 
   await basePrisma.shopifyImportLog.create({
     data: {
       tenantId,
       status,
-      productsPulled: stats.productsPulled,
-      productsCreated: stats.productsCreated,
-      productsUpdated: stats.productsUpdated,
-      variantsCreated: stats.variantsCreated,
+      syncType,
+      productsPulled: stats.productsPulled || 0,
+      productsCreated: stats.productsCreated || 0,
+      productsUpdated: stats.productsUpdated || 0,
+      variantsCreated: stats.variantsCreated || 0,
+      ordersPulled: stats.ordersPulled || 0,
+      ordersCreated: stats.ordersCreated || 0,
+      ordersUpdated: stats.ordersUpdated || 0,
       errors: stats.errors.length > 0 ? stats.errors : undefined,
       durationMs,
     },
@@ -549,4 +640,364 @@ export async function pushPriceUpdate(shop, accessToken, variantId, price, cost)
   });
 
   return res.json();
+}
+
+// ── Orders Sync ───────────────────────────────────────────────
+
+/**
+ * Fetch all orders from Shopify since a given date (paginated, max 20 pages = 5000 orders).
+ * @param {string} shop - Shopify shop domain
+ * @param {string} accessToken - Decrypted access token
+ * @param {Date|null} sinceDate - Only fetch orders created after this date (null = all time)
+ */
+export async function fetchOrders(shop, accessToken, sinceDate = null) {
+  const allOrders = [];
+  const params = new URLSearchParams({ limit: '250', status: 'any' });
+  if (sinceDate) {
+    params.set('created_at_min', sinceDate.toISOString());
+  }
+  let endpoint = `orders.json?${params.toString()}`;
+  const maxPages = 20;
+
+  for (let page = 0; page < maxPages; page++) {
+    const res = await shopifyFetch(shop, accessToken, endpoint);
+    const data = await res.json();
+    allOrders.push(...(data.orders || []));
+
+    const nextUrl = parseNextPageUrl(res.headers.get('Link'));
+    if (!nextUrl) break;
+
+    const urlObj = new URL(nextUrl);
+    endpoint = urlObj.pathname.replace(`/admin/api/${SHOPIFY_API_VERSION}/`, '') + urlObj.search;
+  }
+
+  return allOrders;
+}
+
+/**
+ * Sync Shopify orders into RetailEdge DB.
+ * - Upserts ShopifyOrder records by shopifyOrderId
+ * - Upserts ShopifyOrderLine records, linking to ProductVariant by SKU
+ * - Updates lastOrderSyncAt and orderCount on the integration
+ * - Creates a ShopifyImportLog with syncType='orders'
+ */
+export async function syncOrders(prisma, tenantId) {
+  const startTime = Date.now();
+  const stats = {
+    productsPulled: 0,
+    ordersPulled: 0,
+    ordersCreated: 0,
+    ordersUpdated: 0,
+    errors: [],
+  };
+
+  // 1. Get integration + decrypt token
+  const integration = await basePrisma.shopifyIntegration.findUnique({
+    where: { tenantId },
+  });
+  if (!integration || !integration.accessTokenEnc) {
+    throw new Error('Shopify not connected. Please connect your Shopify store first.');
+  }
+  if (!integration.isActive) {
+    throw new Error('Shopify integration is paused.');
+  }
+
+  const accessToken = decrypt(integration.accessTokenEnc);
+
+  // 2. Fetch orders since last sync (incremental)
+  const sinceDate = integration.lastOrderSyncAt || null;
+  const shopifyOrders = await fetchOrders(integration.shop, accessToken, sinceDate);
+  stats.ordersPulled = shopifyOrders.length;
+
+  // 3. Build SKU → variant ID map for line item linking
+  // Only load active variants so we can link order lines to products
+  const allVariants = await prisma.productVariant.findMany({
+    where: { isActive: true },
+    select: { id: true, sku: true, shopifyVariantId: true },
+  });
+  const skuToVariantId = new Map();
+  const shopifyIdToVariantId = new Map();
+  for (const v of allVariants) {
+    if (v.sku) skuToVariantId.set(v.sku.toLowerCase(), v.id);
+    if (v.shopifyVariantId) shopifyIdToVariantId.set(v.shopifyVariantId, v.id);
+  }
+
+  // 4. Upsert each order
+  for (const order of shopifyOrders) {
+    try {
+      const shopifyOrderId = String(order.id);
+      const orderData = {
+        shopifyOrderId,
+        tenantId,
+        orderNumber: String(order.order_number || order.name || shopifyOrderId),
+        customerName: order.customer
+          ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || null
+          : null,
+        customerEmail: order.customer?.email || null,
+        totalPrice: parseFloat(order.total_price) || 0,
+        currency: order.currency || 'AUD',
+        financialStatus: order.financial_status || null,
+        fulfillmentStatus: order.fulfillment_status || null,
+        orderedAt: order.created_at ? new Date(order.created_at) : new Date(),
+      };
+
+      // Upsert the order
+      const existingOrder = await basePrisma.shopifyOrder.findUnique({
+        where: { shopifyOrderId },
+      });
+
+      let dbOrder;
+      if (existingOrder) {
+        dbOrder = await basePrisma.shopifyOrder.update({
+          where: { shopifyOrderId },
+          data: orderData,
+        });
+        stats.ordersUpdated++;
+      } else {
+        dbOrder = await basePrisma.shopifyOrder.create({ data: orderData });
+        stats.ordersCreated++;
+      }
+
+      // Upsert order lines
+      for (const line of order.line_items || []) {
+        const shopifyLineId = String(line.id);
+        const shopifyVariantId = line.variant_id ? String(line.variant_id) : null;
+        const sku = line.sku || null;
+
+        // Link to ProductVariant: prefer shopifyVariantId, fallback to SKU
+        let productVariantId = null;
+        if (shopifyVariantId) productVariantId = shopifyIdToVariantId.get(shopifyVariantId) || null;
+        if (!productVariantId && sku) productVariantId = skuToVariantId.get(sku.toLowerCase()) || null;
+
+        const lineData = {
+          shopifyOrderId: dbOrder.shopifyOrderId,
+          shopifyLineId,
+          productVariantId,
+          sku,
+          title: line.title || null,
+          variantTitle: line.variant_title && line.variant_title !== 'Default Title' ? line.variant_title : null,
+          quantity: parseInt(line.quantity) || 1,
+          price: parseFloat(line.price) || 0,
+          totalDiscount: parseFloat(line.total_discount) || 0,
+        };
+
+        await basePrisma.shopifyOrderLine.upsert({
+          where: { shopifyOrderId_shopifyLineId: { shopifyOrderId: dbOrder.shopifyOrderId, shopifyLineId } },
+          create: lineData,
+          update: lineData,
+        });
+      }
+    } catch (err) {
+      stats.errors.push({ order: order.order_number || order.id, error: err.message });
+    }
+  }
+
+  // 5. Update integration metadata
+  await basePrisma.shopifyIntegration.update({
+    where: { tenantId },
+    data: {
+      lastOrderSyncAt: new Date(),
+      orderCount: { increment: stats.ordersCreated },
+    },
+  });
+
+  // 6. Create import log
+  await createShopifyImportLog(tenantId, stats, startTime, 'orders');
+
+  return stats;
+}
+
+// ── Variant Matching ──────────────────────────────────────────
+
+/**
+ * Auto-match Shopify variants to local ProductVariants.
+ *
+ * Strategy (priority order):
+ *   1. SKU exact match (case-insensitive) on a Shopify-named store
+ *   2. Barcode exact match
+ *   3. Fuzzy product title match (threshold 0.8)
+ *
+ * Only considers local variants in stores with "Shopify" in the name.
+ */
+export async function matchVariants(prisma, tenantId) {
+  const integration = await basePrisma.shopifyIntegration.findUnique({
+    where: { tenantId },
+  });
+  if (!integration || !integration.accessTokenEnc) throw new Error('Shopify not connected');
+  if (!integration.isActive) throw new Error('Shopify integration is paused');
+
+  const accessToken = decrypt(integration.accessTokenEnc);
+  const dismissedSet = new Set((integration.dismissedVariants || []).map(String));
+
+  // Fetch all products from Shopify
+  const shopifyProducts = await fetchProducts(integration.shop, accessToken);
+
+  // Flatten to variant-level
+  const shopifyVariants = [];
+  for (const sp of shopifyProducts) {
+    for (const sv of (sp.variants || [])) {
+      shopifyVariants.push({
+        shopifyVariantId: String(sv.id),
+        shopifyProductId: String(sp.id),
+        sku: sv.sku || null,
+        barcode: sv.barcode || null,
+        title: sp.title,
+        variantTitle: sv.title !== 'Default Title' ? sv.title : null,
+        price: sv.price,
+      });
+    }
+  }
+
+  // Find local stores with "Shopify" in the name
+  const shopifyStores = await prisma.store.findMany({
+    where: { name: { contains: 'Shopify', mode: 'insensitive' } },
+    select: { id: true, name: true },
+  });
+  const shopifyStoreIds = shopifyStores.map(s => s.id);
+
+  if (shopifyStoreIds.length === 0) {
+    return {
+      matched: [],
+      unmatched: shopifyVariants.filter(sv => !dismissedSet.has(sv.shopifyVariantId)),
+      dismissed: dismissedSet.size,
+    };
+  }
+
+  // Load all local variants in Shopify stores
+  const localVariants = await prisma.productVariant.findMany({
+    where: {
+      storeId: { in: shopifyStoreIds },
+      isActive: true,
+    },
+    include: {
+      product: { select: { id: true, name: true, barcode: true, archivedAt: true } },
+      store: { select: { id: true, name: true } },
+    },
+  });
+
+  // Build lookup maps
+  const skuMap = new Map();
+  const barcodeMap = new Map();
+  for (const lv of localVariants) {
+    if (lv.product?.archivedAt) continue;
+    if (lv.sku) skuMap.set(lv.sku.toLowerCase(), lv);
+    if (lv.product?.barcode) barcodeMap.set(lv.product.barcode, lv);
+  }
+
+  // Track already-linked variant IDs
+  const alreadyLinked = new Set(
+    localVariants.filter(lv => lv.shopifyVariantId).map(lv => lv.shopifyVariantId)
+  );
+
+  const matched = [];
+  const unmatched = [];
+  const linkedLocalIds = new Set();
+
+  for (const sv of shopifyVariants) {
+    if (alreadyLinked.has(sv.shopifyVariantId)) continue;
+    if (dismissedSet.has(sv.shopifyVariantId)) continue;
+
+    let matchedLocal = null;
+    let matchMethod = null;
+
+    // Strategy 1: SKU exact match
+    if (sv.sku) {
+      const bysku = skuMap.get(sv.sku.toLowerCase());
+      if (bysku && !bysku.shopifyVariantId && !linkedLocalIds.has(bysku.id)) {
+        matchedLocal = bysku;
+        matchMethod = 'sku';
+      }
+    }
+
+    // Strategy 2: Barcode match
+    if (!matchedLocal && sv.barcode) {
+      const byBarcode = barcodeMap.get(sv.barcode);
+      if (byBarcode && !byBarcode.shopifyVariantId && !linkedLocalIds.has(byBarcode.id)) {
+        matchedLocal = byBarcode;
+        matchMethod = 'barcode';
+      }
+    }
+
+    // Strategy 3: Fuzzy title match
+    if (!matchedLocal) {
+      const fullTitle = sv.variantTitle ? `${sv.title} ${sv.variantTitle}` : sv.title;
+      let bestScore = 0;
+      let bestVariant = null;
+      for (const lv of localVariants) {
+        if (lv.shopifyVariantId || linkedLocalIds.has(lv.id)) continue;
+        if (lv.product?.archivedAt) continue;
+        const score = fuzzyNameScore(fullTitle, lv.name);
+        if (score > bestScore && score >= 0.8) {
+          bestScore = score;
+          bestVariant = lv;
+        }
+      }
+      if (bestVariant) {
+        matchedLocal = bestVariant;
+        matchMethod = 'title';
+      }
+    }
+
+    if (matchedLocal) {
+      await prisma.productVariant.update({
+        where: { id: matchedLocal.id },
+        data: {
+          shopifyVariantId: sv.shopifyVariantId,
+          shopifyProductId: sv.shopifyProductId,
+        },
+      });
+      matchedLocal.shopifyVariantId = sv.shopifyVariantId;
+      linkedLocalIds.add(matchedLocal.id);
+
+      matched.push({
+        shopifyVariantId: sv.shopifyVariantId,
+        shopifyProductId: sv.shopifyProductId,
+        shopifyTitle: sv.title,
+        shopifyVariantTitle: sv.variantTitle,
+        shopifySku: sv.sku,
+        localVariantId: matchedLocal.id,
+        localVariantName: matchedLocal.name,
+        localSku: matchedLocal.sku,
+        matchMethod,
+      });
+    } else {
+      unmatched.push(sv);
+    }
+  }
+
+  return { matched, unmatched, dismissed: dismissedSet.size };
+}
+
+/**
+ * Manually link a Shopify variant to a local ProductVariant.
+ */
+export async function linkVariant(prisma, localVariantId, shopifyVariantId, shopifyProductId) {
+  const updated = await prisma.productVariant.update({
+    where: { id: localVariantId },
+    data: {
+      shopifyVariantId: String(shopifyVariantId),
+      shopifyProductId: shopifyProductId ? String(shopifyProductId) : undefined,
+    },
+  });
+  return updated;
+}
+
+/**
+ * Dismiss Shopify variants from the unmatched list.
+ */
+export async function dismissVariants(tenantId, variantIds) {
+  const ids = Array.isArray(variantIds) ? variantIds : [variantIds];
+  const integration = await basePrisma.shopifyIntegration.findUnique({
+    where: { tenantId },
+  });
+  if (!integration) throw new Error('Shopify not connected');
+
+  const existing = new Set((integration.dismissedVariants || []).map(String));
+  for (const id of ids) existing.add(String(id));
+
+  await basePrisma.shopifyIntegration.update({
+    where: { tenantId },
+    data: { dismissedVariants: [...existing] },
+  });
+  return { dismissed: existing.size };
 }

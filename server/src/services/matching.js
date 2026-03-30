@@ -9,7 +9,8 @@
  */
 
 import { calculateSuggestedPrice } from './pricing.js';
-import { trackedClaudeCall } from './apiUsageTracker.js';
+import { generate, embed as routerEmbed } from './ai/aiServiceRouter.js';
+import { findNearestProducts } from './ai/vectorStore.js';
 import { assemblePrompt } from './promptAssemblyEngine.js';
 
 const CONFIDENCE_THRESHOLD = 0.8;
@@ -156,7 +157,7 @@ async function matchSingleLine(prisma, line, supplierId) {
   if (line.description) {
     // Try to find products by barcode (if we have barcode-like data)
     const products = await prisma.product.findMany({
-      where: { barcode: { not: null } },
+      where: { barcode: { not: null }, archivedAt: null },
       select: { id: true, barcode: true },
     });
     for (const product of products) {
@@ -177,6 +178,7 @@ async function matchSingleLine(prisma, line, supplierId) {
   // Strategy 3: Fuzzy name match (with token counting for tie-breaking)
   const descTokens = new Set(tokenize(line.description));
   const allProducts = await prisma.product.findMany({
+    where: { archivedAt: null },
     select: { id: true, name: true },
   });
   for (const product of allProducts) {
@@ -230,7 +232,7 @@ export async function createMatchRecords(prisma, lineId, productId, line, confid
   if (existingCount > 0) return [];
 
   const product = await prisma.product.findFirst({
-    where: { id: productId },
+    where: { id: productId, archivedAt: null },
     include: {
       variants: {
         where: { isActive: true },
@@ -322,6 +324,75 @@ export async function createMatchRecords(prisma, lineId, productId, line, confid
   return matchData;
 }
 
+// ── Tier 3.5: Batch embedding match ─────────────────────────
+
+/**
+ * Batch embedding match for all unmatched invoice lines.
+ * Makes ONE Cohere embed call for all lines, then queries pgvector per line.
+ *
+ * @param {object[]} unmatchedLineResults - Elements from lineResults with no confident match.
+ *   Each has { line, candidates, best } where line.description is the invoice text.
+ * @param {string} tenantId - Tenant scope for vector search
+ * @returns {Promise<void>} Mutates each element's candidates array in place
+ */
+async function batchEmbeddingMatch(unmatchedLineResults, tenantId) {
+  if (unmatchedLineResults.length === 0) return;
+
+  try {
+    // Step 1: Batch embed ALL descriptions in ONE Cohere call
+    const descriptions = unmatchedLineResults.map(r => r.line.description);
+    const embedResult = await routerEmbed('product_matching_embed', descriptions, {
+      tenantId,
+      inputType: 'search_query',
+    });
+
+    if (!embedResult.vectors || embedResult.vectors.length !== unmatchedLineResults.length) {
+      console.warn('[Matching] Embedding returned unexpected vector count, skipping tier 3.5');
+      return;
+    }
+
+    // Step 2: For each line, query pgvector for nearest catalog products
+    for (let i = 0; i < unmatchedLineResults.length; i++) {
+      const lineResult = unmatchedLineResults[i];
+      const queryVector = embedResult.vectors[i];
+      if (!queryVector) continue;
+
+      const nearest = await findNearestProducts({
+        tenantId,
+        queryVector,
+        model: 'embed-english-v3.0',
+        limit: 3,
+        minSimilarity: 0.75,
+      });
+
+      if (nearest.length === 0) continue;
+
+      // Step 3: Map cosine similarity to confidence score
+      // Capped at 0.90 — only barcodes get higher certainty
+      const similarity = nearest[0].similarity;
+      let confidence;
+      if (similarity >= 0.95) confidence = 0.90;
+      else if (similarity >= 0.90) confidence = 0.85;
+      else if (similarity >= 0.85) confidence = 0.80;
+      else if (similarity >= 0.80) confidence = 0.75;
+      else confidence = 0.70;
+
+      // Step 4: Add candidate if not already present — match existing candidate shape
+      if (!lineResult.candidates.some(c => c.productId === nearest[0].productId)) {
+        lineResult.candidates.push({
+          productId: nearest[0].productId,
+          confidence,
+          matchReason: 'embedding',
+          matchingTokens: 0,
+        });
+      }
+    }
+  } catch (err) {
+    // Entire embedding tier failed — all lines fall through to the Claude batch
+    console.warn('[Matching] Batch embedding match failed:', err.message);
+  }
+}
+
 // ── AI batch matching ────────────────────────────────────────
 
 /**
@@ -337,6 +408,7 @@ async function aiBatchMatch(prisma, unmatchedLines, tenantId) {
   try {
     // Fetch full product catalog
     const allProducts = await prisma.product.findMany({
+      where: { archivedAt: null },
       select: { id: true, name: true, category: true, barcode: true, source: true },
     });
 
@@ -405,23 +477,12 @@ ${conditionsText}
 
 ${postamble}`;
 
-    const response = await trackedClaudeCall({
+    const result = await generate('product_matching_ai', null, prompt, {
       tenantId,
-      userId: null,
-      endpoint: 'product_matching',
-      model: 'claude-sonnet-4-20250514',
-      messages: [{ role: 'user', content: prompt }],
       maxTokens: 2000,
-      requestSummary: {
-        invoiceLineCount: unmatchedLines.length,
-        productCount: allProducts.length,
-      },
     });
 
-    const text = response.content
-      ?.filter((b) => b.type === 'text')
-      .map((b) => b.text)
-      .join('');
+    const text = result.response || '';
 
     if (!text) return new Map();
 
@@ -483,6 +544,23 @@ export async function matchInvoiceLines(prisma, invoice) {
     lineResults.push({ line, candidates, best });
   }
 
+  // Tier 3.5: Batch embedding match for lines without a confident match
+  const linesForEmbedding = lineResults.filter(r => {
+    const bestConfidence = r.best?.confidence || 0;
+    return bestConfidence < CONFIDENCE_THRESHOLD;
+  });
+
+  await batchEmbeddingMatch(linesForEmbedding, tenantId);
+
+  // Update best candidate and re-sort after embedding may have added candidates
+  for (const r of linesForEmbedding) {
+    r.candidates.sort((a, b) => {
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      return (b.matchingTokens || 0) - (a.matchingTokens || 0);
+    });
+    r.best = r.candidates.length > 0 ? r.candidates[0] : null;
+  }
+
   // Phase 2: Batch AI matching for low-confidence lines
   const unmatchedLines = lineResults
     .filter((r) => r.best && r.best.confidence < CONFIDENCE_THRESHOLD)
@@ -500,6 +578,9 @@ export async function matchInvoiceLines(prisma, invoice) {
     }));
 
   const allUnmatched = [...unmatchedLines, ...noMatchLines];
+
+  console.log(`[Matching] Tier 3.5 resolved ${linesForEmbedding.length - allUnmatched.length} lines via embedding. ${allUnmatched.length} lines remaining for AI batch.`);
+
   const aiResults = await aiBatchMatch(prisma, allUnmatched, tenantId);
 
   // Phase 3: Merge fuzzy + AI candidates and create match records for all

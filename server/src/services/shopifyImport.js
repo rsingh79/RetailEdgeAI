@@ -5,6 +5,8 @@
  * and creates Product + ProductVariant records.
  */
 
+import { embedProduct } from './ai/embeddingMaintenance.js';
+
 // ── Format detection ──────────────────────────────────────────
 
 const SHOPIFY_REQUIRED_HEADERS = ['Handle', 'Title', 'Variant SKU'];
@@ -163,6 +165,7 @@ export async function importShopifyProducts(prisma, rows, opts = {}) {
           data: { category: sp.category, baseUnit: sp.baseUnit, barcode: sp.barcode },
         });
         productId = existing.id;
+        embedProduct({ id: existing.id, name: existing.name, category: sp.category || existing.category, baseUnit: sp.baseUnit, tenantId: existing.tenantId }).catch(() => {});
         updated++;
         // Remove old variants for this store so they can be recreated
         await prisma.productVariant.deleteMany({
@@ -179,6 +182,7 @@ export async function importShopifyProducts(prisma, rows, opts = {}) {
           },
         });
         productId = created.id;
+        embedProduct({ id: created.id, name: created.name, category: created.category, baseUnit: created.baseUnit, tenantId: created.tenantId }).catch(() => {});
         imported++;
       }
 

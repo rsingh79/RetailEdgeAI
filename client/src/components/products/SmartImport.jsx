@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 export default function SmartImport({ onClose, onImportComplete }) {
   const [step, setStep] = useState('upload'); // upload, analyzing, patterns, testing, importing, done
   const [uploadId, setUploadId] = useState(null);
+  const [importJobId, setImportJobId] = useState(null);
   const [fileName, setFileName] = useState('');
   const [totalRows, setTotalRows] = useState(0);
   const [headers, setHeaders] = useState([]);
@@ -52,6 +53,7 @@ export default function SmartImport({ onClose, onImportComplete }) {
     try {
       const result = await api.smartImportUpload(formData);
       setUploadId(result.uploadId);
+      setImportJobId(result.importJobId || null);
       setTotalRows(result.totalRows);
       setHeaders(result.headers);
       setAnalysis(result.analysis);
@@ -72,10 +74,16 @@ export default function SmartImport({ onClose, onImportComplete }) {
     setChatLoading(true);
 
     try {
-      const result = await api.smartImportChat(uploadId, msg);
+      const result = await api.smartImportChat(uploadId, importJobId, msg);
       setMessages((prev) => [...prev, { role: 'assistant', content: result.reply }]);
       if (result.patterns) setAnalysis((a) => ({ ...a, patterns: result.patterns }));
       if (result.columnMapping) setAnalysis((a) => ({ ...a, columnMapping: result.columnMapping }));
+
+      // When agent confirms, auto-advance to test/import step
+      if (result.status === 'confirmed' && result.testResults) {
+        setTestResults(result.testResults);
+        setStep('testing');
+      }
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
     } finally {
@@ -87,7 +95,7 @@ export default function SmartImport({ onClose, onImportComplete }) {
   const runTest = async () => {
     setStep('testing');
     try {
-      const result = await api.smartImportTest(uploadId);
+      const result = await api.smartImportTest(uploadId, importJobId);
       setTestResults(result);
     } catch (err) {
       setError(err.message);
@@ -99,8 +107,20 @@ export default function SmartImport({ onClose, onImportComplete }) {
   const confirmImport = async () => {
     setStep('importing');
     try {
-      const result = await api.smartImportConfirm(uploadId, undefined, saveTemplate);
-      setImportResults(result);
+      const result = await api.smartImportConfirm(uploadId, importJobId, saveTemplate);
+      // Normalise field names from new pipeline response
+      const normalised = {
+        created:         result.rowsCreated ?? result.created ?? 0,
+        updated:         result.rowsUpdated ?? result.updated ?? 0,
+        skipped:         result.rowsSkipped ?? result.skipped ?? 0,
+        failed:          result.rowsFailed ?? result.failed ?? 0,
+        pendingApproval: result.rowsPendingApproval ?? result.pendingApproval ?? 0,
+        totalRows:       result.totalRows ?? 0,
+        templateSaved:   result.templateSaved ?? false,
+        templateName:    result.templateName ?? null,
+        importJobId:     result.importJobId ?? null,
+      };
+      setImportResults(normalised);
       setStep('done');
     } catch (err) {
       setError(err.message);
@@ -423,19 +443,26 @@ export default function SmartImport({ onClose, onImportComplete }) {
               <div className="flex items-center justify-center h-full">
                 <div className="max-w-lg w-full">
                   <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className={`w-16 h-16 ${importResults.pendingApproval > 0 ? 'bg-amber-100' : 'bg-green-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                      <svg className={`w-8 h-8 ${importResults.pendingApproval > 0 ? 'text-amber-600' : 'text-green-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900">Import Complete</h3>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {importResults.pendingApproval > 0
+                        ? `Import Complete — ${importResults.pendingApproval} products need your review`
+                        : 'Import Complete — all products added to catalog'}
+                    </h3>
                     <p className="text-sm text-gray-500 mt-1">{fileName}</p>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3 mb-6">
+                  <div className={`grid gap-3 mb-6 ${importResults.pendingApproval > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
                     <StatCard label="Created" value={importResults.created} color="text-green-600" />
                     <StatCard label="Updated" value={importResults.updated} color="text-blue-600" />
                     <StatCard label="Skipped" value={importResults.skipped} color="text-gray-400" />
+                    {importResults.pendingApproval > 0 && (
+                      <StatCard label="Awaiting Review" value={importResults.pendingApproval} color="text-amber-600" />
+                    )}
                   </div>
 
                   {/* Saved template card */}
@@ -453,6 +480,14 @@ export default function SmartImport({ onClose, onImportComplete }) {
                     <button onClick={onClose} className="bg-white border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-50">
                       Close
                     </button>
+                    {importResults.pendingApproval > 0 && (
+                      <button
+                        onClick={() => { onClose(); window.location.href = '/products?showApprovalQueue=true'; }}
+                        className="bg-amber-500 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-amber-600"
+                      >
+                        Review {importResults.pendingApproval} Pending Products
+                      </button>
+                    )}
                     <button
                       onClick={() => { onImportComplete?.(); onClose(); }}
                       className="bg-brand-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-brand-700"

@@ -148,8 +148,17 @@ export default function Export() {
   const [duplicateChoices, setDuplicateChoices] = useState({});
   // Invoice sort state for "Previously Exported" section
   const [exportSortAsc, setExportSortAsc] = useState(true);
-  // Selected export systems (which output files to generate)
-  const [selectedExportSystems, setSelectedExportSystems] = useState(new Set());
+  // Per-platform action: { [source]: 'sync' | 'file' }
+  const [platformActions, setPlatformActions] = useState({});
+  // Whether Shopify integration is active
+  const [shopifyConnected, setShopifyConnected] = useState(false);
+
+  // ── Load Shopify integration status ───
+  useEffect(() => {
+    api.shopify.getStatus().then((data) => {
+      setShopifyConnected(!!(data?.isActive));
+    }).catch(() => {});
+  }, []);
 
   // ── Load invoices ───
   useEffect(() => {
@@ -226,6 +235,34 @@ export default function Export() {
     setExportSuccess(null);
   }, []);
 
+  // ── Source filter for items table (must be declared before toggleAllItems) ───
+  const [sourceFilter, setSourceFilter] = useState(new Set()); // empty = show all
+
+  // Available sources derived from loaded items (exclude items with no source)
+  const availableItemSources = useMemo(() => {
+    return [...new Set(items.map((i) => i.source).filter(Boolean))].sort();
+  }, [items]);
+
+  // Reset source filter when items change (new invoice selection)
+  useEffect(() => {
+    setSourceFilter(new Set());
+  }, [items]);
+
+  const toggleSourceFilter = useCallback((source) => {
+    setSourceFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(source)) next.delete(source);
+      else next.add(source);
+      return next;
+    });
+  }, []);
+
+  // Filtered items (source filter applied — items with no source always show)
+  const filteredItems = useMemo(() => {
+    if (sourceFilter.size === 0) return items;
+    return items.filter((i) => !i.source || sourceFilter.has(i.source));
+  }, [items, sourceFilter]);
+
   // ── Item selection handlers ───
   const toggleItem = useCallback((matchId) => {
     setSelectedMatchIds((prev) => {
@@ -238,10 +275,17 @@ export default function Export() {
 
   const toggleAllItems = useCallback(() => {
     setSelectedMatchIds((prev) => {
-      if (prev.size === items.length) return new Set();
-      return new Set(items.map((item) => item.matchId));
+      const visibleIds = filteredItems.map((item) => item.matchId);
+      const allVisible = visibleIds.length > 0 && visibleIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allVisible) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+      return next;
     });
-  }, [items]);
+  }, [filteredItems]);
 
   // ── Price edit handler ───
   const handlePriceEdit = useCallback(async (matchId, newPrice) => {
@@ -272,29 +316,36 @@ export default function Export() {
   const itemsBySource = useMemo(() => {
     const groups = {};
     for (const item of selectedItems) {
-      const source = item.source || 'Other';
-      if (!groups[source]) groups[source] = [];
-      groups[source].push(item);
+      if (!item.source) continue;
+      if (!groups[item.source]) groups[item.source] = [];
+      groups[item.source].push(item);
     }
     return groups;
   }, [selectedItems]);
 
-  // ── Available export systems (derived from all loaded items) ───
-  const availableExportSystems = useMemo(() => {
-    const sources = [...new Set(items.map((i) => i.source || 'Other'))];
-    if (sources.includes('POS')) sources.push('Instore Update');
-    return sources;
+  // ── Available export platforms (derived from loaded items — exclude no-source) ───
+  const availablePlatforms = useMemo(() => {
+    return [...new Set(items.map((i) => i.source).filter(Boolean))].sort();
   }, [items]);
 
-  // Auto-select all export systems when the set of sources changes
-  const prevSystemsKey = useRef('');
+  // Auto-init platform actions when available platforms or shopifyConnected changes
+  const prevPlatformsKey = useRef('');
   useEffect(() => {
-    const key = [...availableExportSystems].sort().join(',');
-    if (key !== prevSystemsKey.current) {
-      prevSystemsKey.current = key;
-      setSelectedExportSystems(new Set(availableExportSystems));
+    const key = [...availablePlatforms].sort().join(',') + '|' + String(shopifyConnected);
+    if (key !== prevPlatformsKey.current) {
+      prevPlatformsKey.current = key;
+      setPlatformActions((prev) => {
+        const next = { ...prev };
+        for (const platform of availablePlatforms) {
+          if (!(platform in next)) {
+            // Default: 'sync' for Shopify if connected, 'file' otherwise
+            next[platform] = (platform.toLowerCase() === 'shopify' && shopifyConnected) ? 'sync' : 'file';
+          }
+        }
+        return next;
+      });
     }
-  }, [availableExportSystems]);
+  }, [availablePlatforms, shopifyConnected]);
 
   // ── Count of edited prices ───
   const editedCount = useMemo(() => {
@@ -401,17 +452,22 @@ export default function Export() {
     try {
       const ts = exportTimestamp();
 
-      // Group by source
+      // Group by source (skip items with no source)
       const bySource = {};
       for (const item of exportItems) {
-        const source = item.source || 'Other';
-        (bySource[source] ??= []).push(item);
+        if (!item.source) continue;
+        (bySource[item.source] ??= []).push(item);
       }
 
-      // Generate format-specific CSV per source system (only for selected systems)
+      // Determine which platforms are set to 'sync' (push via API)
+      const syncPlatforms = availablePlatforms.filter(
+        (p) => platformActions[p] === 'sync'
+      );
+
+      // Generate files for platforms set to 'file' action
       let fileCount = 0;
       for (const [source, sourceItems] of Object.entries(bySource)) {
-        if (!selectedExportSystems.has(source)) continue;
+        if (platformActions[source] !== 'file') continue; // sync platforms skip file generation
         let csv;
         let label;
         const sourceLower = source.toLowerCase();
@@ -430,33 +486,31 @@ export default function Export() {
         fileCount++;
       }
 
-      // Generate XLSX INSTORE_UPDATE — POS items only (only if selected)
-      if (selectedExportSystems.has('Instore Update')) {
-        const posExportItems = exportItems.filter((item) => item.source === 'POS');
-        if (posExportItems.length > 0) {
-          const instoreData = posExportItems.map((item) => ({
-            'Product Name': item.productName || '',
-            'New Price': item.newPrice ?? '',
-          }));
-          const ws = XLSX.utils.json_to_sheet(instoreData);
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'INSTORE_UPDATE');
-          const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-          const xlsxBlob = new Blob([xlsxData], {
-            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          });
-          downloadBlob(xlsxBlob, `${ts}_INSTORE_UPDATE.xlsx`);
-          fileCount++;
-        }
+      // Generate XLSX INSTORE_UPDATE for POS items set to 'file' action
+      if (platformActions['POS'] === 'file' && bySource['POS']?.length > 0) {
+        const instoreData = bySource['POS'].map((item) => ({
+          'Product Name': item.productName || '',
+          'New Price': item.newPrice ?? '',
+        }));
+        const ws = XLSX.utils.json_to_sheet(instoreData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'INSTORE_UPDATE');
+        const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const xlsxBlob = new Blob([xlsxData], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        downloadBlob(xlsxBlob, `${ts}_INSTORE_UPDATE.xlsx`);
+        fileCount++;
       }
 
-      // Mark items as exported on server
+      // Mark items as exported on server — pass syncPlatforms so backend knows what to push
       const matchIds = exportItems.map((item) => item.matchId);
-      await api.markExported(matchIds);
+      await api.markExported(matchIds, syncPlatforms.length > 0 ? syncPlatforms : []);
 
       setExportSuccess({
         count: exportItems.length,
         fileCount,
+        syncCount: syncPlatforms.length,
         timestamp: ts,
       });
 
@@ -589,8 +643,9 @@ export default function Export() {
           <div>
             <div className="font-medium text-emerald-900">Export Complete</div>
             <p className="text-sm text-emerald-700 mt-0.5">
-              {exportSuccess.count} item{exportSuccess.count !== 1 ? 's' : ''} exported across {exportSuccess.fileCount} file{exportSuccess.fileCount !== 1 ? 's' : ''}.
-              Files prefixed with {exportSuccess.timestamp}.
+              {exportSuccess.count} item{exportSuccess.count !== 1 ? 's' : ''} processed.
+              {exportSuccess.fileCount > 0 && ` ${exportSuccess.fileCount} file${exportSuccess.fileCount !== 1 ? 's' : ''} downloaded (prefixed ${exportSuccess.timestamp}).`}
+              {exportSuccess.syncCount > 0 && ` Prices pushed to ${exportSuccess.syncCount} connected platform${exportSuccess.syncCount !== 1 ? 's' : ''}.`}
             </p>
           </div>
         </div>
@@ -695,25 +750,63 @@ export default function Export() {
       {/* Export Items Table */}
       {selectedInvoiceIds.size > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">
-              Export Items
-              {items.length > 0 && <span className="ml-2 text-xs text-gray-400 font-normal">{selectedMatchIds.size} of {items.length} selected</span>}
-              {editedCount > 0 && (
-                <span className="ml-2 text-xs text-teal-600 font-normal">
-                  ({editedCount} price{editedCount !== 1 ? 's' : ''} updated)
-                </span>
-              )}
-            </h3>
-            <label className="flex items-center gap-2 text-xs text-gray-500">
-              <input
-                type="checkbox"
-                checked={includeOtherExported}
-                onChange={(e) => setIncludeOtherExported(e.target.checked)}
-                className="rounded border-gray-300 text-teal-600"
-              />
-              Include exported from other invoices
-            </label>
+          <div className="px-5 py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700">
+                Export Items
+                {items.length > 0 && (
+                  <span className="ml-2 text-xs text-gray-400 font-normal">
+                    {selectedMatchIds.size} of {sourceFilter.size > 0 ? filteredItems.length : items.length} selected
+                    {sourceFilter.size > 0 && ` (filtered from ${items.length})`}
+                  </span>
+                )}
+                {editedCount > 0 && (
+                  <span className="ml-2 text-xs text-teal-600 font-normal">
+                    ({editedCount} price{editedCount !== 1 ? 's' : ''} updated)
+                  </span>
+                )}
+              </h3>
+              <label className="flex items-center gap-2 text-xs text-gray-500">
+                <input
+                  type="checkbox"
+                  checked={includeOtherExported}
+                  onChange={(e) => setIncludeOtherExported(e.target.checked)}
+                  className="rounded border-gray-300 text-teal-600"
+                />
+                Include exported from other invoices
+              </label>
+            </div>
+            {/* Source filter pills */}
+            {availableItemSources.length > 1 && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-gray-400">Filter by source:</span>
+                {availableItemSources.map((source) => {
+                  const active = sourceFilter.has(source);
+                  const count = items.filter((i) => (i.source || 'Other') === source).length;
+                  return (
+                    <button
+                      key={source}
+                      onClick={() => toggleSourceFilter(source)}
+                      className={`px-2.5 py-0.5 text-xs font-medium rounded-full border transition ${
+                        active
+                          ? 'bg-teal-600 text-white border-teal-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-teal-400 hover:text-teal-700'
+                      }`}
+                    >
+                      {source} <span className={active ? 'text-teal-200' : 'text-gray-400'}>{count}</span>
+                    </button>
+                  );
+                })}
+                {sourceFilter.size > 0 && (
+                  <button
+                    onClick={() => setSourceFilter(new Set())}
+                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {loadingItems ? (
@@ -727,7 +820,7 @@ export default function Export() {
                   <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <th className="pl-5 pr-2 py-2.5 text-left w-10">
                       <button onClick={toggleAllItems} className="w-5 h-5 rounded flex items-center justify-center border-2 border-gray-300 hover:border-teal-500 transition">
-                        {selectedMatchIds.size === items.length && items.length > 0 && <Check className="w-3 h-3 text-teal-600" />}
+                        {filteredItems.length > 0 && filteredItems.every((i) => selectedMatchIds.has(i.matchId)) && <Check className="w-3 h-3 text-teal-600" />}
                       </button>
                     </th>
                     <th className="px-3 py-2.5 text-left">Product</th>
@@ -745,7 +838,7 @@ export default function Export() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {items.map((item) => {
+                  {filteredItems.map((item) => {
                     const isSelected = selectedMatchIds.has(item.matchId);
                     const wasExported = !!item.exportedAt;
                     const wasEdited = priceEdits[item.matchId] != null;
@@ -802,39 +895,78 @@ export default function Export() {
         </div>
       )}
 
-      {/* Export systems & button */}
-      {selectedInvoiceIds.size > 0 && items.length > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Export for:</span>
-            {availableExportSystems.map((sys) => (
-              <label key={sys} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedExportSystems.has(sys)}
-                  onChange={() => {
-                    setSelectedExportSystems((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(sys)) next.delete(sys);
-                      else next.add(sys);
-                      return next;
-                    });
-                  }}
-                  className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-                />
-                {sys}
-                <span className="text-xs text-gray-400">{sys === 'Instore Update' ? '(.xlsx)' : '(.csv)'}</span>
-              </label>
-            ))}
+      {/* Per-platform action selector & export button */}
+      {selectedInvoiceIds.size > 0 && items.length > 0 && availablePlatforms.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            {/* Platform cards */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider shrink-0">
+                Update via:
+              </span>
+              {availablePlatforms.map((platform) => {
+                const isShopify = platform.toLowerCase() === 'shopify';
+                const canSync = isShopify && shopifyConnected;
+                const action = platformActions[platform] ?? 'file';
+                const itemCount = items.filter((i) => i.source === platform).length;
+                return (
+                  <div
+                    key={platform}
+                    className="flex flex-col gap-1.5 px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 min-w-[140px]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-gray-800">{platform}</span>
+                      <span className="text-[11px] text-gray-400">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+                    </div>
+                    {canSync ? (
+                      /* Shopify connected: toggle between Sync and File */
+                      <div className="flex rounded-md overflow-hidden border border-gray-200 text-xs font-medium">
+                        <button
+                          onClick={() => setPlatformActions((prev) => ({ ...prev, [platform]: 'sync' }))}
+                          className={`flex-1 px-2 py-1 transition ${
+                            action === 'sync'
+                              ? 'bg-teal-600 text-white'
+                              : 'bg-white text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          Sync
+                        </button>
+                        <button
+                          onClick={() => setPlatformActions((prev) => ({ ...prev, [platform]: 'file' }))}
+                          className={`flex-1 px-2 py-1 transition border-l border-gray-200 ${
+                            action === 'file'
+                              ? 'bg-teal-600 text-white'
+                              : 'bg-white text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          Export CSV
+                        </button>
+                      </div>
+                    ) : (
+                      /* Not connected: file export only */
+                      <div className="text-xs text-gray-500 flex items-center gap-1">
+                        <Download className="w-3 h-3" />
+                        Export CSV
+                        {isShopify && (
+                          <span className="ml-1 text-[10px] text-amber-600">(not connected)</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Export button */}
+            <button
+              onClick={handleExport}
+              disabled={selectedMatchIds.size === 0 || exporting}
+              className="px-6 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition flex items-center gap-2 shrink-0"
+            >
+              <Download className="w-4 h-4" />
+              {exporting ? 'Processing...' : `Export ${selectedMatchIds.size} Item${selectedMatchIds.size !== 1 ? 's' : ''}`}
+            </button>
           </div>
-          <button
-            onClick={handleExport}
-            disabled={selectedMatchIds.size === 0 || selectedExportSystems.size === 0 || exporting}
-            className="px-6 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            {exporting ? 'Exporting...' : `Export ${selectedMatchIds.size} Item${selectedMatchIds.size !== 1 ? 's' : ''}`}
-          </button>
         </div>
       )}
 

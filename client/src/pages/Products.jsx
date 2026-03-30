@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import SmartImport from '../components/products/SmartImport';
 
@@ -14,11 +15,13 @@ const IMPORT_FIELDS = [
 export default function Products() {
   const [products, setProducts] = useState([]);
   const [sources, setSources] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
+  const [storeFilter, setStoreFilter] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [showSmartImport, setShowSmartImport] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -27,29 +30,66 @@ export default function Products() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // 'bulk' | productId | null
   const [expandedProduct, setExpandedProduct] = useState(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
-  const [addProductForm, setAddProductForm] = useState({ name: '', category: '', baseUnit: '', barcode: '', costPrice: '', sellingPrice: '' });
+  const [addProductForm, setAddProductForm] = useState({ name: '', source: '', category: '', baseUnit: '', barcode: '', costPrice: '', sellingPrice: '' });
   const [addProductSaving, setAddProductSaving] = useState(false);
+
+  const location = useLocation();
+  const [showApprovalQueue, setShowApprovalQueue] = useState(false);
+  const [approvalQueue, setApprovalQueue] = useState([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueSummary, setQueueSummary] = useState(null);
+  const [selectedQueueIds, setSelectedQueueIds] = useState(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const loadProducts = useCallback(async () => {
     try {
-      const data = await api.getProducts(sourceFilter || undefined);
-      // Handle both old (array) and new ({ products, sources }) response shapes
+      const params = {};
+      if (sourceFilter) params.source = sourceFilter;
+      if (storeFilter) params.store = storeFilter;
+      const data = await api.getProducts(Object.keys(params).length ? params : undefined);
       if (Array.isArray(data)) {
         setProducts(data);
       } else {
         setProducts(data.products);
         setSources(data.sources || []);
+        setStores(data.stores || []);
       }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [sourceFilter]);
+  }, [sourceFilter, storeFilter]);
+
+  const loadApprovalQueue = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const [entriesRes, summaryRes] = await Promise.all([
+        api.getApprovalQueue({ status: 'PENDING', limit: 100 }),
+        api.getApprovalQueueSummary(),
+      ]);
+      setApprovalQueue(entriesRes.entries || []);
+      setQueueSummary(summaryRes);
+    } catch (err) {
+      console.error('Failed to load approval queue:', err);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+    loadApprovalQueue();
+  }, [loadProducts, loadApprovalQueue]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('showApprovalQueue') === 'true') {
+      setShowApprovalQueue(true);
+      loadApprovalQueue();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [location.search, loadApprovalQueue]);
 
   const handleDeleteProduct = async (id) => {
     setDeleting(id);
@@ -116,6 +156,22 @@ export default function Products() {
 
   return (
     <div className="space-y-6">
+      {/* Approval Queue Banner */}
+      {queueSummary?.pendingTotal > 0 && (
+        <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>⏳</span>
+            <div>
+              <div style={{ fontWeight: '600', color: '#92400e', fontSize: '14px' }}>{queueSummary.pendingTotal} products awaiting your review</div>
+              <div style={{ color: '#b45309', fontSize: '12px' }}>These products were imported but need approval before appearing in your catalog</div>
+            </div>
+          </div>
+          <button onClick={() => { setShowApprovalQueue(true); loadApprovalQueue(); }} style={{ background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 16px', fontWeight: '600', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Review Now
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -179,8 +235,20 @@ export default function Products() {
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
           >
-            <option value="">All Systems</option>
+            <option value="">All Sources</option>
             {sources.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        )}
+        {stores.length > 0 && (
+          <select
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            value={storeFilter}
+            onChange={(e) => setStoreFilter(e.target.value)}
+          >
+            <option value="">All Stores</option>
+            {stores.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
@@ -262,6 +330,7 @@ export default function Products() {
                 <th className="px-3 py-2.5 text-right">Cost</th>
                 <th className="px-3 py-2.5 text-right">Sell</th>
                 <th className="px-3 py-2.5">Source</th>
+                <th className="px-3 py-2.5">Store</th>
                 <th className="px-3 py-2.5">Created</th>
                 <th className="px-3 py-2.5 w-16"></th>
               </tr>
@@ -298,6 +367,217 @@ export default function Products() {
         />
       )}
 
+      {/* Approval Queue Backdrop */}
+      {showApprovalQueue && (
+        <div onClick={() => setShowApprovalQueue(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.3)', zIndex: 999 }} />
+      )}
+
+      {/* Approval Queue Drawer */}
+      {showApprovalQueue && (
+        <div style={{ position: 'fixed', top: 0, right: 0, width: '600px', height: '100vh', background: 'white', boxShadow: '-4px 0 24px rgba(0,0,0,0.15)', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fffbeb' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                <input
+                  type="checkbox"
+                  checked={approvalQueue.length > 0 && selectedQueueIds.size === approvalQueue.length}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedQueueIds(new Set(approvalQueue.map(e => e.id)));
+                    else setSelectedQueueIds(new Set());
+                  }}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#92400e' }}>Products Awaiting Review</h2>
+              </div>
+              {queueSummary && (
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#b45309' }}>
+                  {queueSummary.pendingTotal} products need your approval before they appear in the catalog
+                </p>
+              )}
+            </div>
+            <button onClick={() => setShowApprovalQueue(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#6b7280', padding: '4px', lineHeight: 1 }}>×</button>
+          </div>
+
+          {/* Queue list */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+            {queueLoading && (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>Loading products for review...</div>
+            )}
+
+            {!queueLoading && approvalQueue.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>No products awaiting review.</div>
+            )}
+
+            {!queueLoading && approvalQueue.map((entry) => {
+              const data = entry.normalizedData || {};
+              return (
+                <div key={entry.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', marginBottom: '12px', background: '#fff' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedQueueIds.has(entry.id)}
+                      onChange={(e) => {
+                        setSelectedQueueIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(entry.id);
+                          else next.delete(entry.id);
+                          return next;
+                        });
+                      }}
+                      style={{ marginTop: '4px', width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
+                    />
+                    <div style={{ flex: 1 }}>
+                  {/* Product info */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div>
+                      <div style={{ fontWeight: '600', fontSize: '15px', color: '#111827' }}>{data.name || 'Unnamed Product'}</div>
+                      <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>
+                        {[data.category, data.sku && `SKU: ${data.sku}`, data.barcode && `Barcode: ${data.barcode}`].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#6b7280', textAlign: 'right' }}>
+                      {data.price || data.sellingPrice ? `$${parseFloat(data.price || data.sellingPrice).toFixed(2)}` : '—'}
+                      {data.costPrice && <div style={{ color: '#9ca3af' }}>Cost: ${parseFloat(data.costPrice).toFixed(2)}</div>}
+                    </div>
+                  </div>
+
+                  {/* Risk badge */}
+                  {entry.invoiceRiskLevel && entry.invoiceRiskLevel !== 'NONE' && (
+                    <div style={{ display: 'inline-block', background: '#fef3c7', color: '#92400e', fontSize: '11px', fontWeight: '600', padding: '2px 8px', borderRadius: '4px', marginBottom: '10px' }}>
+                      ⚠ {entry.invoiceRiskLevel} INVOICE RISK
+                    </div>
+                  )}
+
+                  {/* Reason */}
+                  {entry.approvalRoute === 'ROUTE_REVIEW' && entry.riskExplanation && (
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px', fontStyle: 'italic' }}>{entry.riskExplanation}</div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.approveQueueEntry(entry.id, 'Approved via review queue');
+                          setApprovalQueue(prev => prev.filter(e => e.id !== entry.id));
+                          setQueueSummary(prev => prev ? { ...prev, pendingTotal: (prev.pendingTotal || 1) - 1 } : prev);
+                          loadProducts();
+                        } catch (err) {
+                          alert('Approve failed: ' + err.message);
+                        }
+                      }}
+                      style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}
+                    >
+                      ✓ Approve
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const notes = window.prompt('Reason for rejecting this product?', 'Not required');
+                        if (notes === null) return;
+                        try {
+                          await api.rejectQueueEntry(entry.id, notes || 'Rejected');
+                          setApprovalQueue(prev => prev.filter(e => e.id !== entry.id));
+                          setQueueSummary(prev => prev ? { ...prev, pendingTotal: (prev.pendingTotal || 1) - 1 } : prev);
+                        } catch (err) {
+                          alert('Reject failed: ' + err.message);
+                        }
+                      }}
+                      style={{ background: 'white', color: '#dc2626', border: '1px solid #dc2626', borderRadius: '6px', padding: '6px 14px', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}
+                    >
+                      ✕ Reject
+                    </button>
+                  </div>
+                    </div>{/* end flex:1 wrapper */}
+                  </div>{/* end checkbox row */}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          {(approvalQueue.length > 0 || (queueSummary?.pendingTotal > 0)) && (
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Selected actions row */}
+              {selectedQueueIds.size > 0 && (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', color: '#374151', fontWeight: '500' }}>{selectedQueueIds.size} selected</span>
+                  <button
+                    disabled={bulkActionLoading}
+                    onClick={async () => {
+                      if (!window.confirm(`Approve ${selectedQueueIds.size} selected products?`)) return;
+                      setBulkActionLoading(true);
+                      try {
+                        await Promise.all([...selectedQueueIds].map(id => api.approveQueueEntry(id, 'Approved via selection')));
+                        setApprovalQueue(prev => prev.filter(e => !selectedQueueIds.has(e.id)));
+                        setSelectedQueueIds(new Set());
+                        setQueueSummary(prev => prev ? { ...prev, pendingTotal: Math.max(0, (prev.pendingTotal || 0) - selectedQueueIds.size) } : prev);
+                        loadProducts();
+                      } catch (err) {
+                        alert('Failed: ' + err.message);
+                      } finally {
+                        setBulkActionLoading(false);
+                      }
+                    }}
+                    style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', opacity: bulkActionLoading ? 0.6 : 1 }}
+                  >
+                    ✓ Approve Selected
+                  </button>
+                  <button
+                    disabled={bulkActionLoading}
+                    onClick={async () => {
+                      const notes = window.prompt('Reason for rejecting selected products?', 'Not required');
+                      if (notes === null) return;
+                      setBulkActionLoading(true);
+                      try {
+                        await Promise.all([...selectedQueueIds].map(id => api.rejectQueueEntry(id, notes || 'Rejected')));
+                        setApprovalQueue(prev => prev.filter(e => !selectedQueueIds.has(e.id)));
+                        setSelectedQueueIds(new Set());
+                        setQueueSummary(prev => prev ? { ...prev, pendingTotal: Math.max(0, (prev.pendingTotal || 0) - selectedQueueIds.size) } : prev);
+                      } catch (err) {
+                        alert('Failed: ' + err.message);
+                      } finally {
+                        setBulkActionLoading(false);
+                      }
+                    }}
+                    style={{ background: 'white', color: '#dc2626', border: '1px solid #dc2626', borderRadius: '6px', padding: '6px 14px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', opacity: bulkActionLoading ? 0.6 : 1 }}
+                  >
+                    ✕ Reject Selected
+                  </button>
+                </div>
+              )}
+              {/* Approve All row */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>{queueSummary?.pendingTotal || approvalQueue.length} products remaining</span>
+                <button
+                  disabled={bulkActionLoading}
+                  onClick={async () => {
+                    const total = queueSummary?.pendingTotal || approvalQueue.length;
+                    if (!window.confirm(`Approve ALL ${total} products? This cannot be undone.`)) return;
+                    setBulkActionLoading(true);
+                    try {
+                      await api.bulkApproveAllQueue();
+                      setApprovalQueue([]);
+                      setSelectedQueueIds(new Set());
+                      setQueueSummary(null);
+                      loadProducts();
+                      setShowApprovalQueue(false);
+                    } catch (err) {
+                      alert('Approve All failed: ' + err.message);
+                    } finally {
+                      setBulkActionLoading(false);
+                    }
+                  }}
+                  style={{ background: bulkActionLoading ? '#9ca3af' : '#059669', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: '600', cursor: bulkActionLoading ? 'not-allowed' : 'pointer' }}
+                >
+                  {bulkActionLoading ? 'Processing...' : `Approve All ${queueSummary?.pendingTotal || approvalQueue.length}`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Add Product Slide-out */}
       {showAddProduct && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
@@ -321,6 +601,21 @@ export default function Products() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                   autoFocus
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Source / System <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={addProductForm.source}
+                  onChange={(e) => setAddProductForm((f) => ({ ...f, source: e.target.value }))}
+                  placeholder="e.g. POS, Shopify, Manual"
+                  list="source-suggestions"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                />
+                <datalist id="source-suggestions">
+                  <option value="Manual" />
+                  {sources.map((s) => <option key={s} value={s} />)}
+                </datalist>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -418,6 +713,7 @@ export default function Products() {
                   try {
                     await api.createProduct({
                       name: addProductForm.name,
+                      source: addProductForm.source.trim(),
                       category: addProductForm.category || null,
                       baseUnit: addProductForm.baseUnit || null,
                       barcode: addProductForm.barcode || null,
@@ -425,7 +721,7 @@ export default function Products() {
                       sellingPrice: addProductForm.sellingPrice ? parseFloat(addProductForm.sellingPrice) : null,
                     });
                     setShowAddProduct(false);
-                    setAddProductForm({ name: '', category: '', baseUnit: '', barcode: '', costPrice: '', sellingPrice: '' });
+                    setAddProductForm({ name: '', source: '', category: '', baseUnit: '', barcode: '', costPrice: '', sellingPrice: '' });
                     loadProducts();
                   } catch (err) {
                     setError(err.message);
@@ -433,7 +729,7 @@ export default function Products() {
                     setAddProductSaving(false);
                   }
                 }}
-                disabled={!addProductForm.name.trim() || addProductSaving}
+                disabled={!addProductForm.name.trim() || !addProductForm.source.trim() || addProductSaving}
                 className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
               >
                 {addProductSaving ? 'Saving...' : 'Add Product'}
@@ -561,6 +857,19 @@ function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleE
             <span className="text-gray-400 text-xs">Manual</span>
           )}
         </td>
+        <td className="px-3 py-3">
+          {Object.keys(variantsByStore).length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {Object.keys(variantsByStore).map((storeName) => (
+                <span key={storeName} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700">
+                  {storeName}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-gray-400 text-xs">—</span>
+          )}
+        </td>
         <td className="px-3 py-3 text-gray-500 text-xs">{formatDate(p.createdAt)}</td>
         <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
           <button
@@ -585,7 +894,7 @@ function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleE
       {isExpanded && hasVariants && Object.entries(variantsByStore).map(([storeName, variants]) => (
         <tr key={storeName} className="bg-gray-50/70">
           <td />
-          <td colSpan={9} className="px-3 py-2">
+          <td colSpan={10} className="px-3 py-2">
             <div className="pl-6">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-2">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

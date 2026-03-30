@@ -137,6 +137,12 @@ export default function Invoices() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [otherExpanded, setOtherExpanded] = useState(false);
 
+  // ── Active integrations for Poll Now ──
+  // Each entry: { type: 'gmail'|'folder'|'drive', label, lastPollAt }
+  const [activeIntegrations, setActiveIntegrations] = useState([]);
+  const [polling, setPolling] = useState(false);
+  const [pollResult, setPollResult] = useState(null); // { found, message } | null
+
   // Split invoices into groups
   const { readyInvoices, inReviewInvoices, approvedInvoices, otherInvoices } = useMemo(() => {
     const ready = [];
@@ -162,6 +168,98 @@ export default function Invoices() {
       setLoading(false);
     }
   }, []);
+
+  // Check which integrations are active (non-fatal — runs in parallel)
+  useEffect(() => {
+    async function checkIntegrations() {
+      const found = [];
+      const [gmailStatus, folderStatus, driveStatus] = await Promise.allSettled([
+        api.gmail.getStatus(),
+        api.folderPolling.getStatus(),
+        api.drive.getStatus(),
+      ]);
+
+      // Gmail / IMAP — may have multiple integrations
+      if (gmailStatus.status === 'fulfilled') {
+        const s = gmailStatus.value;
+        const integrations = Array.isArray(s) ? s : (s.integrations || (s.connected ? [s] : []));
+        for (const intg of integrations) {
+          if (intg.connected !== false && intg.isActive !== false) {
+            found.push({
+              type: 'gmail',
+              label: intg.email || intg.imapEmail || 'Email',
+              lastPollAt: intg.lastPollAt,
+            });
+          }
+        }
+      }
+
+      // Folder polling
+      if (folderStatus.status === 'fulfilled') {
+        const s = folderStatus.value;
+        if (s.configured && s.isActive !== false) {
+          found.push({
+            type: 'folder',
+            label: s.folderPath ? s.folderPath.split('/').pop() || 'Folder' : 'Folder',
+            lastPollAt: s.lastPollAt,
+          });
+        }
+      }
+
+      // Google Drive
+      if (driveStatus.status === 'fulfilled') {
+        const s = driveStatus.value;
+        const integrations = Array.isArray(s) ? s : (s.integrations || []);
+        for (const intg of integrations) {
+          if (intg.isActive !== false) {
+            found.push({
+              type: 'drive',
+              id: intg.id,
+              label: intg.email || 'Google Drive',
+              lastPollAt: intg.lastPollAt,
+            });
+          }
+        }
+      }
+
+      setActiveIntegrations(found);
+    }
+    checkIntegrations();
+  }, []);
+
+  // Poll all active integrations
+  const handlePollNow = async () => {
+    setPolling(true);
+    setPollResult(null);
+    let totalFound = 0;
+    const errors = [];
+
+    await Promise.allSettled(
+      activeIntegrations.map(async (intg) => {
+        try {
+          let result;
+          if (intg.type === 'gmail') {
+            result = await api.gmail.poll();
+          } else if (intg.type === 'folder') {
+            result = await api.folderPolling.poll();
+          } else if (intg.type === 'drive') {
+            result = intg.id
+              ? await api.drive.poll(intg.id)
+              : await api.drive.pollAll();
+          }
+          // Count new invoices found (field name varies by integration)
+          const found = result?.invoicesFound ?? result?.imported ?? result?.created ?? 0;
+          totalFound += Number(found) || 0;
+        } catch (err) {
+          errors.push(`${intg.label}: ${err.message}`);
+        }
+      })
+    );
+
+    setPolling(false);
+    setPollResult({ found: totalFound, errors });
+    await loadInvoices();
+  };
 
   useEffect(() => {
     loadInvoices();
@@ -285,12 +383,66 @@ export default function Invoices() {
   return (
     <div className="space-y-6">
       <WorkflowBreadcrumb step={1} />
-      <div>
-        <h2 className="text-lg font-semibold">Upload Invoices</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Upload supplier invoices for OCR extraction and review
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Upload Invoices</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Upload supplier invoices for OCR extraction and review
+          </p>
+        </div>
+        {activeIntegrations.length > 0 && (
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handlePollNow}
+              disabled={polling}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition"
+            >
+              {polling ? (
+                <>
+                  <svg className="animate-spin w-4 h-4 text-teal-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Polling…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                  Poll Now
+                </>
+              )}
+            </button>
+            <div className="flex items-center gap-1.5">
+              {activeIntegrations.map((intg, i) => (
+                <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                  intg.type === 'gmail' ? 'bg-blue-100 text-blue-700' :
+                  intg.type === 'folder' ? 'bg-orange-100 text-orange-700' :
+                  'bg-green-100 text-green-700'
+                }`}>
+                  {intg.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Poll result banner */}
+      {pollResult && (
+        <div className={`rounded-lg px-4 py-3 text-sm flex items-center justify-between ${
+          pollResult.errors.length > 0 ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+        }`}>
+          <span>
+            {pollResult.found > 0
+              ? `${pollResult.found} new invoice${pollResult.found !== 1 ? 's' : ''} found`
+              : 'No new invoices found'}
+            {pollResult.errors.length > 0 && ` · ${pollResult.errors.join(', ')}`}
+          </span>
+          <button onClick={() => setPollResult(null)} className="ml-4 opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
 
       {/* Drop zone */}
       <div

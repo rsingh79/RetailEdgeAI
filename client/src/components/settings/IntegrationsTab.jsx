@@ -55,7 +55,19 @@ export default function IntegrationsTab() {
   const [shopifyShop, setShopifyShop] = useState('');
   const [shopifyConnecting, setShopifyConnecting] = useState(false);
   const [shopifySyncing, setShopifySyncing] = useState(false);
+  const [shopifyOrderSyncing, setShopifyOrderSyncing] = useState(false);
   const [shopifyImportLogs, setShopifyImportLogs] = useState([]);
+  const [shopifyOrders, setShopifyOrders] = useState([]);
+  const [shopifyOrdersLoaded, setShopifyOrdersLoaded] = useState(false);
+  const [shopifyOrdersPage, setShopifyOrdersPage] = useState(1);
+  const [shopifyOrdersTotal, setShopifyOrdersTotal] = useState(0);
+  const [shopifyActiveTab, setShopifyActiveTab] = useState('products'); // 'products' | 'orders' | 'match'
+  const [shopifyMatching, setShopifyMatching] = useState(false);
+  const [shopifyMatchResult, setShopifyMatchResult] = useState(null);
+  const [shopifyLinking, setShopifyLinking] = useState(null);
+  const [shopifySearchQuery, setShopifySearchQuery] = useState('');
+  const [shopifySearchResults, setShopifySearchResults] = useState([]);
+  const [shopifySearchingFor, setShopifySearchingFor] = useState(null);
 
   useEffect(() => {
     loadStatus();
@@ -471,15 +483,151 @@ export default function IntegrationsTab() {
     setShopifySyncing(true);
     try {
       const result = await api.shopify.sync();
+      // Auto-match variants after sync
+      const matchResult = await api.shopify.matchVariants();
       alert(
-        result.message ||
-          `Synced: ${result.productsCreated} created, ${result.productsUpdated} updated, ${result.variantsCreated} variants`
+        `Synced: ${result.productsCreated} created, ${result.productsUpdated} updated, ${result.variantsCreated} variants.\n` +
+        `Matched: ${matchResult.matched?.length || 0} variants linked, ${matchResult.unmatched?.length || 0} unmatched.`
       );
+      setShopifyMatchResult(matchResult);
       await loadShopifyStatus();
     } catch (err) {
       alert(err.message);
     } finally {
       setShopifySyncing(false);
+    }
+  };
+
+  const handleShopifyOrderSync = async () => {
+    setShopifyOrderSyncing(true);
+    try {
+      const result = await api.shopify.syncOrders();
+      alert(
+        result.message ||
+          `Orders synced: ${result.ordersCreated} new, ${result.ordersUpdated} updated`
+      );
+      await loadShopifyStatus();
+      // Reload orders list
+      const ordersData = await api.shopify.getOrders({ page: 1 });
+      setShopifyOrders(ordersData.orders || []);
+      setShopifyOrdersTotal(ordersData.pagination?.total || 0);
+      setShopifyOrdersPage(1);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setShopifyOrderSyncing(false);
+    }
+  };
+
+  const loadShopifyOrders = async (page = 1) => {
+    try {
+      const data = await api.shopify.getOrders({ page, limit: 20 });
+      setShopifyOrders(data.orders || []);
+      setShopifyOrdersTotal(data.pagination?.total || 0);
+      setShopifyOrdersPage(page);
+      setShopifyOrdersLoaded(true);
+    } catch (err) {
+      console.error('Failed to load Shopify orders:', err);
+    }
+  };
+
+  const handleShopifyTabChange = async (tab) => {
+    setShopifyActiveTab(tab);
+    if (tab === 'orders' && !shopifyOrdersLoaded) {
+      await loadShopifyOrders(1);
+    }
+  };
+
+  const handlePushPricesToggle = async (checked) => {
+    try {
+      await api.shopify.updateSettings({ pushPricesOnExport: checked });
+      setShopifyStatus((prev) => ({ ...prev, pushPricesOnExport: checked }));
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // ── Shopify variant matching handlers ──
+
+  const handleShopifyAutoMatch = async () => {
+    setShopifyMatching(true);
+    try {
+      const result = await api.shopify.matchVariants();
+      setShopifyMatchResult(result);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setShopifyMatching(false);
+    }
+  };
+
+  const handleShopifyLink = async (shopifyVariant, localVariant) => {
+    setShopifyLinking(shopifyVariant.shopifyVariantId);
+    try {
+      await api.shopify.linkVariant({
+        shopifyVariantId: shopifyVariant.shopifyVariantId,
+        shopifyProductId: shopifyVariant.shopifyProductId,
+        localVariantId: localVariant.variantId,
+      });
+      setShopifyMatchResult((prev) => ({
+        ...prev,
+        matched: [...(prev.matched || []), {
+          ...shopifyVariant,
+          shopifyTitle: shopifyVariant.title,
+          localVariantName: localVariant.name,
+          localSku: localVariant.sku,
+          matchMethod: 'manual',
+        }],
+        unmatched: (prev.unmatched || []).filter(
+          (u) => u.shopifyVariantId !== shopifyVariant.shopifyVariantId
+        ),
+      }));
+      setShopifySearchingFor(null);
+      setShopifySearchQuery('');
+      setShopifySearchResults([]);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setShopifyLinking(null);
+    }
+  };
+
+  const handleShopifyDismiss = async (shopifyVariantId) => {
+    try {
+      await api.shopify.dismissVariant(shopifyVariantId);
+      setShopifyMatchResult((prev) => ({
+        ...prev,
+        unmatched: (prev.unmatched || []).filter((u) => u.shopifyVariantId !== shopifyVariantId),
+        dismissed: (prev.dismissed || 0) + 1,
+      }));
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleShopifyVariantSearch = async (query) => {
+    setShopifySearchQuery(query);
+    if (query.length < 2) {
+      setShopifySearchResults([]);
+      return;
+    }
+    try {
+      const results = await api.searchProducts(query);
+      const flattened = [];
+      for (const product of results) {
+        for (const variant of (product.variants || [])) {
+          flattened.push({
+            variantId: variant.id,
+            productId: product.id,
+            name: variant.name || product.name,
+            sku: variant.sku,
+            storeName: variant.store?.name,
+          });
+        }
+      }
+      setShopifySearchResults(flattened);
+    } catch (err) {
+      console.error('Search failed:', err);
     }
   };
 
@@ -490,6 +638,8 @@ export default function IntegrationsTab() {
       setShopifyStatus({ connected: false });
       setShopifyImportLogs([]);
       setShopifyShop('');
+      setShopifyOrders([]);
+      setShopifyOrdersLoaded(false);
     } catch (err) {
       alert(err.message);
     }
@@ -1408,24 +1558,27 @@ export default function IntegrationsTab() {
                   <ul className="text-sm text-gray-500 space-y-1">
                     <li>One-click OAuth connection — no API keys needed</li>
                     <li>Sync products, variants, and pricing from Shopify</li>
-                    <li>Push price updates back to Shopify (coming soon)</li>
+                    <li>Push price updates back to Shopify on export</li>
                   </ul>
                 </div>
 
                 {/* Connect form */}
                 <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Shop Domain</label>
-                    <input
-                      type="text"
-                      value={shopifyShop}
-                      onChange={(e) => setShopifyShop(e.target.value)}
-                      placeholder="mystore or mystore.myshopify.com"
-                      className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-mono"
-                      onKeyDown={(e) => e.key === 'Enter' && handleShopifyConnect()}
-                    />
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Shopify Store Name</label>
+                    <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white focus-within:ring-1 focus-within:ring-teal-500 focus-within:border-teal-500">
+                      <input
+                        type="text"
+                        value={shopifyShop}
+                        onChange={(e) => setShopifyShop(e.target.value)}
+                        placeholder="your-store-name"
+                        className="flex-1 px-3 py-1.5 text-sm font-mono border-none outline-none bg-transparent"
+                        onKeyDown={(e) => e.key === 'Enter' && handleShopifyConnect()}
+                      />
+                      <span className="px-3 py-1.5 text-sm text-gray-400 bg-gray-50 border-l border-gray-300 shrink-0">.myshopify.com</span>
+                    </div>
                     <p className="text-xs text-gray-400 mt-1">
-                      Enter your Shopify store name or full .myshopify.com domain
+                      Find this in your Shopify admin URL: <span className="font-mono">your-store-name.myshopify.com</span>. Not your custom domain.
                     </p>
                   </div>
 
@@ -1441,64 +1594,356 @@ export default function IntegrationsTab() {
             ) : (
               /* ── Connected state ── */
               <div className="space-y-5">
+                {/* Header row: shop info + action buttons */}
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium text-gray-900">{shopifyStatus.shop}</div>
                     <div className="text-xs text-gray-500">
-                      Last synced: {shopifyStatus.lastSyncAt
-                        ? new Date(shopifyStatus.lastSyncAt).toLocaleString()
-                        : 'Never'}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleShopifySync}
-                      disabled={shopifySyncing}
-                      className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {shopifySyncing ? 'Syncing...' : 'Sync Now'}
-                    </button>
-                    <button
-                      onClick={handleShopifyDisconnect}
-                      className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50"
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                </div>
-
-                {/* Sync stats */}
-                <div className="flex gap-4">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-gray-900">{shopifyStatus.productCount || 0}</div>
-                    <div className="text-xs text-gray-500">Products Synced</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-gray-900">{shopifyStatus.scopes?.split(',').length || 0}</div>
-                    <div className="text-xs text-gray-500">Permissions</div>
-                  </div>
-                </div>
-
-                {/* Connection details */}
-                <div className="pt-4 border-t border-gray-100 space-y-2">
-                  <h4 className="text-sm font-medium text-gray-700">Connection Details</h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="text-gray-500">Scopes:</div>
-                    <div className="text-gray-700">{shopifyStatus.scopes}</div>
-                    <div className="text-gray-500">Connected:</div>
-                    <div className="text-gray-700">
-                      {shopifyStatus.connectedAt ? new Date(shopifyStatus.connectedAt).toLocaleDateString() : '-'}
-                    </div>
-                    <div className="text-gray-500">Status:</div>
-                    <div className="text-gray-700">
+                      Connected {shopifyStatus.connectedAt ? new Date(shopifyStatus.connectedAt).toLocaleDateString() : ''}
                       {shopifyStatus.isActive ? (
-                        <span className="text-emerald-600">Active</span>
+                        <span className="ml-2 text-emerald-600">· Active</span>
                       ) : (
-                        <span className="text-amber-600">Paused</span>
+                        <span className="ml-2 text-amber-600">· Paused</span>
                       )}
                     </div>
                   </div>
+                  <button
+                    onClick={handleShopifyDisconnect}
+                    className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50"
+                  >
+                    Disconnect
+                  </button>
                 </div>
+
+                {/* Sync stats */}
+                <div className="flex gap-6">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-900">{shopifyStatus.productCount || 0}</div>
+                    <div className="text-xs text-gray-500">Products</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-900">{shopifyStatus.orderCount || 0}</div>
+                    <div className="text-xs text-gray-500">Orders</div>
+                  </div>
+                </div>
+
+                {/* Push prices toggle */}
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Push prices to Shopify on export</div>
+                    <div className="text-xs text-gray-500">
+                      When you export an invoice, updated cost and sale prices are pushed to matched Shopify variants
+                    </div>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={shopifyStatus.pushPricesOnExport}
+                    onClick={() => handlePushPricesToggle(!shopifyStatus.pushPricesOnExport)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      shopifyStatus.pushPricesOnExport ? 'bg-green-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      shopifyStatus.pushPricesOnExport ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Tabs: Products | Orders */}
+                <div className="border-b border-gray-200">
+                  <div className="flex gap-4">
+                    {['products', 'orders', 'match'].map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => handleShopifyTabChange(tab)}
+                        className={`pb-2 text-sm font-medium capitalize border-b-2 transition-colors ${
+                          shopifyActiveTab === tab
+                            ? 'border-green-600 text-green-700'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Products tab */}
+                {shopifyActiveTab === 'products' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-500">
+                        Last product sync: {shopifyStatus.lastSyncAt
+                          ? new Date(shopifyStatus.lastSyncAt).toLocaleString()
+                          : 'Never'}
+                      </div>
+                      <button
+                        onClick={handleShopifySync}
+                        disabled={shopifySyncing}
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {shopifySyncing ? 'Syncing & Matching...' : 'Sync & Match Products'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Orders tab */}
+                {shopifyActiveTab === 'orders' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-500">
+                        Last order sync: {shopifyStatus.lastOrderSyncAt
+                          ? new Date(shopifyStatus.lastOrderSyncAt).toLocaleString()
+                          : 'Never'}
+                      </div>
+                      <button
+                        onClick={handleShopifyOrderSync}
+                        disabled={shopifyOrderSyncing}
+                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {shopifyOrderSyncing ? 'Syncing...' : 'Sync Orders'}
+                      </button>
+                    </div>
+
+                    {shopifyOrders.length > 0 ? (
+                      <>
+                        <div className="overflow-x-auto rounded-lg border border-gray-200">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b border-gray-100">
+                              <tr className="text-left text-xs font-medium text-gray-500 uppercase">
+                                <th className="px-4 py-2">Order</th>
+                                <th className="px-4 py-2">Customer</th>
+                                <th className="px-4 py-2">Date</th>
+                                <th className="px-4 py-2">Items</th>
+                                <th className="px-4 py-2 text-right">Total</th>
+                                <th className="px-4 py-2">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {shopifyOrders.map((order) => (
+                                <tr key={order.shopifyOrderId} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2 font-mono text-xs text-gray-700">#{order.orderNumber}</td>
+                                  <td className="px-4 py-2 text-gray-700">
+                                    {order.customerName || order.customerEmail || <span className="text-gray-400">Guest</span>}
+                                  </td>
+                                  <td className="px-4 py-2 text-xs text-gray-500">
+                                    {new Date(order.orderedAt).toLocaleDateString()}
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-600">{order.lines?.length || 0}</td>
+                                  <td className="px-4 py-2 text-right font-medium text-gray-800">
+                                    {order.currency} ${parseFloat(order.totalPrice).toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      order.financialStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                                      order.financialStatus === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {order.financialStatus || 'unknown'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* Pagination */}
+                        {shopifyOrdersTotal > 20 && (
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>{shopifyOrdersTotal} total orders</span>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => loadShopifyOrders(shopifyOrdersPage - 1)}
+                                disabled={shopifyOrdersPage <= 1}
+                                className="px-2 py-1 border rounded disabled:opacity-40"
+                              >
+                                Previous
+                              </button>
+                              <span>Page {shopifyOrdersPage} of {Math.ceil(shopifyOrdersTotal / 20)}</span>
+                              <button
+                                onClick={() => loadShopifyOrders(shopifyOrdersPage + 1)}
+                                disabled={shopifyOrdersPage >= Math.ceil(shopifyOrdersTotal / 20)}
+                                className="px-2 py-1 border rounded disabled:opacity-40"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-gray-400 text-sm">
+                        {shopifyOrdersLoaded
+                          ? 'No orders synced yet. Click "Sync Orders" to pull orders from Shopify.'
+                          : 'Loading orders...'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Match Products tab */}
+                {shopifyActiveTab === 'match' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-gray-800">Link Shopify variants to local products</div>
+                        <div className="text-xs text-gray-500">Match by SKU, barcode, or product name</div>
+                      </div>
+                      <button
+                        onClick={handleShopifyAutoMatch}
+                        disabled={shopifyMatching}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {shopifyMatching ? 'Matching...' : 'Auto-Match Products'}
+                      </button>
+                    </div>
+
+                    {shopifyMatchResult && (
+                      <>
+                        <div className="flex gap-3">
+                          <div className="flex-1 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+                            <div className="text-lg font-bold text-emerald-700">{shopifyMatchResult.matched?.length || 0}</div>
+                            <div className="text-xs text-emerald-600">Matched</div>
+                          </div>
+                          <div className="flex-1 p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
+                            <div className="text-lg font-bold text-amber-700">{shopifyMatchResult.unmatched?.length || 0}</div>
+                            <div className="text-xs text-amber-600">Unmatched</div>
+                          </div>
+                          <div className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                            <div className="text-lg font-bold text-gray-500">{shopifyMatchResult.dismissed || 0}</div>
+                            <div className="text-xs text-gray-500">Dismissed</div>
+                          </div>
+                        </div>
+
+                        {/* Unmatched list */}
+                        {shopifyMatchResult.unmatched?.length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-gray-700">
+                              Unmatched Shopify Variants ({shopifyMatchResult.unmatched.length})
+                            </h4>
+                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                              {shopifyMatchResult.unmatched.map((sv) => (
+                                <div key={sv.shopifyVariantId} className="p-3 border border-gray-200 rounded-lg bg-white">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-gray-900 truncate">
+                                        {sv.title}
+                                        {sv.variantTitle && <span className="text-gray-500"> — {sv.variantTitle}</span>}
+                                      </div>
+                                      <div className="flex gap-3 text-xs text-gray-500 mt-0.5">
+                                        {sv.sku && <span>SKU: {sv.sku}</span>}
+                                        {sv.barcode && <span>Barcode: {sv.barcode}</span>}
+                                        {sv.price && <span>${sv.price}</span>}
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1 shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          setShopifySearchingFor(
+                                            shopifySearchingFor?.shopifyVariantId === sv.shopifyVariantId ? null : sv
+                                          );
+                                          setShopifySearchQuery('');
+                                          setShopifySearchResults([]);
+                                        }}
+                                        className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                                      >
+                                        Link
+                                      </button>
+                                      <button
+                                        onClick={() => handleShopifyDismiss(sv.shopifyVariantId)}
+                                        className="px-2 py-1 text-xs bg-gray-50 text-gray-500 rounded hover:bg-gray-100"
+                                      >
+                                        Dismiss
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {shopifySearchingFor?.shopifyVariantId === sv.shopifyVariantId && (
+                                    <div className="mt-2 pt-2 border-t border-gray-100">
+                                      <input
+                                        type="text"
+                                        placeholder="Search local products by name, SKU, or barcode..."
+                                        value={shopifySearchQuery}
+                                        onChange={(e) => handleShopifyVariantSearch(e.target.value)}
+                                        className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                                        autoFocus
+                                      />
+                                      {shopifySearchResults.length > 0 && (
+                                        <div className="mt-1 max-h-40 overflow-y-auto border border-gray-200 rounded">
+                                          {shopifySearchResults.map((lr) => (
+                                            <button
+                                              key={lr.variantId}
+                                              onClick={() => handleShopifyLink(sv, lr)}
+                                              disabled={shopifyLinking === sv.shopifyVariantId}
+                                              className="w-full text-left px-3 py-2 hover:bg-green-50 text-sm border-b border-gray-50 last:border-0"
+                                            >
+                                              <div className="font-medium text-gray-800">{lr.name}</div>
+                                              <div className="text-xs text-gray-500">
+                                                SKU: {lr.sku} {lr.storeName && `| Store: ${lr.storeName}`}
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Matched list (collapsed by default) */}
+                        {shopifyMatchResult.matched?.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="text-sm font-medium text-gray-700 cursor-pointer">
+                              Matched Variants ({shopifyMatchResult.matched.length})
+                            </summary>
+                            <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50 border-b border-gray-100">
+                                  <tr className="text-left text-xs font-medium text-gray-500 uppercase">
+                                    <th className="px-3 py-2">Shopify Product</th>
+                                    <th className="px-3 py-2">Local Variant</th>
+                                    <th className="px-3 py-2">Method</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                  {shopifyMatchResult.matched.map((m) => (
+                                    <tr key={m.shopifyVariantId} className="hover:bg-gray-50">
+                                      <td className="px-3 py-2 text-gray-700">
+                                        {m.shopifyTitle}
+                                        {m.shopifyVariantTitle && ` — ${m.shopifyVariantTitle}`}
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-700">{m.localVariantName}</td>
+                                      <td className="px-3 py-2">
+                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                          m.matchMethod === 'sku' ? 'bg-blue-100 text-blue-700'
+                                            : m.matchMethod === 'barcode' ? 'bg-purple-100 text-purple-700'
+                                            : m.matchMethod === 'manual' ? 'bg-green-100 text-green-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                        }`}>
+                                          {m.matchMethod}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </details>
+                        )}
+                      </>
+                    )}
+
+                    {!shopifyMatchResult && !shopifyMatching && (
+                      <div className="text-center py-8 text-gray-400 text-sm">
+                        Click &quot;Auto-Match Products&quot; to link Shopify variants to your existing local products.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

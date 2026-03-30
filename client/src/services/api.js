@@ -47,7 +47,10 @@ export const api = {
     request(`/invoices/${invoiceId}/reallocate`, { method: 'POST' }),
 
   // Products
-  getProducts: (source) => request(`/products${source ? `?source=${encodeURIComponent(source)}` : ''}`),
+  getProducts: (params) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return request(`/products${qs}`);
+  },
   getProduct: (id) => request(`/products/${id}`),
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
@@ -65,7 +68,7 @@ export const api = {
       return data;
     }),
   confirmProductImport: (data) =>
-    request('/products/import/confirm', { method: 'POST', body: JSON.stringify(data) }),
+    request('/v1/products/import/confirm', { method: 'POST', body: JSON.stringify(data) }),
   getImportTemplates: () => request('/products/import/templates'),
   getImportTemplate: (systemName) =>
     request(`/products/import/templates/${encodeURIComponent(systemName)}`),
@@ -75,9 +78,9 @@ export const api = {
       body: JSON.stringify({ mapping }),
     }),
 
-  // Smart Product Import (AI-powered)
+  // Smart Product Import (AI-powered) — v1 pipeline with approval gate
   smartImportUpload: (formData) =>
-    fetch(`${API_BASE}/product-import/upload`, {
+    fetch(`${API_BASE}/v1/products/import/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       body: formData,
@@ -86,14 +89,38 @@ export const api = {
       if (!r.ok) throw new Error(data.message || 'Upload failed');
       return data;
     }),
-  smartImportChat: (uploadId, message) =>
-    request('/product-import/chat', { method: 'POST', body: JSON.stringify({ uploadId, message }) }),
-  smartImportTest: (uploadId) =>
-    request('/product-import/test', { method: 'POST', body: JSON.stringify({ uploadId }) }),
-  smartImportConfirm: (uploadId, systemName, saveTemplate) =>
-    request('/product-import/confirm', { method: 'POST', body: JSON.stringify({ uploadId, systemName, saveTemplate }) }),
+  smartImportChat: (uploadId, importJobId, message) =>
+    request('/v1/products/import/chat', { method: 'POST', body: JSON.stringify({ uploadId, importJobId, message }) }),
+  smartImportTest: (uploadId, importJobId) =>
+    request('/v1/products/import/test', { method: 'POST', body: JSON.stringify({ uploadId, importJobId }) }),
+  smartImportConfirm: (uploadId, importJobId, saveTemplate) =>
+    request('/v1/products/import/confirm', { method: 'POST', body: JSON.stringify({ uploadId, importJobId, saveTemplate }) }),
   smartImportSession: (uploadId) =>
     request(`/product-import/session/${uploadId}`),
+
+  // Approval Queue
+  getApprovalQueue: (params) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return request(`/v1/products/approval-queue${qs}`);
+  },
+  getApprovalQueueSummary: () =>
+    request('/v1/products/approval-queue/summary'),
+  getApprovalQueueEntry: (id) =>
+    request(`/v1/products/approval-queue/${id}`),
+  approveQueueEntry: (id, notes) =>
+    request(`/v1/products/approval-queue/${id}/approve`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  rejectQueueEntry: (id, notes) =>
+    request(`/v1/products/approval-queue/${id}/reject`, { method: 'POST', body: JSON.stringify({ notes }) }),
+  bulkApproveAllQueue: (importJobId) =>
+    request('/v1/products/approval-queue/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'approve',
+        notes: 'Bulk approved — Approve All action',
+        approveAll: true,
+        ...(importJobId ? { importJobId } : {}),
+      }),
+    }),
   smartImportExport: async (systemName) => {
     const resp = await fetch(`${API_BASE}/product-import/export`, {
       method: 'POST',
@@ -158,8 +185,8 @@ export const api = {
     });
     return request(`/invoices/export/items?${params}`);
   },
-  markExported: (matchIds) =>
-    request('/invoices/export/mark', { method: 'POST', body: JSON.stringify({ matchIds }) }),
+  markExported: (matchIds, syncPlatforms) =>
+    request('/invoices/export/mark', { method: 'POST', body: JSON.stringify({ matchIds, syncPlatforms }) }),
   updateExportPrice: (matchId, approvedPrice) =>
     request('/invoices/export/price', { method: 'PATCH', body: JSON.stringify({ matchId, approvedPrice }) }),
 
@@ -236,11 +263,20 @@ export const api = {
     getStatus: () => request('/shopify/status'),
     getAuthUrl: (shop) => request('/shopify/auth-url', { method: 'POST', body: JSON.stringify({ shop }) }),
     sync: () => request('/shopify/sync', { method: 'POST' }),
+    syncOrders: () => request('/shopify/sync-orders', { method: 'POST' }),
+    getOrders: (params) => {
+      const qs = params ? `?${new URLSearchParams(params)}` : '';
+      return request(`/shopify/orders${qs}`);
+    },
     getImportLogs: (params) => {
       const qs = params ? `?${new URLSearchParams(params)}` : '';
       return request(`/shopify/import-logs${qs}`);
     },
+    updateSettings: (settings) => request('/shopify/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
     disconnect: () => request('/shopify/disconnect', { method: 'DELETE' }),
+    matchVariants: () => request('/shopify/match-variants', { method: 'POST' }),
+    linkVariant: (data) => request('/shopify/match-variants/link', { method: 'POST', body: JSON.stringify(data) }),
+    dismissVariant: (shopifyVariantId) => request('/shopify/match-variants/dismiss', { method: 'POST', body: JSON.stringify({ shopifyVariantId }) }),
   },
 
   // ── Competitor Intelligence ───────────────────────────────────

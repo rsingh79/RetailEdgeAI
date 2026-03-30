@@ -38,6 +38,7 @@ import promptRoutes from './routes/prompts.js';
 import promptChatRoutes from './routes/promptChat.js';
 import suggestionRoutes from './routes/suggestions.js';
 import productImportRoutes from './routes/productImport.js';
+import productImportV1Routes from './routes/productImportV1.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -112,6 +113,14 @@ app.get('/api/drive/oauth/callback', async (req, res) => {
 app.use('/api/invoices', authenticate, tenantAccess, tenantScope, invoiceRoutes);
 app.use('/api/products', authenticate, tenantAccess, tenantScope, productRoutes);
 app.use('/api/product-import', authenticate, tenantAccess, tenantScope, productImportRoutes);
+app.use(
+  '/api/v1/products',
+  authenticate,
+  tenantAccess,
+  tenantScope,
+  requirePlan('product_import'),
+  productImportV1Routes
+);
 app.use('/api/pricing-rules', authenticate, tenantAccess, tenantScope, pricingRoutes);
 app.use('/api/stores', authenticate, tenantAccess, tenantScope, storeRoutes);
 

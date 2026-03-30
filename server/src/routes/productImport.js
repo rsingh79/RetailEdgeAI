@@ -222,85 +222,23 @@ router.post('/test', async (req, res) => {
   }
 });
 
-// POST /api/product-import/confirm — Apply the import
+// POST /api/product-import/confirm — RETIRED
+// Replaced by POST /api/v1/products/import/confirm which includes
+// duplicate detection, confidence scoring, and human approval gate.
 router.post('/confirm', async (req, res) => {
-  const { uploadId, saveTemplate: saveTemplateOverride } = req.body;
-
-  const session = getSession(uploadId);
-  if (!session) {
-    return res.status(404).json({ message: 'Session expired. Please re-upload.' });
-  }
-
-  try {
-    const { rows } = parseWorkbook(session.filePath);
-    const testResults = testRun({ session, allRows: rows });
-
-    const systemName = session.systemName || session.fileName;
-
-    const result = await applyImport({
-      session,
-      testResults,
-      prisma: req.prisma,
-      source: systemName,
-      allRows: rows,
-    });
-
-    // Always save template when systemName exists — stores COMPLETE file blueprint for round-trip export
-    const saveTemplate = saveTemplateOverride !== false && systemName;
-    if (saveTemplate) {
-      try {
-        const templateData = {
-          // ── File structure (for export reconstruction) ──
-          headers: session.headers,                     // original column names in order
-          columnMapping: session.columnMapping,          // source col → target field mapping
-          reverseMapping: buildReverseMapping(session),  // target field → source col (for export)
-
-          // ── Transform rules (with reverse for export) ──
-          gstDetected: session.gstDetected,
-          gstRate: session.gstRate,
-          // Import: ÷ (1 + gstRate).  Export: × (1 + gstRate)
-          patterns: session.patterns,
-          transformRules: session.transformRules,
-
-          // ── Variant structure ──
-          hasVariants: session.hasVariants || false,
-          groupByColumn: session.groupByColumn || null,
-          variantColumns: session.variantColumns || null,
-
-          // ── Metadata ──
-          observations: session.observations,
-          createdFrom: session.fileName,
-          version: 1,
-        };
-
-        const existing = await req.prisma.importTemplate.findFirst({
-          where: { systemName },
-        });
-        if (existing) {
-          await req.prisma.importTemplate.update({
-            where: { id: existing.id },
-            data: { mapping: templateData },
-          });
-        } else {
-          await req.prisma.importTemplate.create({
-            data: { systemName, mapping: templateData },
-          });
-        }
-        result.templateSaved = true;
-        result.templateName = systemName;
-      } catch (e) {
-        console.error('Failed to save template:', e.message);
-      }
-    }
-
-    // Clean up file
-    try { fs.unlinkSync(session.filePath); } catch { /* ignore */ }
-
-    res.json(result);
-  } catch (err) {
-    console.error('Smart import confirm failed:', err);
-    res.status(500).json({ message: 'Import failed: ' + err.message });
-  }
+  console.log(
+    '[ProductImport] Legacy confirm route called — ' +
+    'retired in favour of POST /api/v1/products/import/confirm'
+  );
+  res.status(410).json({
+    message:
+      'This import endpoint has been retired. ' +
+      'Please use POST /api/v1/products/import/confirm ' +
+      'which includes duplicate detection, confidence ' +
+      'scoring, and human approval gate.',
+    newEndpoint: '/api/v1/products/import/confirm',
+    documentationUrl: '/api/v1/products/health',
+  });
 });
 
 // GET /api/product-import/session/:uploadId — Get current session state
@@ -337,7 +275,7 @@ router.post('/export', async (req, res) => {
   try {
     // Load template
     const template = await req.prisma.importTemplate.findFirst({
-      where: { systemName },
+      where: { systemName, tenantId: req.tenantId },
     });
     if (!template) {
       return res.status(404).json({ message: `No import template found for "${systemName}"` });

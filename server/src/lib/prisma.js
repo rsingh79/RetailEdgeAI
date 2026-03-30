@@ -35,6 +35,13 @@ const TENANT_SCOPED_MODELS = new Set([
   'DriveIntegration',
   'DriveImportLog',
   'Conversation',
+  // Product Import Pipeline models
+  'ImportJob',
+  'ApprovalQueueEntry',
+  'ProductImportRecord',
+  'TenantSourceRegistry',
+  // Product Embedding Storage (ASAL Step 2)
+  'ProductEmbedding',
 ]);
 
 // Operations that read data (need tenantId in WHERE)

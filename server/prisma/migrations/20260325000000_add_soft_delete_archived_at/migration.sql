@@ -1,0 +1,2 @@
+ALTER TABLE "Product" ADD COLUMN "archivedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN "archivedAt" TIMESTAMP(3);

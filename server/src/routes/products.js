@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import XLSX from 'xlsx';
 import { isShopifyFormat, groupShopifyRows, importShopifyProducts } from '../services/shopifyImport.js';
+import { embedProduct } from '../services/ai/embeddingMaintenance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const importsDir = path.join(__dirname, '..', '..', 'uploads', 'imports');
@@ -39,12 +40,15 @@ const router = Router();
 
 // ── Product CRUD ──────────────────────────────────────────────
 
-// List all products for the tenant (optional ?source= filter)
+// List all products for the tenant (optional ?source= filter) — excludes archived
 router.get('/', async (req, res) => {
   try {
-    const where = {};
+    const where = { archivedAt: null };
     if (req.query.source) {
       where.source = req.query.source;
+    }
+    if (req.query.store) {
+      where.variants = { some: { store: { name: req.query.store } } };
     }
     const products = await req.prisma.product.findMany({
       where,
@@ -54,46 +58,50 @@ router.get('/', async (req, res) => {
       orderBy: { name: 'asc' },
     });
 
-    // Also return distinct sources for the filter dropdown
-    const sources = await req.prisma.product.findMany({
-      where: { source: { not: null } },
-      select: { source: true },
-      distinct: ['source'],
-      orderBy: { source: 'asc' },
-    });
+    // Return distinct sources and store names for filter dropdowns
+    const [sourceRows, storeRows] = await Promise.all([
+      req.prisma.product.findMany({
+        where: { archivedAt: null },
+        select: { source: true },
+        distinct: ['source'],
+        orderBy: { source: 'asc' },
+      }),
+      req.prisma.store.findMany({
+        where: { productVariants: { some: { product: { archivedAt: null } } } },
+        select: { name: true },
+        distinct: ['name'],
+        orderBy: { name: 'asc' },
+      }),
+    ]);
 
-    res.json({ products, sources: sources.map((s) => s.source) });
+    res.json({
+      products,
+      sources: sourceRows.map((s) => s.source),
+      stores: storeRows.map((s) => s.name),
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Search products by name, barcode, or SKU (for match resolution)
+// Search products by name, barcode, or SKU (for match resolution) — excludes archived
 router.get('/search', async (req, res) => {
   try {
     const { q, storeId } = req.query;
     if (!q || q.length < 2) return res.json([]);
 
-    // Normalize query: replace hyphens with spaces for Shopify-style handles
     const normalizedQ = q.replace(/-/g, ' ').trim();
-    // Also create a hyphenated version of the query for searching hyphenated names
     const hyphenatedQ = q.replace(/\s+/g, '-').toLowerCase();
-    // Individual words for broader matching
     const words = normalizedQ.split(/\s+/).filter(Boolean);
 
     const where = {
+      archivedAt: null,
       OR: [
-        // Direct search (handles both normal names and hyphenated names)
         { name: { contains: q, mode: 'insensitive' } },
-        // Normalized (hyphens→spaces) search: finds "Organic Cacao Powder" from "organic-cacao-powder"
         { name: { contains: normalizedQ, mode: 'insensitive' } },
-        // Hyphenated search: finds "organic-cacao-powder" from "organic cacao powder"
         { name: { contains: hyphenatedQ, mode: 'insensitive' } },
-        // Barcode search
         { barcode: { contains: q, mode: 'insensitive' } },
-        // SKU search
         { variants: { some: { sku: { contains: q, mode: 'insensitive' } } } },
-        // Word-level matching: each word matches part of the name
         ...words.length > 1
           ? [{ AND: words.map((w) => ({ name: { contains: w, mode: 'insensitive' } })) }]
           : [],
@@ -121,7 +129,6 @@ router.get('/search', async (req, res) => {
       take: 20,
     });
 
-    // Deduplicate by product id (multiple OR clauses might match the same product)
     const seen = new Set();
     const deduped = products.filter((p) => {
       if (seen.has(p.id)) return false;
@@ -139,7 +146,7 @@ router.get('/search', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const product = await req.prisma.product.findFirst({
-      where: { id: req.params.id },
+      where: { id: req.params.id, archivedAt: null },
       include: {
         variants: {
           include: { store: true },
@@ -161,6 +168,9 @@ router.post('/', async (req, res) => {
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'Product name is required' });
     }
+    if (!source || !source.trim()) {
+      return res.status(400).json({ message: 'Source / system is required' });
+    }
     const product = await req.prisma.product.create({
       data: {
         name: name.trim(),
@@ -169,37 +179,45 @@ router.post('/', async (req, res) => {
         barcode: barcode?.trim() || null,
         costPrice: costPrice != null ? parseFloat(costPrice) : null,
         sellingPrice: sellingPrice != null ? parseFloat(sellingPrice) : null,
-        source: source?.trim() || null,
+        source: source.trim(),
       },
     });
+
+    // Fire-and-forget embedding for the new product
+    embedProduct({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      baseUnit: product.baseUnit,
+      tenantId: req.tenantId,
+    }).catch(() => {});
+
     res.status(201).json(product);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Delete a single product (and its variants, matches, competitor monitors, alerts)
+// Archive a single product (soft-delete — preserves variants and match history)
 router.delete('/:id', async (req, res) => {
   try {
     const product = await req.prisma.product.findFirst({
-      where: { id: req.params.id },
+      where: { id: req.params.id, archivedAt: null },
     });
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
-    // Delete dependents first (variants, invoice line matches, competitor monitors, price alerts)
-    await req.prisma.productVariant.deleteMany({ where: { productId: product.id } });
-    await req.prisma.competitorMonitor.deleteMany({ where: { productId: product.id } });
-    await req.prisma.priceAlert.deleteMany({ where: { productId: product.id } });
+    await req.prisma.product.update({
+      where: { id: product.id },
+      data: { archivedAt: new Date() },
+    });
 
-    await req.prisma.product.delete({ where: { id: product.id } });
-
-    res.json({ message: 'Product deleted', id: product.id });
+    res.json({ message: 'Product archived', id: product.id });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Bulk delete products
+// Bulk archive products (soft-delete)
 router.post('/bulk-delete', async (req, res) => {
   try {
     const { ids } = req.body;
@@ -207,27 +225,12 @@ router.post('/bulk-delete', async (req, res) => {
       return res.status(400).json({ message: 'ids array is required' });
     }
 
-    // Verify all products belong to this tenant
-    const products = await req.prisma.product.findMany({
-      where: { id: { in: ids } },
-      select: { id: true },
+    const result = await req.prisma.product.updateMany({
+      where: { id: { in: ids }, archivedAt: null },
+      data: { archivedAt: new Date() },
     });
 
-    const foundIds = products.map((p) => p.id);
-    if (foundIds.length === 0) {
-      return res.status(404).json({ message: 'No matching products found' });
-    }
-
-    // Delete dependents first
-    await req.prisma.productVariant.deleteMany({ where: { productId: { in: foundIds } } });
-    await req.prisma.competitorMonitor.deleteMany({ where: { productId: { in: foundIds } } });
-    await req.prisma.priceAlert.deleteMany({ where: { productId: { in: foundIds } } });
-
-    const result = await req.prisma.product.deleteMany({
-      where: { id: { in: foundIds } },
-    });
-
-    res.json({ message: `${result.count} products deleted`, count: result.count });
+    res.json({ message: `${result.count} products archived`, count: result.count });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -295,133 +298,22 @@ router.post('/import/upload', importUpload.single('file'), async (req, res) => {
   }
 });
 
-// Apply mapping → bulk-create/upsert products with optional pricing
+// Apply mapping → bulk-create/upsert products — RETIRED
+// Replaced by POST /api/v1/products/import/confirm which includes
+// duplicate detection, confidence scoring, and human approval gate.
 router.post('/import/confirm', async (req, res) => {
-  const { uploadId, systemName, mapping, saveTemplate, shopifyMode, deleteExisting } = req.body;
-
-  // Shopify mode has different required fields
-  if (shopifyMode) {
-    if (!uploadId) {
-      return res.status(400).json({ message: 'uploadId is required' });
-    }
-  } else if (!uploadId || !mapping || !mapping.name) {
-    return res.status(400).json({ message: 'uploadId, mapping, and mapping.name are required' });
-  }
-
-  const filePath = path.join(importsDir, uploadId);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ message: 'Upload not found. Please re-upload the file.' });
-  }
-
-  try {
-    // ── Shopify mode: variant-aware import ──
-    if (shopifyMode) {
-      const { rows } = parseWorkbook(filePath);
-      const result = await importShopifyProducts(req.prisma, rows, { deleteExisting: !!deleteExisting });
-      try { fs.unlinkSync(filePath); } catch { /* ignore */ }
-      return res.json(result);
-    }
-
-    // ── Generic mode (unchanged) ──
-    const { rows } = parseWorkbook(filePath);
-
-    let imported = 0;
-    let updated = 0;
-    let skipped = 0;
-    const errors = [];
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const name = String(row[mapping.name] || '').trim();
-      if (!name) {
-        skipped++;
-        continue;
-      }
-
-      const productData = {
-        name,
-        category: mapping.category ? String(row[mapping.category] || '').trim() || null : null,
-        barcode: mapping.barcode ? String(row[mapping.barcode] || '').trim() || null : null,
-        baseUnit: mapping.baseUnit ? String(row[mapping.baseUnit] || '').trim() || null : null,
-        source: systemName?.trim() || null,
-      };
-
-      // Parse price fields if mapped
-      if (mapping.costPrice) {
-        const raw = String(row[mapping.costPrice] || '').replace(/[^0-9.\-]/g, '');
-        const val = parseFloat(raw);
-        productData.costPrice = isNaN(val) ? null : val;
-      }
-      if (mapping.sellingPrice) {
-        const raw = String(row[mapping.sellingPrice] || '').replace(/[^0-9.\-]/g, '');
-        const val = parseFloat(raw);
-        productData.sellingPrice = isNaN(val) ? null : val;
-      }
-
-      try {
-        // Deduplicate: check barcode first, then fall back to exact name match
-        let existing = null;
-
-        if (productData.barcode) {
-          existing = await req.prisma.product.findFirst({
-            where: { barcode: productData.barcode },
-          });
-        }
-
-        if (!existing) {
-          const nameWhere = { name: { equals: name, mode: 'insensitive' } };
-          if (productData.baseUnit) {
-            nameWhere.baseUnit = { equals: productData.baseUnit, mode: 'insensitive' };
-          }
-          existing = await req.prisma.product.findFirst({ where: nameWhere });
-        }
-
-        if (existing) {
-          await req.prisma.product.update({
-            where: { id: existing.id },
-            data: productData,
-          });
-          updated++;
-        } else {
-          await req.prisma.product.create({ data: productData });
-          imported++;
-        }
-      } catch (rowErr) {
-        errors.push({ row: i + 2, name, error: rowErr.message });
-      }
-    }
-
-    // Save template if requested
-    let templateSaved = false;
-    if (saveTemplate && systemName) {
-      try {
-        const existing = await req.prisma.importTemplate.findFirst({
-          where: { systemName },
-        });
-        if (existing) {
-          await req.prisma.importTemplate.update({
-            where: { id: existing.id },
-            data: { mapping },
-          });
-        } else {
-          await req.prisma.importTemplate.create({
-            data: { systemName, mapping },
-          });
-        }
-        templateSaved = true;
-      } catch (tmplErr) {
-        // Non-fatal — import still succeeds
-        console.error('Failed to save template:', tmplErr.message);
-      }
-    }
-
-    // Clean up uploaded file
-    try { fs.unlinkSync(filePath); } catch { /* ignore */ }
-
-    res.json({ imported, updated, skipped, errors, templateSaved });
-  } catch (err) {
-    res.status(500).json({ message: 'Import failed: ' + err.message });
-  }
+  console.log(
+    '[Products] Legacy import confirm route called — ' +
+    'retired in favour of POST /api/v1/products/import/confirm'
+  );
+  res.status(410).json({
+    message:
+      'This import endpoint has been retired. ' +
+      'Please use POST /api/v1/products/import/confirm ' +
+      'which includes duplicate detection, confidence ' +
+      'scoring, and human approval gate.',
+    newEndpoint: '/api/v1/products/import/confirm',
+  });
 });
 
 // ── Import Templates ──────────────────────────────────────────
@@ -443,7 +335,7 @@ router.get('/import/templates', async (req, res) => {
 router.get('/import/templates/:systemName', async (req, res) => {
   try {
     const template = await req.prisma.importTemplate.findFirst({
-      where: { systemName: decodeURIComponent(req.params.systemName) },
+      where: { systemName: decodeURIComponent(req.params.systemName), tenantId: req.tenantId },
     });
     if (!template) return res.status(404).json({ message: 'Template not found' });
     res.json(template);
@@ -460,7 +352,7 @@ router.put('/import/templates/:systemName', async (req, res) => {
     if (!mapping) return res.status(400).json({ message: 'mapping is required' });
 
     const existing = await req.prisma.importTemplate.findFirst({
-      where: { systemName },
+      where: { systemName, tenantId: req.tenantId },
     });
 
     let template;

@@ -8,6 +8,9 @@ import { checkApiLimit } from '../middleware/apiLimiter.js';
 import { extractInvoiceData } from '../services/ocr.js';
 import { applyOcrToInvoice, allocateInvoiceCosts } from '../services/invoiceProcessor.js';
 import { matchInvoiceLines, createMatchRecords } from '../services/matching.js';
+import { pushPriceUpdate } from '../services/shopify.js';
+import { decrypt } from '../lib/encryption.js';
+import basePrisma from '../lib/prisma.js';
 import {
   recordPromptMeta,
   recordOutcome,
@@ -83,9 +86,9 @@ async function fetchFullInvoice(prisma, id) {
 router.get('/counts', async (req, res) => {
   try {
     const [totalInvoices, reviewInvoices] = await Promise.all([
-      req.prisma.invoice.count(),
+      req.prisma.invoice.count({ where: { archivedAt: null } }),
       req.prisma.invoice.count({
-        where: { status: { in: ['READY', 'IN_REVIEW'] } },
+        where: { archivedAt: null, status: { in: ['READY', 'IN_REVIEW'] } },
       }),
     ]);
     res.json({ totalInvoices, reviewInvoices });
@@ -112,11 +115,12 @@ router.get('/dashboard-stats', async (req, res) => {
     ] = await Promise.all([
       // Invoices needing review (READY or IN_REVIEW)
       req.prisma.invoice.count({
-        where: { status: { in: ['READY', 'IN_REVIEW'] } },
+        where: { archivedAt: null, status: { in: ['READY', 'IN_REVIEW'] } },
       }),
       // Invoices with confirmed matches awaiting final approval
       req.prisma.invoice.count({
         where: {
+          archivedAt: null,
           status: 'IN_REVIEW',
           lines: {
             some: {
@@ -141,9 +145,9 @@ router.get('/dashboard-stats', async (req, res) => {
         },
       }),
       // Pipeline stage counts
-      req.prisma.invoice.count({ where: { status: 'PROCESSING' } }),
-      req.prisma.invoice.count({ where: { status: { in: ['READY', 'IN_REVIEW'] } } }),
-      req.prisma.invoice.count({ where: { status: 'APPROVED' } }),
+      req.prisma.invoice.count({ where: { archivedAt: null, status: 'PROCESSING' } }),
+      req.prisma.invoice.count({ where: { archivedAt: null, status: { in: ['READY', 'IN_REVIEW'] } } }),
+      req.prisma.invoice.count({ where: { archivedAt: null, status: 'APPROVED' } }),
     ]);
 
     // Margin alerts: matches where newCost increased > 10% over previousCost
@@ -214,7 +218,7 @@ router.get('/dashboard-stats', async (req, res) => {
 router.get('/action-invoices', async (req, res) => {
   try {
     const invoices = await req.prisma.invoice.findMany({
-      where: { status: { in: ['READY', 'IN_REVIEW', 'APPROVED'] } },
+      where: { archivedAt: null, status: { in: ['READY', 'IN_REVIEW', 'APPROVED'] } },
       orderBy: { createdAt: 'desc' },
       take: 10,
       include: { _count: { select: { lines: true } } },
@@ -227,10 +231,11 @@ router.get('/action-invoices', async (req, res) => {
 
 // ── List / Detail ─────────────────────────────────────────────
 
-// List all invoices for the tenant
+// List all invoices for the tenant (excludes archived)
 router.get('/', async (req, res) => {
   try {
     const invoices = await req.prisma.invoice.findMany({
+      where: { archivedAt: null },
       include: { supplier: true, lines: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -247,6 +252,7 @@ router.get('/exportable', async (req, res) => {
   try {
     const invoices = await req.prisma.invoice.findMany({
       where: {
+        archivedAt: null,
         status: { in: ['IN_REVIEW', 'APPROVED', 'EXPORTED'] },
       },
       include: {
@@ -254,7 +260,14 @@ router.get('/exportable', async (req, res) => {
         lines: {
           include: {
             matches: {
-              where: { status: { in: ['CONFIRMED', 'APPROVED', 'EXPORTED'] } },
+              where: {
+                status: { in: ['CONFIRMED', 'APPROVED', 'EXPORTED'] },
+                // Only count matches linked to active (non-archived) products
+                OR: [
+                  { productVariant: { product: { archivedAt: null } } },
+                  { productVariantId: null, product: { archivedAt: null } },
+                ],
+              },
               select: {
                 id: true,
                 exportedAt: true,
@@ -345,6 +358,17 @@ router.get('/export/items', async (req, res) => {
       whereClause.invoiceLine = { invoiceId: { in: ids } };
     }
 
+    // Only fetch matches linked to active (non-archived) products
+    // Uses AND so it composes cleanly with the existing OR invoice filter
+    whereClause.AND = [
+      {
+        OR: [
+          { productVariant: { product: { archivedAt: null } } },
+          { productVariantId: null, product: { archivedAt: null } },
+        ],
+      },
+    ];
+
     const matches = await req.prisma.invoiceLineMatch.findMany({
       where: whereClause,
       include: {
@@ -363,7 +387,9 @@ router.get('/export/items', async (req, res) => {
 
     const items = matches.map((m) => {
       const product = m.productVariant?.product || m.product;
-      const productName = product?.name || 'Unknown';
+      // Skip matches with no product or an archived product
+      if (!product || product.archivedAt) return null;
+      const productName = product.name;
       const sku = m.productVariant?.sku || product?.barcode || '';
       const size = m.productVariant?.size || null;
       const source = product?.source || '';
@@ -398,6 +424,8 @@ router.get('/export/items', async (req, res) => {
         handle: productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
       };
     }).filter((item) => {
+      // Remove orphaned matches (no product)
+      if (!item) return false;
       // Only include items where cost or selling price has actually changed
       const costChanged = item.newCost != null && (
         item.previousCost == null ||
@@ -441,7 +469,7 @@ router.patch('/export/price', async (req, res) => {
 // Mark matches as exported
 router.post('/export/mark', async (req, res) => {
   try {
-    const { matchIds } = req.body;
+    const { matchIds, syncPlatforms } = req.body;
     if (!matchIds || !Array.isArray(matchIds) || matchIds.length === 0) {
       return res.status(400).json({ message: 'matchIds array is required' });
     }
@@ -453,6 +481,58 @@ router.post('/export/mark', async (req, res) => {
         status: 'EXPORTED',
       },
     });
+
+    // ── Push prices to Shopify (non-fatal) ──────────────────
+    // syncPlatforms (string[]) comes from the frontend per-platform action choice.
+    // If provided, push only when 'shopify' is in the list.
+    // If not provided, fall back to the integration's global pushPricesOnExport setting.
+    const syncPlatformsLower = Array.isArray(syncPlatforms)
+      ? syncPlatforms.map((p) => p.toLowerCase())
+      : null;
+
+    try {
+      const integration = await basePrisma.shopifyIntegration.findUnique({
+        where: { tenantId: req.user.tenantId },
+      });
+      const pushEnabled = syncPlatformsLower !== null
+        ? syncPlatformsLower.includes('shopify')
+        : integration?.pushPricesOnExport;
+      if (integration?.isActive && pushEnabled && integration.accessTokenEnc) {
+        const accessToken = decrypt(integration.accessTokenEnc);
+
+        // Load the exported matches — only for active (non-archived) products
+        const matches = await req.prisma.invoiceLineMatch.findMany({
+          where: {
+            id: { in: matchIds },
+            status: 'EXPORTED',
+            productVariant: { product: { archivedAt: null } },
+          },
+          include: {
+            productVariant: { select: { shopifyVariantId: true } },
+          },
+        });
+
+        for (const match of matches) {
+          const shopifyVariantId = match.productVariant?.shopifyVariantId;
+          if (!shopifyVariantId) continue;
+          const price = match.approvedPrice ?? match.suggestedPrice;
+          if (!price) continue;
+          // Push price update — errors are non-fatal
+          pushPriceUpdate(
+            integration.shop,
+            accessToken,
+            shopifyVariantId,
+            price,
+            match.newCost ?? undefined
+          ).catch((err) => {
+            console.warn(`Shopify price push failed for variant ${shopifyVariantId}:`, err.message);
+          });
+        }
+      }
+    } catch (pushErr) {
+      // Non-fatal — export still succeeds
+      console.warn('Shopify price push error:', pushErr.message);
+    }
 
     res.json({ updated: result.count });
   } catch (err) {
@@ -769,12 +849,15 @@ router.patch('/:id/lines/:lineId', async (req, res) => {
 router.delete('/:id', requireRole('OWNER', 'OPS_MANAGER'), async (req, res) => {
   try {
     const invoice = await req.prisma.invoice.findFirst({
-      where: { id: req.params.id },
+      where: { id: req.params.id, archivedAt: null },
     });
     if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
 
-    await req.prisma.invoice.delete({ where: { id: req.params.id } });
-    res.json({ message: 'Invoice deleted' });
+    await req.prisma.invoice.update({
+      where: { id: req.params.id },
+      data: { archivedAt: new Date() },
+    });
+    res.json({ message: 'Invoice archived' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

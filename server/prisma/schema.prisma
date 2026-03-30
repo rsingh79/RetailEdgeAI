@@ -55,7 +55,13 @@ model Tenant {
   driveImportLogs     DriveImportLog[]
   planTierId          String?
   planTier            PlanTier?  @relation(fields: [planTierId], references: [id])
-  conversations       Conversation[]
+  conversations            Conversation[]
+  tenantSourceRegistries   TenantSourceRegistry[]
+  importJobs               ImportJob[]
+  approvalQueueEntries     ApprovalQueueEntry[]
+  productImportRecords     ProductImportRecord[]
+  aiServiceLogs            AiServiceLog[]
+  productEmbeddings        ProductEmbedding[]
 }
 
 // ── Auth ──
@@ -70,9 +76,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant        Tenant?        @relation(fields: [tenantId], references: [id])
-  auditLogs     AuditLog[]
-  conversations Conversation[]
+  tenant               Tenant?        @relation(fields: [tenantId], references: [id])
+  auditLogs            AuditLog[]
+  conversations        Conversation[]
+  importJobs           ImportJob[]
+  approvalQueueEntries ApprovalQueueEntry[] @relation("ApprovalActionUser")
 
   @@index([tenantId])
 }
@@ -121,42 +129,74 @@ model Product {
   barcode    String?
   costPrice  Float?   // supplier/wholesale cost
   sellingPrice Float? // retail selling price
-  source     String?  // POS/ecommerce system (e.g. "Lightspeed", "Shopify")
+  source     String   @default("Manual") // POS/ecommerce system (e.g. "Lightspeed", "Shopify")
+  archivedAt DateTime?                  // soft-delete: set instead of deleting
+
+  // ── Product Import Pipeline Fields ──────────────────────────
+  // Source system native record ID (e.g. Shopify product ID)
+  externalId              String?
+  // How the product entered RetailEdgeAI — maps to SourceType enum values
+  productImportedThrough  String?
+  // SHA-256 hash of normalised identity fields for dedup
+  fingerprint             String?
+  // FK to ImportJob — relation wired to ImportJob model
+  importId                String?
+  // Self-referential FK — points to master record if this is a duplicate
+  canonicalProductId      String?
+  // Import-time approval state — null for pre-pipeline products
+  approvalStatus          ImportApprovalStatus?
+  // Last successful sync from source — distinct from updatedAt
+  lastSyncedAt            DateTime?
+  // Confidence score 0.0-1.0 assigned at import time by Confidence Scorer
+  confidenceScore         Float?
+
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  tenant             Tenant                @relation(fields: [tenantId], references: [id])
+  importJob          ImportJob?            @relation("ProductImportJob", fields: [importId], references: [id])
+  importRecords      ProductImportRecord[]
   variants           ProductVariant[]
   competitorMonitors CompetitorMonitor[]
   priceAlerts        PriceAlert[]
   invoiceMatches     InvoiceLineMatch[]
+  embeddings         ProductEmbedding[]
 
   @@index([tenantId])
   @@index([barcode])
+  @@index([tenantId, externalId])
+  @@index([fingerprint])
+  @@index([importId])
+  @@index([canonicalProductId])
+  @@index([approvalStatus])
 }
 
 model ProductVariant {
-  id          String  @id @default(cuid())
-  productId   String
-  storeId     String
-  sku         String
-  name        String
-  size        String? // e.g. "1kg", "250g", "Dozen"
-  unitQty     Float   @default(1) // how many base units this variant represents
-  currentCost Float   @default(0)
-  salePrice   Float   @default(0)
-  shelfLocation String?
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String  @id @default(cuid())
+  productId        String
+  storeId          String
+  sku              String
+  name             String
+  size             String? // e.g. "1kg", "250g", "Dozen"
+  unitQty          Float   @default(1) // how many base units this variant represents
+  currentCost      Float   @default(0)
+  salePrice        Float   @default(0)
+  shelfLocation    String?
+  isActive         Boolean @default(true)
+  shopifyVariantId String? // Shopify variant ID for API price push
+  shopifyProductId String? // Shopify product ID for reference
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  product        Product              @relation(fields: [productId], references: [id])
-  store          Store                @relation(fields: [storeId], references: [id])
-  invoiceMatches InvoiceLineMatch[]
+  product          Product              @relation(fields: [productId], references: [id])
+  store            Store                @relation(fields: [storeId], references: [id])
+  invoiceMatches   InvoiceLineMatch[]
+  shopifyOrderLines ShopifyOrderLine[]
 
   @@unique([storeId, sku])
   @@index([productId])
   @@index([storeId])
+  @@index([shopifyVariantId])
 }
 
 // ── Suppliers ──
@@ -201,6 +241,7 @@ model Invoice {
   originalFileUrl String?
   source          String        @default("manual")  // "manual" or "email"
   gmailMessageId  String?
+  archivedAt      DateTime?                         // soft-delete: set instead of deleting
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -378,14 +419,21 @@ model AuditLog {
   previousVal Json?
   newVal      Json?
   metadata    Json?
+  // FK to ImportJob — relation added when ImportJob model is created
+  importJobId      String?
+  triggerSource    AuditTriggerSource @default(SYSTEM_PROCESS)
+  triggerFunction  String?
+  triggerContext   Json?
   createdAt   DateTime @default(now())
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  user   User?  @relation(fields: [userId], references: [id])
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+  importJob ImportJob? @relation(fields: [importJobId], references: [id])
 
   @@index([tenantId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([importJobId])
 }
 
 // ── Platform Settings (singleton) ──
@@ -542,19 +590,24 @@ model FolderImportLog {
 // ── Shopify Integration ──
 
 model ShopifyIntegration {
-  id              String    @id @default(cuid())
-  tenantId        String    @unique
-  shop            String                          // e.g. "mystore.myshopify.com"
-  accessTokenEnc  String?                         // AES-256-GCM encrypted Shopify access token
-  scopes          String    @default("read_products,write_products")
-  lastSyncAt      DateTime?
-  syncIntervalMin Int       @default(60)
-  isActive        Boolean   @default(true)
-  productCount    Int       @default(0)           // cached count of synced products
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  tenantId            String    @unique
+  shop                String                          // e.g. "mystore.myshopify.com"
+  accessTokenEnc      String?                         // AES-256-GCM encrypted Shopify access token
+  scopes              String    @default("read_products,write_products,read_orders,read_customers")
+  lastSyncAt          DateTime?
+  lastOrderSyncAt     DateTime?                       // last time orders were synced
+  syncIntervalMin     Int       @default(60)
+  isActive            Boolean   @default(true)
+  pushPricesOnExport  Boolean   @default(true)        // auto-push cost+price to Shopify on invoice export
+  productCount        Int       @default(0)
+  orderCount          Int       @default(0)           // cached count of synced orders
+  dismissedVariants   Json?     @default("[]")        // Shopify variant IDs dismissed from matching
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  orders      ShopifyOrder[]
 
   @@index([tenantId])
 }
@@ -567,14 +620,66 @@ model ShopifyImportLog {
   productsCreated Int      @default(0)
   productsUpdated Int      @default(0)
   variantsCreated Int      @default(0)
-  errors          Json?                           // array of error details
+  ordersPulled    Int      @default(0)
+  ordersCreated   Int      @default(0)
+  ordersUpdated   Int      @default(0)
+  errors          Json?
   durationMs      Int?
+  syncType        String   @default("products")   // "products" | "orders" | "full"
   createdAt       DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
   @@index([createdAt])
+}
+
+// ── Shopify Orders ──
+
+model ShopifyOrder {
+  id                String    @id @default(cuid())
+  tenantId          String
+  shopifyOrderId    String                          // Shopify's numeric order ID
+  shopifyOrderName  String?                         // e.g. "#1001"
+  integrationId     String
+  orderDate         DateTime
+  customerName      String?
+  customerEmail     String?
+  financialStatus   String?                         // paid, pending, refunded, etc.
+  fulfillmentStatus String?                         // fulfilled, partial, unfulfilled
+  totalPrice        Float     @default(0)
+  subtotalPrice     Float     @default(0)
+  totalTax          Float     @default(0)
+  currency          String    @default("AUD")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  integration ShopifyIntegration @relation(fields: [integrationId], references: [id])
+  lines       ShopifyOrderLine[]
+
+  @@unique([integrationId, shopifyOrderId])
+  @@index([tenantId])
+  @@index([orderDate])
+}
+
+model ShopifyOrderLine {
+  id               String  @id @default(cuid())
+  orderId          String
+  shopifyLineId    String
+  productVariantId String?                         // linked to our ProductVariant if matched
+  sku              String?
+  productTitle     String?
+  variantTitle     String?
+  quantity         Int     @default(1)
+  unitPrice        Float   @default(0)
+  totalPrice       Float   @default(0)
+  createdAt        DateTime @default(now())
+
+  order   ShopifyOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [productVariantId], references: [id])
+
+  @@index([orderId])
+  @@index([productVariantId])
 }
 
 // ── Google Drive Integration ──
@@ -1103,4 +1208,303 @@ model PromptAuditLog {
   @@index([agentRoleId, timestamp])
   @@index([triggeredBy, timestamp])
   @@index([suggestionId])
+}
+
+// ── Product Import Pipeline Models ─────────────────────────────
+
+model GlobalSourceRegistry {
+  id               String     @id @default(cuid())
+  key              String     @unique
+  name             String
+  displayName      String
+  sourceType       SourceType
+  description      String?
+  expectedHeaders  Json?
+  defaultMapping   Json?
+  columnSignatures Json?
+  isActive         Boolean    @default(true)
+  isDefault        Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  tenantSources TenantSourceRegistry[] @relation("SourceTemplate")
+}
+
+model TenantSourceRegistry {
+  id               String     @id @default(cuid())
+  tenantId         String
+  globalSourceId   String?
+  key              String
+  name             String
+  displayName      String
+  sourceType       SourceType
+  description      String?
+  expectedHeaders  Json?
+  customMapping    Json?
+  columnSignatures Json?
+  syncMode         SyncMode   @default(FULL)
+  isActive         Boolean    @default(true)
+  webhookSecret    String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  tenant       Tenant                @relation(fields: [tenantId], references: [id])
+  globalSource GlobalSourceRegistry? @relation("SourceTemplate", fields: [globalSourceId], references: [id])
+  importJobs   ImportJob[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@index([globalSourceId])
+}
+
+model ImportJob {
+  id                  String       @id @default(cuid())
+  tenantId            String
+  userId              String?
+  status              ImportStatus @default(PENDING)
+  sourceType          SourceType
+  sourceName          String?
+  tenantSourceId      String?
+  fileName            String?
+  fileHash            String?
+  totalRows           Int?
+  processedRows       Int          @default(0)
+  columnMapping       Json?
+  patterns            Json?
+  gstDetected         Boolean      @default(false)
+  gstRate             Float?
+  hasVariants         Boolean      @default(false)
+  groupByColumn       String?
+  variantColumns      Json?
+  syncMode            SyncMode     @default(FULL)
+  dryRun              Boolean      @default(false)
+  rowsCreated         Int          @default(0)
+  rowsUpdated         Int          @default(0)
+  rowsSkipped         Int          @default(0)
+  rowsFailed          Int          @default(0)
+  rowsPendingApproval Int          @default(0)
+  errorSummary        Json?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  tenant       Tenant                @relation(fields: [tenantId], references: [id])
+  user         User?                 @relation(fields: [userId], references: [id])
+  tenantSource TenantSourceRegistry? @relation(fields: [tenantSourceId], references: [id])
+  queueEntries ApprovalQueueEntry[]
+  importRecords ProductImportRecord[]
+  auditLogs    AuditLog[]
+  products     Product[]             @relation("ProductImportJob")
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([status])
+}
+
+model ApprovalQueueEntry {
+  id                     String               @id @default(cuid())
+  tenantId               String
+  importJobId            String
+  rowIndex               Int
+  approvalRoute          ApprovalRoute
+  invoiceRiskLevel       InvoiceRiskLevel     @default(NONE)
+  status                 ImportApprovalStatus @default(PENDING)
+  normalizedData         Json
+  matchResult            Json?
+  similarProducts        Json?
+  confidenceScore        Float?
+  confidenceBreakdown    Json?
+  riskExplanation        String?
+  action                 ApprovalAction?
+  actionedBy             String?
+  actionedAt             DateTime?
+  actionNotes            String?
+  updatedFields          Json?
+  linkedProductId        String?
+  productId              String?
+  slaDeadline            DateTime?
+  requiresSecondApproval Boolean              @default(false)
+  secondActionedBy       String?
+  secondActionedAt       DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  tenant        Tenant               @relation(fields: [tenantId], references: [id])
+  importJob     ImportJob            @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  actionUser    User?                @relation("ApprovalActionUser", fields: [actionedBy], references: [id])
+  importRecords ProductImportRecord[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, invoiceRiskLevel])
+  @@index([importJobId])
+  @@index([productId])
+  @@index([tenantId, createdAt])
+}
+
+model ProductImportRecord {
+  id                    String       @id @default(cuid())
+  tenantId              String
+  importJobId           String
+  rowIndex              Int
+  rawSourceData         Json
+  normalizedData        Json?
+  fingerprintTier       Int?
+  fingerprint           String?
+  fingerprintComponents Json?
+  matchAction           MatchAction?
+  matchedProductId      String?
+  matchScore            Float?
+  matchedOn             Json?
+  productId             String?
+  approvalQueueId       String?
+  processingError       String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  tenant        Tenant               @relation(fields: [tenantId], references: [id])
+  importJob     ImportJob            @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  product       Product?             @relation(fields: [productId], references: [id])
+  approvalQueue ApprovalQueueEntry?  @relation(fields: [approvalQueueId], references: [id])
+
+  @@unique([importJobId, rowIndex])
+  @@index([tenantId])
+  @@index([importJobId])
+  @@index([productId])
+  @@index([fingerprint])
+}
+
+// ── Product Import Pipeline Enums ──────────────────────────────
+
+enum ImportStatus {
+  PENDING
+  ANALYZING
+  AWAITING_CONFIRMATION
+  PROCESSING
+  COMPLETE
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum SourceType {
+  CSV_UPLOAD
+  SHOPIFY_SYNC
+  GMAIL_ATTACHMENT
+  FOLDER_FILE
+  DRIVE_FILE
+  MANUAL
+  API_PUSH
+}
+
+enum ApprovalRoute {
+  ROUTE_AUTO
+  ROUTE_REVIEW
+  ROUTE_REJECT
+}
+
+enum ImportApprovalStatus {
+  PENDING
+  AUTO_APPROVED
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalAction {
+  APPROVE
+  REJECT
+  DEFER
+  OVERRIDE
+}
+
+enum InvoiceRiskLevel {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MatchAction {
+  CREATED
+  UPDATED
+  SKIPPED
+  MERGED
+  FAILED
+}
+
+enum SyncMode {
+  FULL
+  INCREMENTAL
+}
+
+enum AuditTriggerSource {
+  UI_ACTION
+  SYSTEM_PROCESS
+}
+
+// ── AI Service Abstraction Layer (ASAL) ───────────────────────────
+
+model AiServiceRegistry {
+  id                String   @id @default(cuid())
+  intent            String   // 'EMBEDDING', 'RERANKING', 'TEXT_GENERATION'
+  taskKey           String   @unique // e.g. 'product_matching', 'strategic_advice'
+  description       String
+  provider          String   // e.g. 'anthropic', 'cohere'
+  model             String   // e.g. 'claude-sonnet-4-20250514', 'embed-english-v3.0'
+  config            Json     @default("{}")
+  fallbackProvider  String?
+  fallbackModel     String?
+  isActive          Boolean  @default(true)
+  costPerUnit       Decimal? // e.g. 3.00 (dollars per million tokens)
+  costUnit          String?  // e.g. 'per_million_input_tokens', 'per_1000_searches'
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([intent])
+  @@index([isActive])
+}
+
+model AiServiceLog {
+  id              String   @id @default(cuid())
+  tenantId        String?  // null for platform-level calls
+  intent          String
+  taskKey         String
+  provider        String
+  model           String
+  isFallback      Boolean  @default(false)
+  inputTokens     Int?
+  outputTokens    Int?
+  latencyMs       Int
+  estimatedCost   Decimal?
+  status          String   // 'success', 'failure', 'fallback_success'
+  errorCode       String?
+  createdAt       DateTime @default(now())
+
+  tenant          Tenant?  @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([taskKey, createdAt])
+  @@index([provider, createdAt])
+}
+
+// ── Product Embedding Storage (ASAL Step 2) ──
+
+model ProductEmbedding {
+  id            String   @id @default(cuid())
+  tenantId      String
+  productId     String
+  model         String   // e.g. 'embed-english-v3.0' — tracks which model generated this
+  embeddingText String   // the text that was embedded (for debugging/re-embedding)
+  // vector column added via raw SQL — not in Prisma schema (unsupported type)
+  dimensions    Int      @default(1024)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  product       Product  @relation(fields: [productId], references: [id])
+
+  @@unique([productId, model])  // one embedding per product per model
+  @@index([tenantId])
+  @@index([productId])
 }

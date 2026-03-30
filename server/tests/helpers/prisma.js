@@ -7,7 +7,7 @@ const testPrisma = new PrismaClient({
     db: {
       url:
         process.env.DATABASE_URL_TEST ||
-        'postgresql://retailedge_app:retailedge_app_dev@localhost:5433/retailedge_test',
+        'postgresql://retailedge_app:retailedge_app_prod@retailedge-test-db-do-user-34957730-0.h.db.ondigitalocean.com:25060/retailedge_test?sslmode=require',
     },
   },
 });

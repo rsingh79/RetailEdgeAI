@@ -14,7 +14,7 @@ const serverDir = path.resolve(__dirname, '..');
 export async function setup() {
   // Use superuser for migrations (DDL operations)
   const migrationUrl =
-    'postgresql://retailedge:retailedge_dev@localhost:5433/retailedge_test';
+    process.env.DATABASE_URL_TEST_ADMIN;
 
   console.log('\n🧪 Setting up test database...');
 

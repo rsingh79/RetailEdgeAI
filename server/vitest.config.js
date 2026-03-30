@@ -13,7 +13,7 @@ export default defineConfig({
     // so createTenantClient works against test data
     env: {
       DATABASE_URL_APP:
-        'postgresql://retailedge_app:retailedge_app_dev@localhost:5433/retailedge_test',
+        'postgresql://retailedge_app:retailedge_app_prod@retailedge-test-db-do-user-34957730-0.h.db.ondigitalocean.com:25060/retailedge_test?sslmode=require',
       JWT_SECRET: 'test-secret-key-for-vitest',
     },
   },

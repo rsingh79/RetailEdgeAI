@@ -338,7 +338,7 @@ export default function Products() {
             <tbody className="divide-y divide-gray-50">
               {filtered.map((p) => {
                 const isExpanded = expandedProduct === p.id;
-                const hasVariants = p.variants && p.variants.length > 0;
+                const hasVariants = p.variants && p.variants.length > 1;
                 return (
                   <ProductRow
                     key={p.id}
@@ -807,6 +807,11 @@ function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleE
     }
   }
 
+  // For single-variant products, use variant pricing as the authoritative source
+  const singleVariant = p.variants && p.variants.length === 1 ? p.variants[0] : null;
+  const displayCost = singleVariant ? singleVariant.currentCost : p.costPrice;
+  const displayPrice = singleVariant ? singleVariant.salePrice : p.sellingPrice;
+
   return (
     <>
       <tr
@@ -843,10 +848,10 @@ function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleE
         <td className="px-3 py-3 text-gray-600 font-mono text-xs">{p.barcode || '—'}</td>
         <td className="px-3 py-3 text-gray-600">{p.baseUnit || '—'}</td>
         <td className="px-3 py-3 text-right text-gray-600">
-          {p.costPrice != null ? `$${Number(p.costPrice).toFixed(2)}` : '—'}
+          {displayCost != null ? `$${Number(displayCost).toFixed(2)}` : '—'}
         </td>
         <td className="px-3 py-3 text-right text-gray-600">
-          {p.sellingPrice != null ? `$${Number(p.sellingPrice).toFixed(2)}` : '—'}
+          {displayPrice != null ? `$${Number(displayPrice).toFixed(2)}` : '—'}
         </td>
         <td className="px-3 py-3">
           {p.source ? (

@@ -5,6 +5,7 @@
 
 import PipelineStage from '../pipelineStage.js';
 import { addWarning } from '../canonicalProduct.js';
+import { normalizeSource } from '../../../sourceNormalizer.js';
 
 // ── Source inference from filename ──
 
@@ -142,7 +143,10 @@ class SourceResolver extends PipelineStage {
         );
       }
 
-      // 6. Set importJobId from context
+      // 6. Normalize source name to canonical form
+      product.sourceSystem = normalizeSource(product.sourceSystem);
+
+      // 7. Set importJobId from context
       if (!product.importJobId && context.importJobId) {
         product.importJobId = context.importJobId;
         product.importId = context.importJobId;

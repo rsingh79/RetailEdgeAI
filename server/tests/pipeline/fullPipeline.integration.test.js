@@ -353,3 +353,49 @@ test('rowsToCanonical correctly converts testRun rows', () => {
     expect(p).toHaveProperty('normalised');
   }
 });
+
+// ── SCENARIO 7: rowsToCanonical name fallbacks ──
+
+test('rowsToCanonical picks up name from productName fallback', () => {
+  const rows = [
+    { productName: 'Organic Cacao Nibs', sellingPrice: 15.99, variants: [] },
+  ];
+  const session = { gstDetected: false, gstRate: 0.1 };
+  const products = rowsToCanonical(rows, session);
+
+  expect(products).toHaveLength(1);
+  expect(products[0].name).toBe('Organic Cacao Nibs');
+  expect(products[0].rawSourceData.productName).toBe('Organic Cacao Nibs');
+});
+
+test('rowsToCanonical picks up name from title fallback', () => {
+  const rows = [
+    { title: 'Almond Butter 500g', sellingPrice: 12.0, variants: [] },
+  ];
+  const session = { gstDetected: false, gstRate: 0.1 };
+  const products = rowsToCanonical(rows, session);
+
+  expect(products).toHaveLength(1);
+  expect(products[0].name).toBe('Almond Butter 500g');
+});
+
+test('rowsToCanonical maps brand from row', () => {
+  const rows = [
+    { name: 'Cacao Nibs', brand: 'Loving Earth', sellingPrice: 15.99, variants: [] },
+  ];
+  const session = { gstDetected: false, gstRate: 0.1 };
+  const products = rowsToCanonical(rows, session);
+
+  expect(products).toHaveLength(1);
+  expect(products[0].brand).toBe('Loving Earth');
+});
+
+test('rowsToCanonical name from primary field takes precedence over fallbacks', () => {
+  const rows = [
+    { name: 'Primary Name', productName: 'Fallback Name', title: 'Title Name', sellingPrice: 5.0, variants: [] },
+  ];
+  const session = { gstDetected: false, gstRate: 0.1 };
+  const products = rowsToCanonical(rows, session);
+
+  expect(products[0].name).toBe('Primary Name');
+});

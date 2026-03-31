@@ -83,7 +83,11 @@ async function createImportJob(params, prisma) {
 function rowsToCanonical(rows, session) {
   return rows.map((row, i) => {
     const product = createCanonicalProduct({
-      name: row.name || null,
+      name: row.name || row.productName || row.product_name
+        || row.title || row.Title
+        || row['Product Name'] || row['product name']
+        || null,
+      brand: row.brand || row.Brand || row.vendor || row.Vendor || null,
       category: row.category || null,
       barcode: row.barcode || row.Barcode || row.BARCODE
             || row.ean || row.EAN

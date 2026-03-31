@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   normaliseString,
   normaliseProduct,
+  NormalisationEngine,
 } from '../../src/services/agents/pipeline/stages/normalisationEngine.js';
 import { createCanonicalProduct } from '../../src/services/agents/pipeline/canonicalProduct.js';
+import { createPipelineContext } from '../../src/services/agents/pipeline/pipelineContext.js';
 
 describe('normaliseString', () => {
   it('returns empty string for null input', () => {
@@ -105,5 +107,47 @@ describe('normaliseProduct', () => {
     normaliseProduct(p);
     expect(p.name).toBe('Milk 2L');
     expect(p.size).toBe('500ml');
+  });
+
+  it('retains name through normalisation for plain product names', () => {
+    const p = createCanonicalProduct({
+      name: 'Organic Cacao Nibs',
+      rawSourceData: { name: 'Organic Cacao Nibs', costPrice: 12.5 },
+    });
+    normaliseProduct(p);
+    expect(p.name).toBe('Organic Cacao Nibs');
+    expect(p.normalised.name).toBe('cacao nibs organic');
+  });
+});
+
+describe('NormalisationEngine.process', () => {
+  it('adds warning when product name is empty after normalisation', async () => {
+    const engine = new NormalisationEngine();
+    const p = createCanonicalProduct({
+      name: null,
+      rawSourceData: { name: 'Organic Cacao Nibs' },
+    });
+    const context = createPipelineContext({ stageData: {} });
+    await engine.process(p, context);
+    expect(p.warnings.length).toBeGreaterThan(0);
+    const nameWarning = p.warnings.find((w) =>
+      w.message.includes('Product name is empty after normalisation')
+    );
+    expect(nameWarning).toBeDefined();
+    expect(nameWarning.message).toContain('Organic Cacao Nibs');
+  });
+
+  it('does not add warning when product name is present', async () => {
+    const engine = new NormalisationEngine();
+    const p = createCanonicalProduct({
+      name: 'Organic Cacao Nibs',
+      rawSourceData: { name: 'Organic Cacao Nibs' },
+    });
+    const context = createPipelineContext({ stageData: {} });
+    await engine.process(p, context);
+    const nameWarning = p.warnings.find((w) =>
+      w.message.includes('Product name is empty after normalisation')
+    );
+    expect(nameWarning).toBeUndefined();
   });
 });

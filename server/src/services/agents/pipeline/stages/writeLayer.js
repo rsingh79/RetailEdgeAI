@@ -9,6 +9,41 @@ import { addError, addWarning } from '../canonicalProduct.js';
 import { withTenantTransaction } from '../../../../lib/prisma.js';
 import { embedProduct } from '../../../ai/embeddingMaintenance.js';
 import { executeHook } from '../../../integrationHooks.js';
+import { normalizeSource } from '../../../sourceNormalizer.js';
+
+// ── PART 0 — Find or create a Store for a source system ──
+
+/**
+ * Find or create a Store for a source system.
+ * Each source system (Abacus POS, Shopify, WooCommerce) gets one store per tenant.
+ */
+async function findOrCreateStore(sourceSystem, tenantId, prisma) {
+  const isEcommerce = ['shopify', 'woocommerce', 'bigcommerce', 'magento']
+    .includes(sourceSystem.toLowerCase());
+  const storeType = isEcommerce ? 'ECOMMERCE' : 'POS';
+
+  let store = await prisma.store.findFirst({
+    where: {
+      tenantId,
+      platform: sourceSystem,
+      type: storeType,
+    },
+  });
+
+  if (!store) {
+    store = await prisma.store.create({
+      data: {
+        tenantId,
+        name: sourceSystem,
+        platform: sourceSystem,
+        type: storeType,
+      },
+    });
+    console.log(`[WriteLayer] Created ${storeType} store: ${sourceSystem}`);
+  }
+
+  return store;
+}
 
 // ── PART 1 — Build Product data object ──
 
@@ -20,7 +55,7 @@ function buildProductData(product, context) {
     barcode: product.barcode || null,
     costPrice: product.costPrice ?? null,
     sellingPrice: product.price ?? product.sellingPrice ?? null,
-    source: product.sourceSystem || 'Manual',
+    source: normalizeSource(product.sourceSystem),
     externalId: product.externalId || null,
     productImportedThrough: product.productImportedThrough ||
       product.sourceType || null,
@@ -29,6 +64,7 @@ function buildProductData(product, context) {
     approvalStatus: 'AUTO_APPROVED',
     lastSyncedAt: new Date(),
     confidenceScore: product.confidenceScore ?? null,
+    canonicalProductId: product.canonicalProductId || null,
   };
 }
 
@@ -114,6 +150,7 @@ async function writeProduct(product, context) {
       }
 
       // Write variants
+      let variantsWritten = 0;
       if (product.variants && product.variants.length > 0) {
         const storeId = context.stageData?.defaultStoreId;
         if (storeId) {
@@ -124,7 +161,35 @@ async function writeProduct(product, context) {
               update: buildVariantData(variant, writtenProduct.id, storeId),
               create: buildVariantData(variant, writtenProduct.id, storeId),
             });
+            variantsWritten++;
           }
+        }
+      }
+
+      // Create a default variant if none were written and the product has pricing/SKU data
+      if (variantsWritten === 0 && (product.price || product.sku)) {
+        try {
+          const sourceSystem = product.sourceSystem || 'Manual';
+          const store = await findOrCreateStore(sourceSystem, context.tenantId, context.prisma);
+          const sku = product.sku || `${sourceSystem}-${writtenProduct.id}`;
+          await tx.productVariant.create({
+            data: {
+              productId: writtenProduct.id,
+              storeId: store.id,
+              name: product.name || 'Default',
+              sku,
+              barcode: product.barcode || null,
+              salePrice: product.price ? parseFloat(product.price) : 0,
+              currentCost: product.costPrice ? parseFloat(product.costPrice) : 0,
+              unitQty: product.unitQty || 1,
+              isActive: true,
+            },
+          });
+        } catch (err) {
+          console.warn(
+            `[WriteLayer] Failed to create default variant for product ${writtenProduct.id}:`,
+            err.message
+          );
         }
       }
 
@@ -169,23 +234,23 @@ async function writeProduct(product, context) {
   try {
     const archivedPredecessors = await context.prisma.product.findMany({
       where: {
-        name: { equals: product.name, mode: 'insensitive' },
-        source: product.sourceSystem || null,
         archivedAt: { not: null },
         canonicalProductId: null,
+        OR: [
+          { name: { equals: product.name, mode: 'insensitive' } },
+          ...(product.barcode ? [{ barcode: product.barcode }] : []),
+        ],
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, source: true, archivedAt: true },
     });
 
     if (archivedPredecessors.length > 0) {
-      await context.prisma.product.updateMany({
-        where: {
-          id: { in: archivedPredecessors.map(p => p.id) },
-        },
-        data: {
-          canonicalProductId: writtenProduct.id,
-        },
-      });
+      for (const predecessor of archivedPredecessors) {
+        await context.prisma.product.update({
+          where: { id: predecessor.id },
+          data: { canonicalProductId: writtenProduct.id },
+        });
+      }
 
       console.log(
         `[Pipeline:write_layer] Linked ${archivedPredecessors.length} ` +
@@ -408,5 +473,5 @@ class WriteLayer extends PipelineStage {
   }
 }
 
-export { buildProductData, preWriteCheck, WriteLayer };
+export { buildProductData, preWriteCheck, findOrCreateStore, WriteLayer };
 export default WriteLayer;

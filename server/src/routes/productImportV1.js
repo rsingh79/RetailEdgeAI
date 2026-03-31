@@ -20,9 +20,10 @@ import {
   createSession,
   testRun,
 } from '../services/agents/productImportAgent.js';
-import { buildProductData } from '../services/agents/pipeline/stages/writeLayer.js';
+import { buildProductData, findOrCreateStore } from '../services/agents/pipeline/stages/writeLayer.js';
 import { withTenantTransaction } from '../lib/prisma.js';
 import { executeHook } from '../services/integrationHooks.js';
+import { normalizeSource } from '../services/sourceNormalizer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const importsDir = path.join(__dirname, '..', '..', 'uploads', 'imports');
@@ -629,7 +630,7 @@ router.post('/approval-queue/bulk', async (req, res) => {
                 baseUnit: nd.baseUnit || null,
                 costPrice: nd.costPrice ?? null,
                 sellingPrice: nd.price ?? nd.sellingPrice ?? null,
-                source: nd.sourceSystem || 'Manual',
+                source: normalizeSource(nd.sourceSystem),
                 externalId: nd.externalId || null,
                 productImportedThrough: nd.productImportedThrough || null,
                 importId: entry.importJobId || null,
@@ -644,28 +645,55 @@ router.post('/approval-queue/bulk', async (req, res) => {
           try {
             const archivedPredecessors = await req.prisma.product.findMany({
               where: {
-                name: { equals: nd.name || '', mode: 'insensitive' },
-                source: nd.sourceSystem || 'Manual',
                 archivedAt: { not: null },
                 canonicalProductId: null,
+                OR: [
+                  { name: { equals: nd.name || '', mode: 'insensitive' } },
+                  ...(nd.barcode ? [{ barcode: nd.barcode }] : []),
+                ],
               },
               select: { id: true },
             });
 
             if (archivedPredecessors.length > 0) {
-              await req.prisma.product.updateMany({
-                where: {
-                  id: { in: archivedPredecessors.map(p => p.id) },
-                },
-                data: {
-                  canonicalProductId: newProduct.id,
-                },
-              });
+              for (const predecessor of archivedPredecessors) {
+                await req.prisma.product.update({
+                  where: { id: predecessor.id },
+                  data: { canonicalProductId: newProduct.id },
+                });
+              }
             }
           } catch (linkErr) {
             console.warn(
               '[BulkApprove] Failed to link archived predecessors for ' +
               (nd.name || 'unknown') + ':', linkErr.message
+            );
+          }
+
+          // Create a default variant if the product has pricing/SKU data
+          try {
+            if (nd.price || nd.sellingPrice || nd.sku) {
+              const sourceSystem = nd.sourceSystem || 'Manual';
+              const store = await findOrCreateStore(sourceSystem, req.tenantId, req.prisma);
+              const sku = nd.sku || `${sourceSystem}-${newProduct.id}`;
+              await req.prisma.productVariant.create({
+                data: {
+                  productId: newProduct.id,
+                  storeId: store.id,
+                  name: nd.name || 'Default',
+                  sku,
+                  barcode: nd.barcode || null,
+                  salePrice: nd.price ? parseFloat(nd.price) : (nd.sellingPrice ? parseFloat(nd.sellingPrice) : 0),
+                  currentCost: nd.costPrice ? parseFloat(nd.costPrice) : 0,
+                  unitQty: 1,
+                  isActive: true,
+                },
+              });
+            }
+          } catch (variantErr) {
+            console.warn(
+              `[BulkApprove] Failed to create default variant for product ${newProduct.id}:`,
+              variantErr.message
             );
           }
 
@@ -768,7 +796,7 @@ router.post('/approval-queue/:queueId/approve', async (req, res) => {
       barcode: nd.barcode || null,
       costPrice: nd.costPrice ?? null,
       sellingPrice: nd.price ?? null,
-      source: nd.sourceSystem || 'Manual',
+      source: normalizeSource(nd.sourceSystem),
       externalId: nd.externalId || null,
       productImportedThrough: null,
       fingerprint: null,
@@ -802,27 +830,35 @@ router.post('/approval-queue/:queueId/approve', async (req, res) => {
       }
     );
 
-    // Link any archived predecessors to this product
+    // Link any archived predecessors to this product and transfer variants
     try {
       const archivedPredecessors = await req.prisma.product.findMany({
         where: {
-          name: { equals: nd.name, mode: 'insensitive' },
-          source: nd.sourceSystem || null,
           archivedAt: { not: null },
           canonicalProductId: null,
+          OR: [
+            { name: { equals: nd.name || '', mode: 'insensitive' } },
+            ...(nd.barcode ? [{ barcode: nd.barcode }] : []),
+          ],
         },
         select: { id: true, name: true },
+        include: { variants: true },
       });
 
       if (archivedPredecessors.length > 0) {
-        await req.prisma.product.updateMany({
-          where: {
-            id: { in: archivedPredecessors.map(p => p.id) },
-          },
-          data: {
-            canonicalProductId: writtenProduct.id,
-          },
-        });
+        for (const predecessor of archivedPredecessors) {
+          await req.prisma.product.update({
+            where: { id: predecessor.id },
+            data: { canonicalProductId: writtenProduct.id },
+          });
+
+          if (predecessor.variants && predecessor.variants.length > 0) {
+            await req.prisma.productVariant.updateMany({
+              where: { productId: predecessor.id },
+              data: { productId: writtenProduct.id },
+            });
+          }
+        }
 
         console.log(
           `[ApprovalQueue] Linked ${archivedPredecessors.length} archived ` +
@@ -831,6 +867,37 @@ router.post('/approval-queue/:queueId/approve', async (req, res) => {
       }
     } catch (err) {
       console.warn('[ApprovalQueue] Failed to link archived predecessors:', err.message);
+    }
+
+    // Create a default variant if the product has no variants and has pricing/SKU data
+    try {
+      const existingVariants = await req.prisma.productVariant.count({
+        where: { productId: writtenProduct.id },
+      });
+
+      if (existingVariants === 0 && (nd.price || nd.sellingPrice || nd.sku)) {
+        const sourceSystem = nd.sourceSystem || 'Manual';
+        const store = await findOrCreateStore(sourceSystem, req.tenantId, req.prisma);
+        const sku = nd.sku || `${sourceSystem}-${writtenProduct.id}`;
+        await req.prisma.productVariant.create({
+          data: {
+            productId: writtenProduct.id,
+            storeId: store.id,
+            name: nd.name || 'Default',
+            sku,
+            barcode: nd.barcode || null,
+            salePrice: nd.price ? parseFloat(nd.price) : (nd.sellingPrice ? parseFloat(nd.sellingPrice) : 0),
+            currentCost: nd.costPrice ? parseFloat(nd.costPrice) : 0,
+            unitQty: 1,
+            isActive: true,
+          },
+        });
+      }
+    } catch (variantErr) {
+      console.warn(
+        `[ApprovalQueue] Failed to create default variant for product ${writtenProduct.id}:`,
+        variantErr.message
+      );
     }
 
     // Fire-and-forget integration hook (e.g. Shopify variant creation)

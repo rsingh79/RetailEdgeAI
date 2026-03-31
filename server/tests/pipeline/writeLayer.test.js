@@ -9,14 +9,17 @@ vi.mock('../../src/lib/prisma.js', () => ({
         create: vi.fn().mockResolvedValue({ id: 'new-product-id' }),
         update: vi.fn().mockResolvedValue({ id: 'existing-product-id' }),
       },
-      productVariant: { upsert: vi.fn() },
+      productVariant: {
+        upsert: vi.fn(),
+        create: vi.fn().mockResolvedValue({ id: 'new-variant-id' }),
+      },
       productImportRecord: { create: vi.fn() },
       importJob: { update: vi.fn() },
     });
   }),
 }));
 
-const { buildProductData, preWriteCheck, WriteLayer } = await import(
+const { buildProductData, preWriteCheck, findOrCreateStore, WriteLayer } = await import(
   '../../src/services/agents/pipeline/stages/writeLayer.js'
 );
 const { withTenantTransaction } = await import('../../src/lib/prisma.js');
@@ -25,10 +28,19 @@ function createMockPrisma() {
   return {
     product: {
       findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: 'new-product-id' }),
       update: vi.fn().mockResolvedValue({ id: 'existing-product-id' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
-    productVariant: { upsert: vi.fn().mockResolvedValue({}) },
+    productVariant: {
+      upsert: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({ id: 'new-variant-id' }),
+    },
+    store: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'new-store-id', name: 'Test Store', type: 'POS', platform: 'Manual' }),
+    },
     productImportRecord: { create: vi.fn().mockResolvedValue({}) },
     importJob: { update: vi.fn().mockResolvedValue({}) },
     approvalQueueEntry: { create: vi.fn().mockResolvedValue({ id: 'queue-id' }) },
@@ -373,7 +385,7 @@ describe('WriteLayer.process — ROUTE_AUTO', () => {
           create: vi.fn().mockResolvedValue({ id: 'new-id' }),
           update: vi.fn().mockResolvedValue({ id: 'existing-product-id' }),
         },
-        productVariant: { upsert: vi.fn() },
+        productVariant: { upsert: vi.fn(), create: vi.fn() },
         productImportRecord: { create: vi.fn() },
         importJob: { update: vi.fn() },
       };
@@ -402,7 +414,7 @@ describe('WriteLayer.process — ROUTE_AUTO', () => {
           create: vi.fn().mockResolvedValue({ id: 'id' }),
           update: vi.fn().mockResolvedValue({ id: 'id' }),
         },
-        productVariant: { upsert: vi.fn() },
+        productVariant: { upsert: vi.fn(), create: vi.fn() },
         productImportRecord: { create: vi.fn() },
         importJob: { update: vi.fn() },
       });
@@ -426,5 +438,200 @@ describe('WriteLayer.process — ROUTE_AUTO', () => {
     expect(ctx.rowsPendingApproval).toBe(1);
     // withTenantTransaction should NOT have been called since conflict was detected
     expect(withTenantTransaction).not.toHaveBeenCalled();
+  });
+
+  it('creates a default variant when product has price but no explicit variants', async () => {
+    const layer = new WriteLayer();
+    const txVariantCreate = vi.fn().mockResolvedValue({ id: 'default-variant-id' });
+    withTenantTransaction.mockImplementationOnce(async (tenantId, cb) => {
+      return cb({
+        product: {
+          create: vi.fn().mockResolvedValue({ id: 'prod-1' }),
+          update: vi.fn().mockResolvedValue({ id: 'prod-1' }),
+        },
+        productVariant: { upsert: vi.fn(), create: txVariantCreate },
+        productImportRecord: { create: vi.fn() },
+        importJob: { update: vi.fn() },
+      });
+    });
+    const ctx = makeContext();
+    // findOrCreateStore will use context.prisma.store
+    ctx.prisma.store = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'store-1', name: 'Abacus POS', type: 'POS' }),
+    };
+    const p = makeProduct({ price: 12.99, costPrice: 8.50, sku: 'ABC-001', sourceSystem: 'Abacus POS' });
+    p.variants = []; // no explicit variants
+    await layer.process(p, ctx);
+    expect(txVariantCreate).toHaveBeenCalledTimes(1);
+    expect(txVariantCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          productId: 'prod-1',
+          sku: 'ABC-001',
+          salePrice: 12.99,
+          currentCost: 8.50,
+        }),
+      })
+    );
+  });
+
+  it('creates a store for the source system if none exists', async () => {
+    const layer = new WriteLayer();
+    const storeCreate = vi.fn().mockResolvedValue({ id: 'new-store-id' });
+    withTenantTransaction.mockImplementationOnce(async (tenantId, cb) => {
+      return cb({
+        product: {
+          create: vi.fn().mockResolvedValue({ id: 'prod-1' }),
+          update: vi.fn(),
+        },
+        productVariant: { upsert: vi.fn(), create: vi.fn() },
+        productImportRecord: { create: vi.fn() },
+        importJob: { update: vi.fn() },
+      });
+    });
+    const ctx = makeContext();
+    ctx.prisma.store = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: storeCreate,
+    };
+    const p = makeProduct({ price: 5.00, sourceSystem: 'Abacus POS' });
+    p.variants = [];
+    await layer.process(p, ctx);
+    expect(storeCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'Abacus POS',
+          platform: 'Abacus POS',
+          type: 'POS',
+        }),
+      })
+    );
+  });
+
+  it('does not create a variant when product has no price and no SKU', async () => {
+    const layer = new WriteLayer();
+    const txVariantCreate = vi.fn();
+    withTenantTransaction.mockImplementationOnce(async (tenantId, cb) => {
+      return cb({
+        product: {
+          create: vi.fn().mockResolvedValue({ id: 'prod-1' }),
+          update: vi.fn(),
+        },
+        productVariant: { upsert: vi.fn(), create: txVariantCreate },
+        productImportRecord: { create: vi.fn() },
+        importJob: { update: vi.fn() },
+      });
+    });
+    const ctx = makeContext();
+    ctx.prisma.store = {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    };
+    const p = makeProduct({ price: null, sku: null });
+    p.variants = [];
+    await layer.process(p, ctx);
+    expect(txVariantCreate).not.toHaveBeenCalled();
+  });
+
+  it('variant creation failure does not block product creation', async () => {
+    const layer = new WriteLayer();
+    const txVariantCreate = vi.fn().mockRejectedValue(new Error('Unique constraint failed'));
+    withTenantTransaction.mockImplementationOnce(async (tenantId, cb) => {
+      return cb({
+        product: {
+          create: vi.fn().mockResolvedValue({ id: 'prod-1' }),
+          update: vi.fn(),
+        },
+        productVariant: { upsert: vi.fn(), create: txVariantCreate },
+        productImportRecord: { create: vi.fn() },
+        importJob: { update: vi.fn() },
+      });
+    });
+    const ctx = makeContext();
+    ctx.prisma.store = {
+      findFirst: vi.fn().mockResolvedValue({ id: 'existing-store' }),
+      create: vi.fn(),
+    };
+    const p = makeProduct({ price: 10.00, sku: 'FAIL-SKU' });
+    p.variants = [];
+    const result = await layer.process(p, ctx);
+    // Product should still be counted as created
+    expect(ctx.rowsCreated).toBe(1);
+    expect(result.name).toBe('Test Product');
+  });
+});
+
+// ── findOrCreateStore ──
+
+describe('findOrCreateStore', () => {
+  it('returns existing store on second call (no duplicate)', async () => {
+    const prisma = createMockPrisma();
+    const existingStore = { id: 'store-1', name: 'Abacus POS', type: 'POS', platform: 'Abacus POS' };
+    prisma.store.findFirst.mockResolvedValue(existingStore);
+
+    const store = await findOrCreateStore('Abacus POS', 'tenant-1', prisma);
+    expect(store).toEqual(existingStore);
+    expect(prisma.store.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a new store when none exists', async () => {
+    const prisma = createMockPrisma();
+    prisma.store.findFirst.mockResolvedValue(null);
+    const newStore = { id: 'store-new', name: 'Abacus POS', type: 'POS', platform: 'Abacus POS' };
+    prisma.store.create.mockResolvedValue(newStore);
+
+    const store = await findOrCreateStore('Abacus POS', 'tenant-1', prisma);
+    expect(store).toEqual(newStore);
+    expect(prisma.store.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets type to POS for non-ecommerce sources', async () => {
+    const prisma = createMockPrisma();
+    prisma.store.findFirst.mockResolvedValue(null);
+    prisma.store.create.mockResolvedValue({ id: 'store-pos' });
+
+    await findOrCreateStore('Abacus POS', 'tenant-1', prisma);
+    expect(prisma.store.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: 'POS' }),
+      })
+    );
+    expect(prisma.store.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ type: 'POS' }),
+      })
+    );
+  });
+
+  it('sets type to ECOMMERCE for Shopify', async () => {
+    const prisma = createMockPrisma();
+    prisma.store.findFirst.mockResolvedValue(null);
+    prisma.store.create.mockResolvedValue({ id: 'store-ecom' });
+
+    await findOrCreateStore('Shopify', 'tenant-1', prisma);
+    expect(prisma.store.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: 'ECOMMERCE' }),
+      })
+    );
+    expect(prisma.store.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ type: 'ECOMMERCE' }),
+      })
+    );
+  });
+
+  it('sets type to ECOMMERCE for WooCommerce', async () => {
+    const prisma = createMockPrisma();
+    prisma.store.findFirst.mockResolvedValue(null);
+    prisma.store.create.mockResolvedValue({ id: 'store-woo' });
+
+    await findOrCreateStore('WooCommerce', 'tenant-1', prisma);
+    expect(prisma.store.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ type: 'ECOMMERCE' }),
+      })
+    );
   });
 });

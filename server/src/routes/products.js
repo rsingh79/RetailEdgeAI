@@ -6,6 +6,7 @@ import fs from 'fs';
 import XLSX from 'xlsx';
 import { isShopifyFormat, groupShopifyRows, importShopifyProducts } from '../services/shopifyImport.js';
 import { embedProduct } from '../services/ai/embeddingMaintenance.js';
+import { normalizeSource } from '../services/sourceNormalizer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const importsDir = path.join(__dirname, '..', '..', 'uploads', 'imports');
@@ -179,7 +180,7 @@ router.post('/', async (req, res) => {
         barcode: barcode?.trim() || null,
         costPrice: costPrice != null ? parseFloat(costPrice) : null,
         sellingPrice: sellingPrice != null ? parseFloat(sellingPrice) : null,
-        source: source.trim(),
+        source: normalizeSource(source.trim()),
       },
     });
 

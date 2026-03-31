@@ -120,11 +120,15 @@ class NormalisationEngine extends PipelineStage {
     try {
       normaliseProduct(product);
 
-      if (!product.normalised.name) {
+      if (!product.name || product.name.trim() === '') {
         addWarning(
           product,
           this.name,
-          'Product name is empty after normalisation'
+          'Product name is empty after normalisation. Raw name: ' +
+            (product.rawSourceData?.name ||
+              product.rawSourceData?.productName ||
+              product.rawSourceData?.title ||
+              'unknown')
         );
       }
 

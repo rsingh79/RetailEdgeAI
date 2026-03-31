@@ -73,6 +73,10 @@ export function createCanonicalProduct(overrides = {}) {
     // for queued products. Consumed by post-creation hooks after approval.
     integrationMetadata: null,
 
+    // Cross-source linking — points to an existing Product that represents the
+    // same physical product from a different source channel
+    canonicalProductId: null,
+
     // Match Results (set by Catalog Matcher)
     matchResult: {
       action: null,

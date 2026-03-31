@@ -44,15 +44,31 @@ async function layer1Match(product, context) {
       },
     });
     if (existing && product.fingerprint.charAt(1) === existing.fingerprint?.charAt(1)) {
-      const fieldDiff = computeFieldDiff(product, existing);
-      return {
-        matched: true,
-        action: Object.keys(fieldDiff).length === 0 ? 'SKIP' : 'UPDATE',
-        matchedProduct: existing,
-        matchedOn: ['fingerprint'],
-        fieldDiff,
-        layer: 1,
-      };
+      const isSameSource = product.sourceSystem && existing.source &&
+        product.sourceSystem.toLowerCase() === existing.source.toLowerCase();
+
+      if (isSameSource || !product.sourceSystem) {
+        const fieldDiff = computeFieldDiff(product, existing);
+        return {
+          matched: true,
+          action: Object.keys(fieldDiff).length === 0 ? 'SKIP' : 'UPDATE',
+          matchedProduct: existing,
+          matchedOn: ['fingerprint'],
+          fieldDiff,
+          layer: 1,
+        };
+      } else {
+        // Different source — create new product with canonical link
+        return {
+          matched: true,
+          action: 'CREATE',
+          matchedProduct: existing,
+          matchedOn: ['cross_source_fingerprint'],
+          fieldDiff: {},
+          layer: 1,
+          canonicalProductId: existing.id,
+        };
+      }
     }
   }
 
@@ -87,19 +103,31 @@ async function layer1Match(product, context) {
       },
     });
     if (existing) {
-      const fieldDiff = computeFieldDiff(product, existing);
-      const sameSource =
-        product.sourceSystem && existing.source === product.sourceSystem;
-      return {
-        matched: true,
-        action: sameSource
-          ? (Object.keys(fieldDiff).length === 0 ? 'SKIP' : 'UPDATE')
-          : 'MERGE',
-        matchedProduct: existing,
-        matchedOn: ['barcode'],
-        fieldDiff,
-        layer: 1,
-      };
+      const isSameSource = product.sourceSystem && existing.source &&
+        product.sourceSystem.toLowerCase() === existing.source.toLowerCase();
+
+      if (isSameSource || !product.sourceSystem) {
+        const fieldDiff = computeFieldDiff(product, existing);
+        return {
+          matched: true,
+          action: Object.keys(fieldDiff).length === 0 ? 'SKIP' : 'UPDATE',
+          matchedProduct: existing,
+          matchedOn: ['barcode'],
+          fieldDiff,
+          layer: 1,
+        };
+      } else {
+        // Different source — create new product with canonical link
+        return {
+          matched: true,
+          action: 'CREATE',
+          matchedProduct: existing,
+          matchedOn: ['cross_source_barcode'],
+          fieldDiff: {},
+          layer: 1,
+          canonicalProductId: existing.id,
+        };
+      }
     }
   }
 
@@ -312,7 +340,23 @@ class CatalogMatcher extends PipelineStage {
         product.matchResult.matchedOn = l1.matchedOn;
         product.matchResult.fieldDiff = l1.fieldDiff || {};
 
-        // Run Layer 3 if barcode cross-source detected
+        // Cross-source CREATE — set canonicalProductId and add warning
+        if (l1.action === 'CREATE' && l1.canonicalProductId) {
+          product.canonicalProductId = l1.canonicalProductId;
+          product.matchResult.matchSource = l1.matchedOn[0]; // e.g. 'cross_source_barcode'
+          // Don't set matchedProductId — we're creating, not updating
+          product.matchResult.matchedProductId = null;
+          addWarning(product, 'CatalogMatcher',
+            `Same physical product found in ${l1.matchedProduct?.source} (${l1.matchedOn.join(', ')} match). ` +
+            `Created as separate ${product.sourceSystem} product with canonical link.`);
+          this.log(
+            `Layer 1 cross-source match: CREATE on ${l1.matchedOn.join(', ')} — ` +
+            `linked to ${l1.matchedProduct?.source} product ${l1.canonicalProductId}`
+          );
+          return product;
+        }
+
+        // Run Layer 3 if barcode cross-source detected (legacy MERGE path)
         if (l1.action === 'MERGE') {
           const l3 = await layer3Match(product, context);
           product.matchResult.crossSourceMatches = l3;

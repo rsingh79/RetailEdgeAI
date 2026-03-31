@@ -97,7 +97,7 @@ describe('SourceResolver stage', () => {
       prisma: null,
     };
     const result = await stage.process(p, ctx);
-    expect(result.sourceSystem).toBe('shopify');
+    expect(result.sourceSystem).toBe('Shopify');
   });
 
   it('infers source from headers when filename null', async () => {
@@ -108,7 +108,7 @@ describe('SourceResolver stage', () => {
       prisma: null,
     };
     const result = await stage.process(p, ctx);
-    expect(result.sourceSystem).toBe('shopify');
+    expect(result.sourceSystem).toBe('Shopify');
   });
 
   it('defaults to Manual when nothing matches', async () => {

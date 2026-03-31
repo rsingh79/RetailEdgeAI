@@ -15,6 +15,7 @@ import { fuzzyNameScore } from './matching.js';
 import { embedProduct } from './ai/embeddingMaintenance.js';
 import { shopifyToCanonical } from './shopifyPipelineAdapter.js';
 import { createImportJob, runImportPipeline } from './importJobService.js';
+import { normalizeSource } from './sourceNormalizer.js';
 
 // Side-effect import: registers the 'shopify' integration hook at module load
 import './shopifyPipelineAdapter.js';
@@ -372,7 +373,7 @@ function transformShopifyProduct(shopifyProduct) {
     name,
     category,
     barcode,
-    source: 'Shopify',
+    source: normalizeSource('Shopify'),
     handle,
     shopifyProductId: String(shopifyProduct.id),
     variants,
@@ -471,49 +472,102 @@ export async function syncProducts(prisma, tenantId) {
       }
 
       if (product) {
-        // Identity match found — update product + process variants immediately
-        product = await prisma.product.update({
-          where: { id: product.id },
-          data: {
-            category: transformed.category || product.category,
-            barcode: transformed.barcode || product.barcode,
-            source: 'Shopify',
-          },
-        });
-        embedProduct({ id: product.id, name: product.name, category: product.category, tenantId }).catch(() => {});
-        stats.productsUpdated++;
+        const isSameSource = product.source === 'Shopify' ||
+          product.source?.toLowerCase() === 'shopify';
 
-        // Upsert variants — store shopifyVariantId + shopifyProductId
-        for (const v of transformed.variants) {
-          await prisma.productVariant.upsert({
-            where: { storeId_sku: { storeId: store.id, sku: v.sku } },
-            create: {
-              productId: product.id,
-              storeId: store.id,
-              sku: v.sku,
-              name: v.name,
-              size: v.size,
-              unitQty: v.unitQty,
-              currentCost: v.currentCost,
-              salePrice: v.salePrice,
-              shopifyVariantId: v.shopifyVariantId,
-              shopifyProductId: v.shopifyProductId,
-              isActive: true,
-            },
-            update: {
-              name: v.name,
-              size: v.size,
-              unitQty: v.unitQty,
-              salePrice: v.salePrice,
-              shopifyVariantId: v.shopifyVariantId,
-              shopifyProductId: v.shopifyProductId,
-              isActive: true,
+        if (isSameSource) {
+          // Same source — update existing product (do NOT overwrite source)
+          product = await prisma.product.update({
+            where: { id: product.id },
+            data: {
+              category: transformed.category || product.category,
+              barcode: transformed.barcode || product.barcode,
             },
           });
-          stats.variantsCreated++;
-        }
+          embedProduct({ id: product.id, name: product.name, category: product.category, tenantId }).catch(() => {});
+          stats.productsUpdated++;
 
-        matched.push({ shopifyProduct, transformed, localProduct: product });
+          // Upsert variants on the existing product
+          for (const v of transformed.variants) {
+            await prisma.productVariant.upsert({
+              where: { storeId_sku: { storeId: store.id, sku: v.sku } },
+              create: {
+                productId: product.id,
+                storeId: store.id,
+                sku: v.sku,
+                name: v.name,
+                size: v.size,
+                unitQty: v.unitQty,
+                currentCost: v.currentCost,
+                salePrice: v.salePrice,
+                shopifyVariantId: v.shopifyVariantId,
+                shopifyProductId: v.shopifyProductId,
+                isActive: true,
+              },
+              update: {
+                name: v.name,
+                size: v.size,
+                unitQty: v.unitQty,
+                salePrice: v.salePrice,
+                shopifyVariantId: v.shopifyVariantId,
+                shopifyProductId: v.shopifyProductId,
+                isActive: true,
+              },
+            });
+            stats.variantsCreated++;
+          }
+
+          matched.push({ shopifyProduct, transformed, localProduct: product });
+        } else {
+          // Different source — create new Shopify product with canonical link
+          const newProduct = await prisma.product.create({
+            data: {
+              tenantId,
+              name: transformed.name,
+              category: transformed.category || null,
+              barcode: transformed.barcode || null,
+              source: normalizeSource('Shopify'),
+              externalId: String(shopifyProduct.id),
+              canonicalProductId: product.id,
+              lastSyncedAt: new Date(),
+            },
+          });
+          embedProduct({ id: newProduct.id, name: newProduct.name, category: newProduct.category, tenantId }).catch(() => {});
+
+          // Process variants on the NEW product
+          for (const v of transformed.variants) {
+            await prisma.productVariant.upsert({
+              where: { storeId_sku: { storeId: store.id, sku: v.sku } },
+              create: {
+                productId: newProduct.id,
+                storeId: store.id,
+                sku: v.sku,
+                name: v.name,
+                size: v.size,
+                unitQty: v.unitQty,
+                currentCost: v.currentCost,
+                salePrice: v.salePrice,
+                shopifyVariantId: v.shopifyVariantId,
+                shopifyProductId: v.shopifyProductId,
+                isActive: true,
+              },
+              update: {
+                name: v.name,
+                size: v.size,
+                unitQty: v.unitQty,
+                salePrice: v.salePrice,
+                shopifyVariantId: v.shopifyVariantId,
+                shopifyProductId: v.shopifyProductId,
+                isActive: true,
+              },
+            });
+            stats.variantsCreated++;
+          }
+
+          console.log(`[Shopify Sync] Cross-source barcode match: created Shopify product ${newProduct.id} linked to ${product.source} product ${product.id}`);
+          stats.productsCreated++;
+          matched.push({ shopifyProduct, transformed, localProduct: newProduct });
+        }
       } else {
         // No identity match — route through pipeline in Phase 2
         unmatched.push({ shopifyProduct, transformed });

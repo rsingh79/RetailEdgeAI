@@ -541,6 +541,140 @@ describe('Invoice matching API — integration tests', () => {
       const updatedV2 = await testPrisma.productVariant.findFirst({ where: { id: variant2.id } });
       expect(updatedV2.currentCost).toBe(4.50); // original cost unchanged
     });
+
+    it('syncs pricing to parent product for single-variant products', async () => {
+      // product2 has only one variant (variant2) — single variant case
+      const invoice = await createInvoice([
+        { description: 'Cheddar Cheese Block 5kg', unitPrice: 48.00, baseUnitCost: 9.60, baseUnit: 'kg' },
+      ]);
+
+      await request(app)
+        .post(`/api/invoices/${invoice.id}/match`)
+        .set('Authorization', `Bearer ${token}`);
+
+      // Set approved price
+      const matches = await testPrisma.invoiceLineMatch.findMany({
+        where: { invoiceLineId: invoice.lines[0].id },
+      });
+      for (const match of matches) {
+        await testPrisma.invoiceLineMatch.update({
+          where: { id: match.id },
+          data: { approvedPrice: 12.99 },
+        });
+      }
+
+      await request(app)
+        .post(`/api/invoices/${invoice.id}/lines/${invoice.lines[0].id}/confirm`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'APPROVED' });
+
+      const res = await request(app)
+        .post(`/api/invoices/${invoice.id}/approve`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+
+      // Verify product-level pricing was synced from the single variant
+      // variant2 has unitQty=0.5, so cost = baseUnitCost × unitQty = 9.60 × 0.5 = 4.80
+      const updatedProduct = await testPrisma.product.findFirst({ where: { id: product2.id } });
+      expect(updatedProduct.costPrice).toBe(4.80);
+      expect(updatedProduct.sellingPrice).toBe(12.99);
+    });
+
+    it('syncs base variant pricing to parent product for multi-variant products', async () => {
+      // product1 has variant1 (unitQty=1) and variant1b (unitQty=1)
+      // Add a third variant with higher unitQty to test base-variant selection
+      const variant1c = await testPrisma.productVariant.create({
+        data: {
+          productId: product1.id, storeId: store.id,
+          sku: 'FL-001-BULK', name: 'Plain Flour 5kg', size: '5kg', unitQty: 5,
+          currentCost: 8.00, salePrice: 19.99, isActive: true,
+        },
+      });
+
+      const invoice = await createInvoice([
+        { description: 'Plain Flour 10kg', unitPrice: 18.50, baseUnitCost: 1.85, baseUnit: 'kg' },
+      ]);
+
+      await request(app)
+        .post(`/api/invoices/${invoice.id}/match`)
+        .set('Authorization', `Bearer ${token}`);
+
+      // Set approved price
+      const matches = await testPrisma.invoiceLineMatch.findMany({
+        where: { invoiceLineId: invoice.lines[0].id },
+      });
+      for (const match of matches) {
+        await testPrisma.invoiceLineMatch.update({
+          where: { id: match.id },
+          data: { approvedPrice: 5.49 },
+        });
+      }
+
+      await request(app)
+        .post(`/api/invoices/${invoice.id}/lines/${invoice.lines[0].id}/confirm`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'APPROVED' });
+
+      const res = await request(app)
+        .post(`/api/invoices/${invoice.id}/approve`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+
+      // Product should have pricing from the base variant (lowest unitQty=1)
+      const updatedProduct = await testPrisma.product.findFirst({ where: { id: product1.id } });
+      // Base variant (unitQty=1) was updated with cost=1.85, price=5.49
+      expect(updatedProduct.costPrice).toBe(1.85);
+      expect(updatedProduct.sellingPrice).toBe(5.49);
+    });
+
+    it('product-level match writes directly to product without variant sync', async () => {
+      // Create a product with no variants (product-level match scenario)
+      const productNoVariant = await testPrisma.product.create({
+        data: {
+          tenantId: tenant.id,
+          name: 'Bulk Rice',
+          category: 'Grains',
+          baseUnit: 'kg',
+          costPrice: 2.00,
+          sellingPrice: 5.00,
+        },
+      });
+
+      const invoice = await createInvoice([
+        { description: 'Bulk Rice 25kg', unitPrice: 50.00, baseUnitCost: 2.50, baseUnit: 'kg' },
+      ]);
+
+      // Manually create a product-level match (no variant)
+      await testPrisma.invoiceLineMatch.create({
+        data: {
+          invoiceLineId: invoice.lines[0].id,
+          productId: productNoVariant.id,
+          productVariantId: null,
+          confidence: 0.95,
+          matchReason: 'manual',
+          isManual: true,
+          previousCost: 2.00,
+          newCost: 2.50,
+          currentPrice: 5.00,
+          suggestedPrice: 6.00,
+          approvedPrice: 6.00,
+          status: 'CONFIRMED',
+        },
+      });
+
+      const res = await request(app)
+        .post(`/api/invoices/${invoice.id}/approve`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+
+      // Product should be updated directly (product-level path)
+      const updatedProduct = await testPrisma.product.findFirst({ where: { id: productNoVariant.id } });
+      expect(updatedProduct.costPrice).toBe(2.50);
+      expect(updatedProduct.sellingPrice).toBe(6.00);
+    });
   });
 
   // ── GET /api/invoices/:id/export ──────────────────────────────

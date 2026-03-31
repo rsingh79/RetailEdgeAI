@@ -1220,6 +1220,45 @@ router.post('/:id/approve', requireRole('OWNER', 'OPS_MANAGER', 'MERCHANDISER'),
               data: updateData,
             });
 
+            // Sync pricing to parent product
+            try {
+              const productId = match.productVariant?.productId;
+              if (productId) {
+                const variantCount = await req.prisma.productVariant.count({
+                  where: { productId },
+                });
+
+                if (variantCount <= 1) {
+                  // Single variant — always sync to product
+                  const productUpdate = { costPrice: updateData.currentCost };
+                  if (updateData.salePrice != null) {
+                    productUpdate.sellingPrice = updateData.salePrice;
+                  }
+                  await req.prisma.product.update({
+                    where: { id: productId },
+                    data: productUpdate,
+                  });
+                } else {
+                  // Multi-variant — sync from the base variant (lowest unitQty)
+                  const baseVariant = await req.prisma.productVariant.findFirst({
+                    where: { productId },
+                    orderBy: { unitQty: 'asc' },
+                  });
+                  if (baseVariant) {
+                    await req.prisma.product.update({
+                      where: { id: productId },
+                      data: {
+                        costPrice: baseVariant.currentCost,
+                        sellingPrice: baseVariant.salePrice,
+                      },
+                    });
+                  }
+                }
+              }
+            } catch (syncErr) {
+              console.warn(`[Invoice] Failed to sync pricing to product ${match.productVariant?.productId}:`, syncErr.message);
+            }
+
             // Create audit log entry
             await req.prisma.auditLog.create({
               data: {

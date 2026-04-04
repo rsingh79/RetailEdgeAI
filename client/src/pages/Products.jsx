@@ -602,7 +602,7 @@ export default function Products() {
       {/* Add Product Slide-out */}
       {showAddProduct && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
-          <div className="w-[440px] bg-white h-full shadow-xl flex flex-col">
+          <div className="w-full sm:w-[440px] max-w-full bg-white h-full shadow-xl flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold">Add Product</h3>
               <button onClick={() => setShowAddProduct(false)} className="text-gray-400 hover:text-gray-600">

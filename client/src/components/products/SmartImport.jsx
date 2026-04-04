@@ -132,7 +132,7 @@ export default function SmartImport({ onClose, onImportComplete }) {
     <div className="fixed inset-0 z-50 flex bg-black/40">
       <div className="flex w-full h-full bg-white">
         {/* ── Left: Chat Panel ── */}
-        <div className="w-[420px] flex flex-col border-r border-gray-200 shrink-0">
+        <div className="w-full sm:w-[420px] max-w-full flex flex-col border-r border-gray-200 shrink-0">
           {/* Header */}
           <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-200">
             <div className="w-9 h-9 bg-brand-600 rounded-[10px] flex items-center justify-center">

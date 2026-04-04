@@ -62,7 +62,7 @@ export default function AdminTenants() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
           <h3 className="font-semibold mb-4">New Tenant</h3>
           {addError && <div className="mb-3 p-2 bg-red-50 text-red-700 text-sm rounded">{addError}</div>}
-          <form onSubmit={handleAdd} className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
               <input
@@ -139,6 +139,7 @@ export default function AdminTenants() {
         ) : tenants.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No tenants found</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -190,6 +191,7 @@ export default function AdminTenants() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

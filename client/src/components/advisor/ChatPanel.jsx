@@ -44,7 +44,7 @@ export default function ChatPanel() {
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
       {/* Conversation sidebar */}
-      <div className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
+      <div className="hidden sm:flex w-64 flex-shrink-0 border-r border-gray-200 bg-white flex-col">
         <div className="p-3 border-b border-gray-200">
           <button
             onClick={newChat}

@@ -1501,7 +1501,7 @@ function POSSetupWizard({ system, onBack, onComplete }) {
       {/* OAuth Modal Overlay */}
       {showOAuth && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden slide-up">
+          <div className="w-full max-w-[480px] mx-4 sm:mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden slide-up">
             {/* Provider header */}
             <div className={`px-6 py-4 flex items-center justify-between ${getSystemHeaderBg(system.id)}`}>
               <div className="flex items-center gap-2">

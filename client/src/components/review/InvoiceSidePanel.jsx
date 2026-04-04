@@ -16,9 +16,9 @@ const CheckIcon = () => (
   </svg>
 );
 
-export default function InvoiceSidePanel({ invoices, activeId, approvedIds, loading, onSelect, allComplete, onDone }) {
+export default function InvoiceSidePanel({ invoices, activeId, approvedIds, loading, onSelect, allComplete, onDone, onViewApproved }) {
   return (
-    <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-[calc(100vh-4rem)]">
+    <div className="w-full sm:w-72 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900">Review Batch</h3>
@@ -47,11 +47,10 @@ export default function InvoiceSidePanel({ invoices, activeId, approvedIds, load
             return (
               <button
                 key={inv.id}
-                onClick={() => !isApproved && onSelect(inv.id)}
-                disabled={isApproved}
+                onClick={() => isApproved ? onViewApproved?.(inv.id) : onSelect(inv.id)}
                 className={`w-full text-left px-4 py-3 border-b border-gray-100 transition-colors ${
                   isApproved
-                    ? 'bg-emerald-50/60 cursor-default'
+                    ? 'bg-emerald-50/60 hover:bg-emerald-100/60 cursor-pointer'
                     : isActive
                       ? 'bg-teal-50 border-l-2 border-l-teal-500'
                       : 'hover:bg-gray-50 cursor-pointer border-l-2 border-l-transparent'

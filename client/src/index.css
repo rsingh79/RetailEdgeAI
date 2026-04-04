@@ -17,6 +17,13 @@
   --color-sidebar-active: #334155;
 }
 
+/* Prevent iOS Safari auto-zoom on form inputs (requires 16px minimum) */
+@media (max-width: 640px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 /* AI Command Center animations */
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }

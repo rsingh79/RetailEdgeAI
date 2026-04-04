@@ -9,7 +9,7 @@ import {
   activateCandidateVersion,
   rollbackVersion,
 } from '../../services/metaOptimizer.js';
-import { basePrisma } from '../../lib/prisma.js';
+import { adminPrisma } from '../../lib/prisma.js';
 
 const router = Router();
 
@@ -43,7 +43,7 @@ router.post('/run-all', async (req, res) => {
 // ── GET /candidates — List candidate versions awaiting approval ──
 router.get('/candidates', async (req, res) => {
   try {
-    const candidates = await basePrisma.promptBaseVersion.findMany({
+    const candidates = await adminPrisma.promptBaseVersion.findMany({
       where: { isActive: false, createdBy: 'meta_agent' },
       include: {
         agentRole: { select: { key: true, name: true } },
@@ -94,11 +94,11 @@ router.get('/audit', async (req, res) => {
 
     const where = { tenantId: null }; // global actions only
     if (agentRoleKey) {
-      const role = await basePrisma.agentRole.findUnique({ where: { key: agentRoleKey } });
+      const role = await adminPrisma.agentRole.findUnique({ where: { key: agentRoleKey } });
       if (role) where.agentRoleId = role.id;
     }
 
-    const logs = await basePrisma.promptAuditLog.findMany({
+    const logs = await adminPrisma.promptAuditLog.findMany({
       where,
       include: {
         agentRole: { select: { key: true, name: true } },
@@ -117,12 +117,12 @@ router.get('/audit', async (req, res) => {
 // ── GET /versions/:agentRoleKey — List all versions for an agent role ──
 router.get('/versions/:agentRoleKey', async (req, res) => {
   try {
-    const role = await basePrisma.agentRole.findUnique({
+    const role = await adminPrisma.agentRole.findUnique({
       where: { key: req.params.agentRoleKey },
     });
     if (!role) return res.status(404).json({ error: 'Agent role not found' });
 
-    const versions = await basePrisma.promptBaseVersion.findMany({
+    const versions = await adminPrisma.promptBaseVersion.findMany({
       where: { agentRoleId: role.id },
       orderBy: { versionNumber: 'desc' },
       select: {

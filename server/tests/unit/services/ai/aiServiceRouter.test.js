@@ -10,6 +10,12 @@ vi.mock('../../../../src/lib/prisma.js', () => ({
     aiServiceRegistry: { findMany: (...args) => mockFindMany(...args) },
     aiServiceLog: { create: (...args) => mockLogCreate(...args) },
   },
+  createTenantClient: () => ({
+    aiServiceLog: { create: (...args) => mockLogCreate(...args) },
+  }),
+  adminPrisma: {
+    aiServiceLog: { create: (...args) => mockLogCreate(...args) },
+  },
 }));
 
 // ── Mock adapter loader ─────────────────────────────────────

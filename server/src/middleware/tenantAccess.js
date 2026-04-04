@@ -1,4 +1,4 @@
-import { basePrisma } from '../lib/prisma.js';
+import { adminPrisma } from '../lib/prisma.js';
 
 /**
  * Middleware that blocks requests from locked tenants.
@@ -17,7 +17,7 @@ export function tenantAccess(req, res, next) {
     return res.status(403).json({ message: 'No tenant context' });
   }
 
-  basePrisma.tenant
+  adminPrisma.tenant
     .findUnique({
       where: { id: req.user.tenantId },
       select: { isLocked: true, lockReason: true },

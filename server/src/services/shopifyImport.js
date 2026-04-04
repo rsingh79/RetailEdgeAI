@@ -6,6 +6,7 @@
  */
 
 import { embedProduct } from './ai/embeddingMaintenance.js';
+import { logPriceChange } from './priceChangeLogger.js';
 
 // ── Format detection ──────────────────────────────────────────
 
@@ -187,9 +188,14 @@ export async function importShopifyProducts(prisma, rows, opts = {}) {
       }
 
       // Create variants
+      // Get tenantId from the product record for price logging
+      const tenantId = existing?.tenantId || (await prisma.product.findUnique({
+        where: { id: productId }, select: { tenantId: true },
+      }))?.tenantId;
+
       for (const v of sp.variants) {
         try {
-          await prisma.productVariant.create({
+          const newVariant = await prisma.productVariant.create({
             data: {
               productId,
               storeId: store.id,
@@ -203,6 +209,31 @@ export async function importShopifyProducts(prisma, rows, opts = {}) {
             },
           });
           variantsCreated++;
+          // Log variant-level price changes (new variant — oldPrice = null)
+          if (tenantId) {
+            if (v.currentCost > 0) {
+              logPriceChange(prisma, {
+                tenantId,
+                productId,
+                variantId: newVariant.id,
+                priceType: 'cost_price',
+                oldPrice: null,
+                newPrice: v.currentCost,
+                changeSource: 'shopify_sync',
+              }).catch(() => {});
+            }
+            if (v.salePrice > 0) {
+              logPriceChange(prisma, {
+                tenantId,
+                productId,
+                variantId: newVariant.id,
+                priceType: 'sale_price',
+                oldPrice: null,
+                newPrice: v.salePrice,
+                changeSource: 'shopify_sync',
+              }).catch(() => {});
+            }
+          }
         } catch (err) {
           if (err.code === 'P2002') {
             // Unique constraint on [storeId, sku] — skip duplicate

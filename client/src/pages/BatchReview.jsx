@@ -154,6 +154,7 @@ export default function BatchReview() {
         onSelect={setActiveInvoiceId}
         allComplete={allComplete}
         onDone={() => navigate('/invoices')}
+        onViewApproved={(id) => navigate(`/invoices/${id}`)}
       />
 
       {/* Main review area */}

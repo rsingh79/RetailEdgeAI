@@ -10,6 +10,7 @@ import { withTenantTransaction } from '../../../../lib/prisma.js';
 import { embedProduct } from '../../../ai/embeddingMaintenance.js';
 import { executeHook } from '../../../integrationHooks.js';
 import { normalizeSource } from '../../../sourceNormalizer.js';
+import { logPriceChange } from '../../../priceChangeLogger.js';
 
 // ── PART 0 — Find or create a Store for a source system ──
 
@@ -49,6 +50,7 @@ async function findOrCreateStore(sourceSystem, tenantId, prisma) {
 
 function buildProductData(product, context) {
   return {
+    tenantId: context.tenantId,
     name: product.name,
     category: product.category || null,
     baseUnit: product.baseUnit || null,
@@ -124,19 +126,38 @@ async function writeProduct(product, context) {
     product.approvalRoute = 'ROUTE_REVIEW';
     product.approvalReason =
       'Race condition: product created between analysis and approval — re-queued for review';
-    context.rowsPendingApproval++;
-    return { written: false, productId: null, action: 'REQUEUED', error: null };
+    product.matchResult = {
+      action: 'CONFLICT',
+      matchedProductId: check.existingProduct.id,
+      matchType: 'barcode_or_fingerprint',
+      existingProductName: check.existingProduct.name,
+    };
+    const queueResult = await queueProduct(product, context);
+    return {
+      written: false,
+      productId: null,
+      action: 'REQUEUED',
+      queueId: queueResult.queueId,
+      error: queueResult.error,
+    };
   }
 
   // Step 2 — Write inside transaction
-  const { writtenProduct, action } = await withTenantTransaction(
+  const { writtenProduct, action, priceChanges } = await withTenantTransaction(
     context.tenantId,
     async (tx) => {
       let writtenProduct;
       let action;
       const matchedProductId = product.matchResult?.matchedProductId;
+      const priceChanges = []; // Collect price changes to log after transaction
 
+      // Capture old product prices BEFORE update
+      let oldProductPrices = null;
       if (product.matchResult?.action === 'UPDATE' && matchedProductId) {
+        oldProductPrices = await tx.product.findUnique({
+          where: { id: matchedProductId },
+          select: { costPrice: true, sellingPrice: true },
+        });
         writtenProduct = await tx.product.update({
           where: { id: matchedProductId },
           data: buildProductData(product, context),
@@ -149,6 +170,25 @@ async function writeProduct(product, context) {
         action = 'CREATED';
       }
 
+      // Record product-level price changes
+      const productData = buildProductData(product, context);
+      if (productData.costPrice != null) {
+        priceChanges.push({
+          productId: writtenProduct.id,
+          priceType: 'cost_price',
+          oldPrice: oldProductPrices?.costPrice ?? null,
+          newPrice: productData.costPrice,
+        });
+      }
+      if (productData.sellingPrice != null) {
+        priceChanges.push({
+          productId: writtenProduct.id,
+          priceType: 'selling_price',
+          oldPrice: oldProductPrices?.sellingPrice ?? null,
+          newPrice: productData.sellingPrice,
+        });
+      }
+
       // Write variants
       let variantsWritten = 0;
       if (product.variants && product.variants.length > 0) {
@@ -156,11 +196,35 @@ async function writeProduct(product, context) {
         if (storeId) {
           for (const variant of product.variants) {
             const sku = variant.sku || `SKU-${Date.now()}`;
-            await tx.productVariant.upsert({
+            // Capture old variant prices BEFORE upsert
+            const oldVariant = await tx.productVariant.findUnique({
               where: { storeId_sku: { storeId, sku } },
-              update: buildVariantData(variant, writtenProduct.id, storeId),
-              create: buildVariantData(variant, writtenProduct.id, storeId),
+              select: { id: true, currentCost: true, salePrice: true },
             });
+            const variantData = buildVariantData(variant, writtenProduct.id, storeId);
+            const upsertedVariant = await tx.productVariant.upsert({
+              where: { storeId_sku: { storeId, sku } },
+              update: variantData,
+              create: variantData,
+            });
+            if (variantData.currentCost > 0) {
+              priceChanges.push({
+                productId: writtenProduct.id,
+                variantId: upsertedVariant.id,
+                priceType: 'cost_price',
+                oldPrice: oldVariant?.currentCost ?? null,
+                newPrice: variantData.currentCost,
+              });
+            }
+            if (variantData.salePrice > 0) {
+              priceChanges.push({
+                productId: writtenProduct.id,
+                variantId: upsertedVariant.id,
+                priceType: 'sale_price',
+                oldPrice: oldVariant?.salePrice ?? null,
+                newPrice: variantData.salePrice,
+              });
+            }
             variantsWritten++;
           }
         }
@@ -172,19 +236,39 @@ async function writeProduct(product, context) {
           const sourceSystem = product.sourceSystem || 'Manual';
           const store = await findOrCreateStore(sourceSystem, context.tenantId, context.prisma);
           const sku = product.sku || `${sourceSystem}-${writtenProduct.id}`;
-          await tx.productVariant.create({
+          const defaultSalePrice = product.price ? parseFloat(product.price) : 0;
+          const defaultCost = product.costPrice ? parseFloat(product.costPrice) : 0;
+          const defaultVariant = await tx.productVariant.create({
             data: {
               productId: writtenProduct.id,
               storeId: store.id,
               name: product.name || 'Default',
               sku,
               barcode: product.barcode || null,
-              salePrice: product.price ? parseFloat(product.price) : 0,
-              currentCost: product.costPrice ? parseFloat(product.costPrice) : 0,
+              salePrice: defaultSalePrice,
+              currentCost: defaultCost,
               unitQty: product.unitQty || 1,
               isActive: true,
             },
           });
+          if (defaultCost > 0) {
+            priceChanges.push({
+              productId: writtenProduct.id,
+              variantId: defaultVariant.id,
+              priceType: 'cost_price',
+              oldPrice: null,
+              newPrice: defaultCost,
+            });
+          }
+          if (defaultSalePrice > 0) {
+            priceChanges.push({
+              productId: writtenProduct.id,
+              variantId: defaultVariant.id,
+              priceType: 'sale_price',
+              oldPrice: null,
+              newPrice: defaultSalePrice,
+            });
+          }
         } catch (err) {
           console.warn(
             `[WriteLayer] Failed to create default variant for product ${writtenProduct.id}:`,
@@ -224,9 +308,24 @@ async function writeProduct(product, context) {
         });
       }
 
-      return { writtenProduct, action };
+      return { writtenProduct, action, priceChanges };
     }
   );
+
+  // Fire-and-forget price change logging (outside transaction)
+  for (const pc of priceChanges) {
+    logPriceChange(context.prisma, {
+      tenantId: context.tenantId,
+      productId: pc.productId,
+      variantId: pc.variantId || null,
+      priceType: pc.priceType,
+      oldPrice: pc.oldPrice,
+      newPrice: pc.newPrice,
+      changeSource: 'bulk_import',
+      sourceRef: context.importJobId || null,
+      reason: 'Import pipeline auto-approved',
+    }).catch(() => {});
+  }
 
   // Link any archived predecessors to this new product
   // so the Business Advisor can follow the canonical

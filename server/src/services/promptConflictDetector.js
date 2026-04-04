@@ -1,4 +1,4 @@
-import { basePrisma } from '../lib/prisma.js';
+import { basePrisma, createTenantClient } from '../lib/prisma.js';
 import { generate } from './ai/aiServiceRouter.js';
 import { getGenericConditions } from './promptComposer.js';
 
@@ -70,7 +70,8 @@ export async function detectConflicts(agentTypeKey, tenantText, tenantId, exclud
 
     if (result.hasConflict) {
       // Create a PromptConflict record
-      await basePrisma.promptConflict.create({
+      const tenantPrisma = createTenantClient(tenantId);
+      await tenantPrisma.promptConflict.create({
         data: {
           tenantId,
           promptConditionId: condition.id,

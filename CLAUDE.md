@@ -75,7 +75,9 @@ docker/                  # Docker init scripts
 
 - **Multi-tenant SaaS** with Row-Level Security and tenant-scoped middleware
 - **Auth**: JWT bearer tokens, role-based access (OWNER, OPS_MANAGER, MERCHANDISER, STORE_MANAGER, ACCOUNTANT, SYSTEM_ADMIN)
-- **Plan gating**: Feature access controlled by subscription tier via `requirePlan` middleware
+- **Plan gating**: Feature access controlled by subscription tier via `requirePlan` middleware. Tiers: Starter, Growth, Professional, Enterprise
+- **Usage enforcement**: Per-tenant usage caps tracked in `TenantUsage` table. AI throttle is invisible — 4-stage degradation (full → lighter models → shorter context → hard stop at 100%). Users never see "you've hit your limit" until hard stop
+- **Billing**: Stripe integration with 14-day free trial (no payment required, Growth-tier limits). Deferred Stripe customer creation. Two cancellation modes: end-of-period or immediate pro-rata refund. Configurable grace period (14-day default, admin override). Subscription status middleware is fail-open
 - **AI Agents**: Orchestrator pattern with tool execution (OCR, matching, pricing, competitor tools)
 - **AI Service Layer**: Provider-agnostic routing via `aiServiceRouter.js` — all AI calls declare intent + task, the router resolves provider/model from the `ai_service_registry` database table
 - **Integrations**: Gmail (IMAP/OAuth), Google Drive, Shopify, local folder polling
@@ -103,6 +105,28 @@ Key env vars (see `.env.example`):
 - **Nginx**: port 80, proxies `/api/*` to `127.0.0.1:3000`, SPA fallback for all other routes
 - **PM2**: `ecosystem.config.cjs` runs `retailedge-api` service
 - **Docker**: PostgreSQL 16 Alpine with health checks and init scripts
+- **After deploy**: Always run `npm run build && pm2 restart retailedge-api` — the client is pre-built static files served by Nginx
+
+## Invoice Workflow
+
+The core user flow: Upload → Review & Price → Export.
+
+- **Review.jsx**: 3-step internal flow (OCR & Extract → Match & Price → Review & Approve). No Step 4 — approval navigates to Export page
+- **Export.jsx**: Two invoice sections (Ready to Export / Previously Exported) with search, sort, pagination. Shopify sync goes through a two-part flow: review screen with per-item checkboxes → results screen with success/failure per item and failure report CSV export. POS items export as CSV/XLSX
+- **Invoice corrections**: Approved invoices support rematch/unmatch via `POST /api/invoices/:id/lines/:lineId/correct-match`. Cost reversal on old product, cost application on new product. 409 `NEWER_INVOICE_EXISTS` warns if a newer invoice already updated the product's cost
+- **MatchResolutionPanel**: For approved invoices, shows all currently matched products (grouped by product, with variants). Single-select radio behaviour for changing matches — selecting a search result deselects all current matches. Correction API handles cost reversal automatically
+- **Orphaned matches**: 348 InvoiceLineMatch records have `productId = NULL` and `productVariantId = NULL` (migration gap + Shopify variant cascade). Frontend shows these as "(product link lost)" with preserved pricing data. Users can search and re-link
+- **Stale data protection**: `dataVersion` field on invoice mutations. Multi-tab detection via BroadcastChannel (30s heartbeat) with conditional 60s polling on sensitive screens
+- **Breadcrumbs**: WorkflowBreadcrumb component (shared) with clickable completed steps for back-navigation across Upload/Review/Export pages
+
+## API Hardening (Session 8)
+
+- **Rate limiting**: 5 tiers — auth (5/min), AI (20/min), write (30/min), read (60/min), admin (10/min)
+- **Security headers**: Helmet-based with CSP, HSTS, X-Frame-Options
+- **Error handler**: Global error handler with structured JSON responses, no stack traces in production
+- **Health check**: `GET /api/health` — DB connectivity, memory usage, uptime
+- **Request logging**: Structured per-request logging with method, path, status, duration
+- **Fixed routes**: 5 connect wizard routes that were unprotected now require authentication
 # CLAUDE.md — Agent Creation Instructions
 ## Add this section to your existing CLAUDE.md file
 
@@ -375,6 +399,26 @@ export async function generate(systemPrompt, userPrompt, model, config) { /* →
 ```
 
 If a provider doesn't support an intent, the function throws `{ code: 'PROVIDER_INTENT_NOT_SUPPORTED' }`.
+
+---
+## UI Testing Protocol
+
+After making any frontend/UI changes:
+
+1. Run `node scripts/screenshot-pages.js` to capture screenshots
+2. Run `node scripts/screenshot-compare.js` to compare against baseline
+3. Open the screenshots in `screenshots/` to visually verify:
+   - Layout renders correctly at desktop (1440px) width
+   - No overlapping or clipped elements
+   - Text is readable and properly aligned
+   - Forms and buttons are accessible
+   - Error states or empty states display properly
+4. If changes are intentional, run `node scripts/screenshot-compare.js --promote`
+
+For mobile-critical changes, also run:
+   `node scripts/screenshot-pages.js --viewport mobile`
+
+Screenshot output: `./screenshots/<timestamp>_<viewport>/`
 
 ---
 

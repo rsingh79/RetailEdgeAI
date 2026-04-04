@@ -29,19 +29,7 @@ router.get('/', async (req, res) => {
       take: parseInt(limit),
     });
 
-    // Note: PromptSuggestion uses basePrisma in the engine, but tenant-scoped
-    // queries won't work unless we use basePrisma directly
-    // Fallback to basePrisma for this read
-    const results = suggestions.length > 0 ? suggestions : await (async () => {
-      const { basePrisma } = await import('../lib/prisma.js');
-      return basePrisma.promptSuggestion.findMany({
-        where: { tenantId: req.tenantId, ...(status ? { status } : {}) },
-        orderBy: { createdAt: 'desc' },
-        take: parseInt(limit),
-      });
-    })();
-
-    res.json(results);
+    res.json(suggestions);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -95,10 +83,8 @@ router.post('/:id/review', async (req, res) => {
       return res.status(400).json({ error: 'action must be "approved" or "rejected"' });
     }
 
-    const { basePrisma } = await import('../lib/prisma.js');
-
-    const suggestion = await basePrisma.promptSuggestion.findFirst({
-      where: { id: req.params.id, tenantId: req.tenantId },
+    const suggestion = await req.prisma.promptSuggestion.findFirst({
+      where: { id: req.params.id },
     });
 
     if (!suggestion) {
@@ -109,7 +95,7 @@ router.post('/:id/review', async (req, res) => {
       return res.status(400).json({ error: `Suggestion already ${suggestion.status}` });
     }
 
-    const updated = await basePrisma.promptSuggestion.update({
+    const updated = await req.prisma.promptSuggestion.update({
       where: { id: req.params.id },
       data: {
         status: action,
@@ -129,13 +115,11 @@ router.post('/:id/review', async (req, res) => {
 // ── GET /suggestions/stats — Suggestion summary stats ──
 router.get('/stats', async (req, res) => {
   try {
-    const { basePrisma } = await import('../lib/prisma.js');
-
     const [pending, approved, rejected, total] = await Promise.all([
-      basePrisma.promptSuggestion.count({ where: { tenantId: req.tenantId, status: 'pending' } }),
-      basePrisma.promptSuggestion.count({ where: { tenantId: req.tenantId, status: 'approved' } }),
-      basePrisma.promptSuggestion.count({ where: { tenantId: req.tenantId, status: 'rejected' } }),
-      basePrisma.promptSuggestion.count({ where: { tenantId: req.tenantId } }),
+      req.prisma.promptSuggestion.count({ where: { status: 'pending' } }),
+      req.prisma.promptSuggestion.count({ where: { status: 'approved' } }),
+      req.prisma.promptSuggestion.count({ where: { status: 'rejected' } }),
+      req.prisma.promptSuggestion.count({}),
     ]);
 
     res.json({ pending, approved, rejected, total });

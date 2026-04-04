@@ -1,4 +1,4 @@
-import { basePrisma } from '../lib/prisma.js';
+import { adminPrisma } from '../lib/prisma.js';
 
 /**
  * Middleware factory: returns 403 if the tenant has exceeded a usage limit.
@@ -21,7 +21,7 @@ export function checkLimit(limitKey, countFn) {
     }
 
     try {
-      const tenant = await basePrisma.tenant.findUnique({
+      const tenant = await adminPrisma.tenant.findUnique({
         where: { id: req.user.tenantId },
         select: {
           planTierId: true,
@@ -40,7 +40,7 @@ export function checkLimit(limitKey, countFn) {
       let limitValue = null;
 
       if (tenant.planTierId) {
-        const tierLimit = await basePrisma.planTierLimit.findUnique({
+        const tierLimit = await adminPrisma.planTierLimit.findUnique({
           where: {
             planTierId_limitKey: {
               planTierId: tenant.planTierId,
@@ -69,7 +69,7 @@ export function checkLimit(limitKey, countFn) {
       }
 
       // Count current usage
-      const used = await countFn(req, basePrisma);
+      const used = await countFn(req, adminPrisma);
 
       if (used >= limitValue) {
         return res.status(403).json({

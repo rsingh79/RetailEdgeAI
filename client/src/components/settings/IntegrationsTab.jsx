@@ -1728,7 +1728,7 @@ export default function IntegrationsTab() {
                                     {order.customerName || order.customerEmail || <span className="text-gray-400">Guest</span>}
                                   </td>
                                   <td className="px-4 py-2 text-xs text-gray-500">
-                                    {new Date(order.orderedAt).toLocaleDateString()}
+                                    {new Date(order.orderDate).toLocaleDateString()}
                                   </td>
                                   <td className="px-4 py-2 text-gray-600">{order.lines?.length || 0}</td>
                                   <td className="px-4 py-2 text-right font-medium text-gray-800">

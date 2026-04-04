@@ -6,6 +6,7 @@ import {
   pollDriveForInvoices,
 } from '../services/drive.js';
 import { encrypt } from '../lib/encryption.js';
+import { enforceIntegrationLimit } from '../middleware/usageEnforcement.js';
 
 const router = Router();
 
@@ -57,7 +58,7 @@ router.get('/status', async (req, res) => {
 });
 
 // POST /api/drive/save-credentials — Save Google Cloud OAuth credentials (per-tenant)
-router.post('/save-credentials', async (req, res) => {
+router.post('/save-credentials', enforceIntegrationLimit('drive'), async (req, res) => {
   try {
     const { googleClientId, googleClientSecret } = req.body;
 

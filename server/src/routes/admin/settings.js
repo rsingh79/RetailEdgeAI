@@ -1,19 +1,19 @@
 import { Router } from 'express';
-import { basePrisma } from '../../lib/prisma.js';
+import { adminPrisma } from '../../lib/prisma.js';
 
 const router = Router();
 
 // GET /api/admin/settings — Get platform settings (creates singleton if missing)
 router.get('/', async (_req, res) => {
   try {
-    const settings = await basePrisma.platformSettings.upsert({
+    const settings = await adminPrisma.platformSettings.upsert({
       where: { id: 'singleton' },
       update: {},
       create: {
         id: 'singleton',
         defaultTrialDays: 14,
         autoLockOnTrialExpiry: true,
-        gracePeriodDays: 3,
+        gracePeriodDays: 14,
       },
     });
 
@@ -46,15 +46,15 @@ router.patch('/', async (req, res) => {
 
     if (gracePeriodDays !== undefined) {
       const days = parseInt(gracePeriodDays);
-      if (isNaN(days) || days < 0 || days > 30) {
+      if (isNaN(days) || days < 0 || days > 90) {
         return res
           .status(400)
-          .json({ message: 'gracePeriodDays must be between 0 and 30' });
+          .json({ message: 'gracePeriodDays must be between 0 and 90' });
       }
       updateData.gracePeriodDays = days;
     }
 
-    const settings = await basePrisma.platformSettings.upsert({
+    const settings = await adminPrisma.platformSettings.upsert({
       where: { id: 'singleton' },
       update: updateData,
       create: {

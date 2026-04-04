@@ -8,10 +8,12 @@ vi.mock('../../src/lib/prisma.js', () => ({
       product: {
         create: vi.fn().mockResolvedValue({ id: 'new-product-id' }),
         update: vi.fn().mockResolvedValue({ id: 'existing-product-id' }),
+        findUnique: vi.fn().mockResolvedValue({ costPrice: null, sellingPrice: null }),
       },
       productVariant: {
-        upsert: vi.fn(),
+        upsert: vi.fn().mockResolvedValue({ id: 'upserted-variant-id' }),
         create: vi.fn().mockResolvedValue({ id: 'new-variant-id' }),
+        findUnique: vi.fn().mockResolvedValue(null),
       },
       productImportRecord: { create: vi.fn() },
       importJob: { update: vi.fn() },
@@ -384,8 +386,9 @@ describe('WriteLayer.process — ROUTE_AUTO', () => {
         product: {
           create: vi.fn().mockResolvedValue({ id: 'new-id' }),
           update: vi.fn().mockResolvedValue({ id: 'existing-product-id' }),
+          findUnique: vi.fn().mockResolvedValue({ costPrice: null, sellingPrice: null }),
         },
-        productVariant: { upsert: vi.fn(), create: vi.fn() },
+        productVariant: { upsert: vi.fn().mockResolvedValue({ id: 'v-id' }), create: vi.fn().mockResolvedValue({ id: 'v-id' }), findUnique: vi.fn().mockResolvedValue(null) },
         productImportRecord: { create: vi.fn() },
         importJob: { update: vi.fn() },
       };
@@ -413,8 +416,9 @@ describe('WriteLayer.process — ROUTE_AUTO', () => {
         product: {
           create: vi.fn().mockResolvedValue({ id: 'id' }),
           update: vi.fn().mockResolvedValue({ id: 'id' }),
+          findUnique: vi.fn().mockResolvedValue({ costPrice: null, sellingPrice: null }),
         },
-        productVariant: { upsert: vi.fn(), create: vi.fn() },
+        productVariant: { upsert: vi.fn().mockResolvedValue({ id: 'v-id' }), create: vi.fn().mockResolvedValue({ id: 'v-id' }), findUnique: vi.fn().mockResolvedValue(null) },
         productImportRecord: { create: vi.fn() },
         importJob: { update: vi.fn() },
       });
@@ -430,7 +434,10 @@ describe('WriteLayer.process — ROUTE_AUTO', () => {
     const layer = new WriteLayer();
     const ctx = makeContext();
     // Make findFirst return a conflict on the fingerprint check
-    ctx.prisma.product.findFirst.mockResolvedValueOnce({ id: 'conflicting-product' });
+    ctx.prisma.product.findFirst.mockResolvedValueOnce({
+      id: 'conflicting-product',
+      name: 'Existing Widget',
+    });
     const p = makeProduct({ fingerprint: 'T1:conflict' });
     await layer.process(p, ctx);
     expect(p.approvalRoute).toBe('ROUTE_REVIEW');
@@ -438,6 +445,65 @@ describe('WriteLayer.process — ROUTE_AUTO', () => {
     expect(ctx.rowsPendingApproval).toBe(1);
     // withTenantTransaction should NOT have been called since conflict was detected
     expect(withTenantTransaction).not.toHaveBeenCalled();
+
+    // Issue 5 fix: ApprovalQueueEntry MUST be created (not just flag + counter)
+    expect(ctx.prisma.approvalQueueEntry.create).toHaveBeenCalledTimes(1);
+    const queueCall = ctx.prisma.approvalQueueEntry.create.mock.calls[0][0];
+    expect(queueCall.data.approvalRoute).toBe('ROUTE_REVIEW');
+    expect(queueCall.data.status).toBe('PENDING');
+    expect(queueCall.data.matchResult).toEqual({
+      action: 'CONFLICT',
+      matchedProductId: 'conflicting-product',
+      matchType: 'barcode_or_fingerprint',
+      existingProductName: 'Existing Widget',
+    });
+
+    // ProductImportRecord must also be created
+    expect(ctx.prisma.productImportRecord.create).toHaveBeenCalledTimes(1);
+
+    // ImportJob counter must be incremented
+    expect(ctx.prisma.importJob.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { rowsPendingApproval: { increment: 1 } },
+      }),
+    );
+  });
+
+  it('conflict re-queue: barcode conflict creates ApprovalQueueEntry with correct data', async () => {
+    const layer = new WriteLayer();
+    const ctx = makeContext();
+    // No fingerprint match, no externalId match, but barcode matches
+    ctx.prisma.product.findFirst.mockResolvedValueOnce({
+      id: 'barcode-conflict-product',
+      name: 'Barcode Conflict Widget',
+    });
+    const p = createCanonicalProduct({
+      name: 'New Import',
+      barcode: '9999999999999',
+      price: 15.50,
+      sourceSystem: 'Shopify',
+    });
+    p.matchResult = { action: 'CREATE', matchedProductId: null };
+    p.invoiceRisk = { level: 'NONE', similarProducts: [] };
+    p.approvalRoute = 'ROUTE_AUTO';
+    p.confidenceScore = 85;
+    await layer.process(p, ctx);
+
+    // Must be re-routed to ROUTE_REVIEW
+    expect(p.approvalRoute).toBe('ROUTE_REVIEW');
+
+    // ApprovalQueueEntry must be created
+    expect(ctx.prisma.approvalQueueEntry.create).toHaveBeenCalledTimes(1);
+    const entry = ctx.prisma.approvalQueueEntry.create.mock.calls[0][0].data;
+    expect(entry.normalizedData.barcode).toBe('9999999999999');
+    expect(entry.normalizedData.name).toBe('New Import');
+    expect(entry.matchResult.action).toBe('CONFLICT');
+    expect(entry.matchResult.matchedProductId).toBe('barcode-conflict-product');
+    expect(entry.matchResult.existingProductName).toBe('Barcode Conflict Widget');
+    expect(entry.confidenceScore).toBe(85);
+
+    // rowsPendingApproval incremented exactly once (not double-counted)
+    expect(ctx.rowsPendingApproval).toBe(1);
   });
 
   it('creates a default variant when product has price but no explicit variants', async () => {

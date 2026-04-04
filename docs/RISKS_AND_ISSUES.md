@@ -5,7 +5,7 @@ This register tracks known risks, unresolved issues, and technical debt. Each en
 
 Severity levels: **CRITICAL** (must fix before beta), **HIGH** (should fix before beta), **MEDIUM** (acceptable for beta with monitoring), **LOW** (future improvement).
 
-Last updated: 2026-03-29 (post-Phase 5 review)
+Last updated: 2026-04-04 (post-Session 8.5 + Export Flow Fix + Match Resolution Fix)
 
 ---
 
@@ -17,7 +17,7 @@ Last updated: 2026-03-29 (post-Phase 5 review)
 - **Detail:** Architecture state audit confirms only 10 of 34 tenant-scoped tables have RLS policies (Tenant, User, Store, Product, Supplier, Invoice, PricingRule, AuditLog, ImportTemplate, Conversation). The remaining 24 tables — including ShopifyOrder, ShopifyOrderLine, ImportJob, ProductImportRecord, ApprovalQueueEntry, all four integration tables, all four import log tables, CompetitorMonitor, CompetitorPrice, PriceAlert, and all prompt evolution tables — have no RLS. Of these, 22 are in the Prisma $extends scoped set (application-layer protection), but FolderIntegration, FolderImportLog, ShopifyOrder, ShopifyOrderLine, ApiUsageLog, TenantAccessLog, and all prompt evolution models lack even application-level scoping.
 - **Impact:** If application-level scoping has a bug or a query is written without tenant filtering, data from one tenant could be returned to another. This is the single highest-risk item for a multi-tenant SaaS handling financial data.
 - **Recommended action:** Audit every table with a tenantId column. Confirm each has both an RLS policy and either Prisma extension scoping or guaranteed parent-FK isolation. Generate missing RLS migrations.
-- **Status:** Open
+- **Status:** Resolved (2026-03-31). All 38 tenant-scoped tables now have strict RLS policies. The `current_tenant_id() IS NULL` fallback removed. 836 tests passing.
 
 ### RISK-002: Fire-and-forget patterns silently losing data
 - **Threatens:** Accurate landed cost (Outcome 1), Self-improving AI (Outcome 6)
@@ -276,3 +276,34 @@ RISK-030: Dual AI logging (ApiUsageLog + ai_service_log) during ASAL transition
 - **Detail:** The ASAL router writes to both ai_service_log (new, per-task logging) and ApiUsageLog (legacy, for rate limiter and admin dashboard compatibility). Both tables receive entries for every AI call. The rate limiter (middleware/apiLimiter.js) and admin dashboard (routes/admin/apiUsage.js) still read from ApiUsageLog. The deprecated apiUsageTracker.js file is kept for its calculateCost utility used by the orchestrator's SSE cost display.
 - **Recommended action:**: Migrate the rate limiter to read from ai_service_log instead of ApiUsageLog. Migrate the admin dashboard to query ai_service_log (which has richer data: intent, task_key, provider). Extract calculateCost to a standalone utility. Then remove the legacy _logLegacy() function from the router and delete apiUsageTracker.js.
 - **Status:** Open — technical debt, no functional impact
+
+### RISK-031: 348 orphaned InvoiceLineMatch records with lost product links
+
+- **Threatens:** Accurate landed cost calculation (Outcome 1), Reliable product matching (Outcome 2)
+- **Source decision:** Migration `20260311_make_variant_optional_on_match` added productId without backfill; Shopify import hard-deletes variants with `ON DELETE SET NULL` cascade
+- **Detail:** 406 InvoiceLineMatch records had both `productId` and `productVariantId` set to NULL. 58 were reconnected via name-matching backfill (2026-04-04). 348 remain orphaned. Frontend shows these as "(product link lost)" with preserved pricing data. Users can manually re-link via the MatchResolutionPanel search interface. The pricing data (costs, approved prices) is intact — only the FK reference to the product was lost.
+- **Impact:** Orphaned matches cannot be re-exported to Shopify (no variant to push to). Historical pricing data is visible but not linked to the product catalog. Users must manually re-link if they want to re-export.
+- **Recommended action:** (1) Fix Shopify import to NOT hard-delete variants — use soft-delete or update-in-place to prevent future cascades. (2) Ensure `productId` is always set on match creation (already done in `createMatchRecords`). (3) Remaining 348 orphans are handled gracefully by the UI — no further automated action needed.
+- **Status:** Open — managed by UI, no data loss, user can fix manually
+
+### RISK-032: Invoice correction cost reversal may be skipped for orphaned matches
+
+- **Threatens:** Accurate landed cost calculation (Outcome 1)
+- **Source decision:** Invoice corrections with cost reversal (Session 8.5)
+- **Detail:** The correction API (`correct-match`) reverses cost on the old product and applies cost on the new product. For orphaned matches (both FKs NULL), the old product cannot be identified, so cost reversal is skipped. The old product may retain an incorrect cost from the original invoice approval.
+- **Impact:** A small number of products (those linked to orphaned matches) may have stale cost data that won't be auto-corrected.
+- **Recommended action:** Acceptable for beta. If a user re-links an orphaned match, the new correction will apply cost correctly to the new product. The old product's cost is only wrong if no subsequent invoice has updated it.
+- **Status:** Open — acceptable for beta
+
+### RISK-033: Stripe fail-open allows unlimited access during outages
+
+- **Threatens:** Business model viability (Outcome 11)
+- **Source decision:** Stripe billing with fail-open subscription check (Session 7)
+- **Detail:** The `subscriptionCheck` middleware is fail-open: if Stripe is unreachable or the subscription check fails, access is allowed. During a Stripe outage, all tenants (including expired/cancelled) have unrestricted access.
+- **Impact:** Revenue leakage during Stripe outages. Low probability (Stripe has 99.99% uptime) but non-zero.
+- **Recommended action:** Add a local cache of subscription status with a TTL (e.g., cache valid for 1 hour). During outages, fall back to cached status rather than fully open.
+- **Status:** Open — acceptable for beta with monitoring
+
+### RISK-003: Shopify price push failures go unnoticed
+
+- **Status update (2026-04-04):** **Resolved.** Shopify push is no longer fire-and-forget. The `POST /export/mark` endpoint now awaits each `pushPriceUpdate()` call, collects per-item results, and returns `shopifyResults: { summary, results[] }` to the frontend. The Export page shows a results screen with per-item success/failure and a downloadable failure report CSV.

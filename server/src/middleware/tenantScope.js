@@ -16,6 +16,10 @@ export function tenantScope(req, res, next) {
     return res.status(403).json({ message: 'No tenant context available' });
   }
 
+  if (!/^[a-z0-9]+$/i.test(req.user.tenantId)) {
+    return res.status(403).json({ message: 'Invalid tenant context' });
+  }
+
   req.tenantId = req.user.tenantId;
   req.prisma = createTenantClient(req.user.tenantId);
   next();

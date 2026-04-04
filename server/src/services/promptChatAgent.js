@@ -178,7 +178,8 @@ export async function confirmAction(tenantId, userId, action, conversationExcerp
   }
 
   // Create the override
-  const override = await basePrisma.tenantPromptOverride.create({
+  const tenantPrisma = createTenantClient(tenantId);
+  const override = await tenantPrisma.tenantPromptOverride.create({
     data: {
       tenantId,
       promptConditionId: condition?.id || null,
@@ -192,7 +193,7 @@ export async function confirmAction(tenantId, userId, action, conversationExcerp
   });
 
   // Log the change
-  await basePrisma.promptChangeLog.create({
+  await tenantPrisma.promptChangeLog.create({
     data: {
       tenantId,
       userId,
@@ -245,13 +246,14 @@ export async function resolveConflict(conflictId, resolution, tenantId, userId, 
     return { success: false, message: 'Conflict already resolved.' };
   }
 
+  const tenantPrisma = createTenantClient(tenantId);
+
   if (resolution === 'keep_tenant') {
     // Run validation before removing the generic condition
     if (conflict.promptCondition.validationKey) {
-      const tenantPrisma = createTenantClient(tenantId);
       const validation = await runValidator(conflict.promptCondition.validationKey, tenantPrisma);
 
-      await basePrisma.promptConflict.update({
+      await tenantPrisma.promptConflict.update({
         where: { id: conflictId },
         data: {
           validationPassed: validation.passed,
@@ -268,7 +270,7 @@ export async function resolveConflict(conflictId, resolution, tenantId, userId, 
     }
 
     // Create a remove override for the generic condition
-    await basePrisma.tenantPromptOverride.create({
+    await tenantPrisma.tenantPromptOverride.create({
       data: {
         tenantId,
         promptConditionId: conflict.promptConditionId,
@@ -280,7 +282,7 @@ export async function resolveConflict(conflictId, resolution, tenantId, userId, 
     });
   } else if (resolution === 'keep_generic') {
     // Deactivate any tenant overrides that caused this conflict
-    await basePrisma.tenantPromptOverride.updateMany({
+    await tenantPrisma.tenantPromptOverride.updateMany({
       where: {
         tenantId,
         customText: conflict.tenantOverrideText,
@@ -290,7 +292,7 @@ export async function resolveConflict(conflictId, resolution, tenantId, userId, 
     });
   } else if (resolution === 'merge' && mergeText) {
     // Replace the generic condition with merged text
-    await basePrisma.tenantPromptOverride.create({
+    await tenantPrisma.tenantPromptOverride.create({
       data: {
         tenantId,
         promptConditionId: conflict.promptConditionId,
@@ -304,7 +306,7 @@ export async function resolveConflict(conflictId, resolution, tenantId, userId, 
   }
 
   // Mark conflict as resolved
-  await basePrisma.promptConflict.update({
+  await tenantPrisma.promptConflict.update({
     where: { id: conflictId },
     data: {
       resolution,
@@ -314,7 +316,7 @@ export async function resolveConflict(conflictId, resolution, tenantId, userId, 
   });
 
   // Log the resolution
-  await basePrisma.promptChangeLog.create({
+  await tenantPrisma.promptChangeLog.create({
     data: {
       tenantId,
       userId,

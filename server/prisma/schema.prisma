@@ -18,14 +18,24 @@ model Tenant {
   currency            String   @default("AUD")
   contactEmail        String?
   contactPhone        String?
-  trialEndsAt         DateTime?
-  isLocked            Boolean  @default(false)
-  lockReason          String?
-  lockedAt            DateTime?
-  lockedBy            String?
-  subscriptionStatus  String   @default("trial")   // trial, active, cancelled, expired
-  paymentMethodOnFile Boolean  @default(false)
-  maxUsers            Int      @default(5)
+  trialEndsAt          DateTime?
+  trialStartedAt       DateTime?
+  trialTier            String?   @default("growth")
+  hasTrialExpired      Boolean   @default(false)
+  isLocked             Boolean   @default(false)
+  lockReason           String?
+  lockedAt             DateTime?
+  lockedBy             String?
+  subscriptionStatus   String    @default("trial")   // trialing, active, past_due, cancelled, suspended
+  paymentMethodOnFile  Boolean   @default(false)
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  billingPeriodStart   DateTime?
+  billingPeriodEnd     DateTime?
+  gracePeriodDays      Int?      // null = use system default from PlatformSettings
+  gracePeriodEndsAt    DateTime?
+  maxUsers             Int       @default(5)
   maxStores           Int      @default(2)
   maxApiCallsPerMonth Int      @default(100)
   plan                String   @default("starter")  // starter, professional, enterprise
@@ -62,6 +72,10 @@ model Tenant {
   productImportRecords     ProductImportRecord[]
   aiServiceLogs            AiServiceLog[]
   productEmbeddings        ProductEmbedding[]
+  priceChangeLogs          PriceChangeLog[]
+  salesTransactions        SalesTransaction[]
+  salesLineItems           SalesLineItem[]
+  usageRecords             TenantUsage[]
 }
 
 // ── Auth ──
@@ -161,6 +175,8 @@ model Product {
   priceAlerts        PriceAlert[]
   invoiceMatches     InvoiceLineMatch[]
   embeddings         ProductEmbedding[]
+  priceChangeLogs    PriceChangeLog[]
+  salesLineItems     SalesLineItem[]
 
   @@index([tenantId])
   @@index([barcode])
@@ -314,6 +330,12 @@ model InvoiceLineMatch {
   matchReason      String?     // e.g. "barcode", "sku", "fuzzy_name"
   isManual         Boolean     @default(false)
   matchedByUserId  String?
+  matchStatus      String?     @default("active") // active, manually_corrected, manually_matched, unmatched
+  correctedAt      DateTime?
+  correctedBy      String?     // userId who made the correction
+  previousProductId String?    // audit trail: product before correction
+  previousVariantId String?    // audit trail: variant before correction
+  correctionReason  String?
   previousCost     Float?
   newCost          Float?
   currentPrice     Float?
@@ -442,7 +464,7 @@ model PlatformSettings {
   id                    String   @id @default("singleton")
   defaultTrialDays      Int      @default(14)
   autoLockOnTrialExpiry Boolean  @default(true)
-  gracePeriodDays       Int      @default(3)
+  gracePeriodDays       Int      @default(14)
   updatedAt             DateTime @updatedAt
 }
 
@@ -590,21 +612,27 @@ model FolderImportLog {
 // ── Shopify Integration ──
 
 model ShopifyIntegration {
-  id                  String    @id @default(cuid())
-  tenantId            String    @unique
-  shop                String                          // e.g. "mystore.myshopify.com"
-  accessTokenEnc      String?                         // AES-256-GCM encrypted Shopify access token
-  scopes              String    @default("read_products,write_products,read_orders,read_customers")
-  lastSyncAt          DateTime?
-  lastOrderSyncAt     DateTime?                       // last time orders were synced
-  syncIntervalMin     Int       @default(60)
-  isActive            Boolean   @default(true)
-  pushPricesOnExport  Boolean   @default(true)        // auto-push cost+price to Shopify on invoice export
-  productCount        Int       @default(0)
-  orderCount          Int       @default(0)           // cached count of synced orders
-  dismissedVariants   Json?     @default("[]")        // Shopify variant IDs dismissed from matching
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  tenantId              String    @unique
+  shop                  String                          // e.g. "mystore.myshopify.com"
+  accessTokenEnc        String?                         // AES-256-GCM encrypted Shopify access token
+  scopes                String    @default("read_products,write_products,read_orders,read_customers")
+  lastSyncAt            DateTime?                       // most recent successful sync (any mode)
+  lastOrderSyncAt       DateTime?                       // legacy — last time orders were synced
+  syncIntervalMin       Int       @default(60)
+  isActive              Boolean   @default(true)
+  pushPricesOnExport    Boolean   @default(true)        // auto-push cost+price to Shopify on invoice export
+  productCount          Int       @default(0)
+  orderCount            Int       @default(0)           // cached count of synced orders
+  dismissedVariants     Json?     @default("[]")        // Shopify variant IDs dismissed from matching
+  // Sales data sync — three-mode system (historical, manual, auto)
+  historicalSyncMonths  Int?                            // user's chosen months for initial import
+  historicalSyncedAt    DateTime?                       // when the historical import completed
+  autoSyncEnabled       Boolean   @default(false)       // user's consent for daily auto-sync
+  autoSyncConsentedAt   DateTime?                       // when user gave consent (audit trail)
+  syncStatus            String?   @default("not_started") // not_started, in_progress, completed, failed
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   tenant      Tenant         @relation(fields: [tenantId], references: [id])
   orders      ShopifyOrder[]
@@ -649,7 +677,9 @@ model ShopifyOrder {
   fulfillmentStatus String?                         // fulfilled, partial, unfulfilled
   totalPrice        Float     @default(0)
   subtotalPrice     Float     @default(0)
+  totalDiscount     Float     @default(0)
   totalTax          Float     @default(0)
+  sourceName        String?                           // Shopify source_name: web, pos, shopify_draft_order, etc.
   currency          String    @default("AUD")
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -672,14 +702,82 @@ model ShopifyOrderLine {
   variantTitle     String?
   quantity         Int     @default(1)
   unitPrice        Float   @default(0)
-  totalPrice       Float   @default(0)
+  discount         Float   @default(0)             // line-level discount from Shopify
+  totalPrice       Float   @default(0)             // (unitPrice * quantity) - discount
   createdAt        DateTime @default(now())
 
   order   ShopifyOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   variant ProductVariant? @relation(fields: [productVariantId], references: [id])
 
+  @@unique([orderId, shopifyLineId])
   @@index([orderId])
   @@index([productVariantId])
+}
+
+// ── Canonical Sales Data ──
+
+model SalesTransaction {
+  id                String    @id @default(cuid())
+  tenantId          String
+  source            String                            // "shopify", "pos_csv", "manual", "square", etc.
+  sourceId          String?                           // external ID from source system (e.g. Shopify order ID)
+  channel           String?                           // "web", "pos", "draft_order" — from source system
+  transactionDate   DateTime
+  subtotal          Float?
+  totalDiscount     Float?
+  totalTax          Float?
+  totalAmount       Float     @default(0)
+  currency          String    @default("AUD")
+  status            String    @default("completed")   // completed, refunded, partially_refunded, cancelled
+  customerName      String?
+  orderReference    String?                           // human-readable order/receipt number (e.g. "#1001")
+  metadata          Json?                             // source-specific data
+  importJobId       String?                           // link to ImportJob for CSV imports
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
+  lineItems         SalesLineItem[]
+
+  @@unique([tenantId, source, sourceId])
+  @@index([tenantId, transactionDate])
+  @@index([tenantId, source])
+}
+
+model SalesLineItem {
+  id                  String    @id @default(cuid())
+  transactionId       String
+  tenantId            String
+  productId           String?                         // FK → Product (nullable until matched)
+  variantId           String?                         // variant ID reference (not FK — matches PriceChangeLog pattern)
+  sourceProductId     String?                         // external product ID from source system
+  sourceVariantId     String?                         // external variant ID / line ID from source system
+  productName         String                          // product name captured at time of sale
+  sku                 String?
+  barcode             String?
+  quantity            Int       @default(1)
+  unitPriceAtSale     Float     @default(0)           // selling price per unit at time of sale
+  costPriceAtSale     Float?                          // cost at time of sale (PriceChangeLog lookup, null if unknown)
+  discount            Float     @default(0)
+  lineTotal           Float     @default(0)           // (unitPriceAtSale * quantity) - discount
+  marginAmount        Float?                          // unitPriceAtSale - costPriceAtSale (null if cost unknown)
+  marginPercent       Float?                          // marginAmount / unitPriceAtSale * 100 (null if cost unknown)
+  costDataAvailable   Boolean   @default(false)       // quick filter for margin analysis queries
+  matchStatus         String    @default("unmatched") // matched, unmatched, review
+  matchConfidence     Float?
+  metadata            Json?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  transaction         SalesTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  tenant              Tenant           @relation(fields: [tenantId], references: [id])
+  product             Product?         @relation(fields: [productId], references: [id])
+
+  @@unique([transactionId, sourceVariantId])
+  @@index([tenantId, productId])
+  @@index([tenantId, matchStatus])
+  @@index([tenantId, costDataAvailable])
 }
 
 // ── Google Drive Integration ──
@@ -816,8 +914,8 @@ model Feature {
 
 model PlanTier {
   id           String   @id @default(cuid())
-  name         String                       // "Basic", "Medium", "High"
-  slug         String   @unique             // "basic", "medium", "high"
+  name         String                       // "Starter", "Growth", "Professional", "Enterprise"
+  slug         String   @unique             // "starter", "growth", "professional", "enterprise"
   description  String?
   monthlyPrice Float    @default(0)
   annualPrice  Float    @default(0)
@@ -1507,4 +1605,52 @@ model ProductEmbedding {
   @@unique([productId, model])  // one embedding per product per model
   @@index([tenantId])
   @@index([productId])
+}
+
+// ── Price Change Audit Log ──
+
+model PriceChangeLog {
+  id            String   @id @default(cuid())
+  tenantId      String
+  productId     String
+  variantId     String?  // plain ID, not FK (variants lack tenantId)
+  priceType     String   // 'selling_price' | 'cost_price' | 'sale_price'
+  oldPrice      Float?   // null if first-time set
+  newPrice      Float
+  changeSource  String   // 'shopify_sync' | 'manual_edit' | 'bulk_import' | 'invoice_processing' | 'approval_action' | 'ai_recommendation' | 'api'
+  changedBy     String?  // userId for manual changes, null for system/sync
+  sourceRef     String?  // external reference (e.g., Shopify product ID, import job ID, invoice ID)
+  reason        String?  // human-readable reason
+  metadata      Json?    // additional source-specific context
+  createdAt     DateTime @default(now())
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  product       Product  @relation(fields: [productId], references: [id])
+
+  @@index([tenantId, productId])
+  @@index([tenantId, createdAt])
+}
+
+// ── Tenant Usage Tracking ──
+
+model TenantUsage {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  billingPeriodStart    DateTime
+  billingPeriodEnd      DateTime
+  aiQueriesUsed         Int      @default(0)
+  aiQueriesLimit        Int
+  productsImported      Int      @default(0)
+  productsLimit         Int
+  integrationsUsed      Int      @default(0)
+  integrationsLimit     Int
+  historicalSyncMonths  Int      // max months of historical data allowed
+  lastResetAt           DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant                Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, billingPeriodStart])
+  @@index([tenantId, billingPeriodEnd])
 }

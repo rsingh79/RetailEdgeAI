@@ -3,7 +3,7 @@
 ## How to use this file
 This document defines the product vision, business strategy, and intended outcomes for the platform. Every architectural decision and feature should trace back to this document. Claude Code should read this file before making architectural decisions. If a proposed change contradicts something here, flag it before proceeding.
 
-Last updated: 2026-03-29
+Last updated: 2026-04-04
 
 ---
 
@@ -200,13 +200,21 @@ The product owner (platform administrator) is a separate user class with access 
 
 ## Business model
 
-Tiered subscription with per-feature usage caps per tier.
+Tiered subscription with per-feature usage caps per tier, powered by Stripe billing.
+
+**Tiers:** Starter (entry), Growth (default trial tier), Professional (power users), Enterprise (custom/negotiated).
+
+**Billing:** Stripe integration with 14-day free trial requiring no payment method (runs at Growth limits). Stripe customer creation is deferred until first checkout. Two cancellation modes: end-of-period (default) or immediate with pro-rata refund. Configurable grace period (14-day default, admin can override per tenant). Subscription status middleware is fail-open (Stripe outage does not block paying customers).
 
 **Rationale for usage caps:** The platform uses LLM APIs (Claude) for core functionality. Each invoice scan, advisor conversation, matching operation, and competitive analysis consumes API tokens with real cost. Usage caps per tier serve three purposes: (1) control cost exposure per tenant, (2) create natural upgrade triggers as businesses grow, (3) prevent abuse — specifically, users treating the Business Advisor as a general-purpose Claude subscription rather than a business tool.
+
+**AI usage is invisible to the user.** The platform uses a 4-stage invisible throttle: (1) 0-50% normal operation, (2) 50-75% switch to lighter models, (3) 75-90% shorter context windows, (4) 90-100% degraded responses, then hard stop with user notification. Users never see usage meters or warnings until the hard stop. Most users never hit limits.
 
 **Advisor scope control:** The Business Advisor should stay focused on the tenant's business. Not through hard blocks ("I can only answer business questions") but through natural steering — the advisor is a business partner, not a general assistant. Off-topic requests should be redirected to business-relevant insights rather than refused.
 
 **Dynamic tier management:** Plan tiers, features, and usage caps must be fully configurable by the product owner through the admin UI without code changes. Adding a new tier, changing which features are included, adjusting usage limits — all of this should be data-driven through the existing PlanTier/Feature/PlanTierFeature/PlanTierLimit schema.
+
+**Historical sales sync:** Month-based, not row-based. Starter: 12 months, Growth: 24 months, Professional: 60 months, Enterprise: unlimited. Three sync modes: historical (one-time backfill), manual (on-demand), auto (with user consent, periodic). Analysis window equals the tier ceiling — data is never deleted. Downgrading narrows the analysis window; upgrading instantly widens it with no re-sync needed.
 
 ---
 
@@ -294,17 +302,17 @@ The product owner has visibility into platform health, per-agent costs, tenant u
 **Goal:** Build out enough features for a beta launch with multiple retail tenants.
 
 **What "beta ready" means:**
-- Core invoice-to-price loop works end-to-end
-- Shopify integration is stable (product sync, order sync, price push)
-- Product import handles common formats
-- Sales data ingestion from e-commerce platform (order history, sales volumes, revenue by product)
-- Basic demand forecasting from historical sales data (seasonal trends, product momentum, sales velocity)
-- Multi-tenant isolation is verified and complete (all tables have RLS)
-- Basic usage limits and plan gating are functional
-- Business Advisor provides useful data-backed answers via specialist agent tools, including sales trends and demand insights
-- Admin dashboard shows per-agent and per-tenant usage and cost data
-- Plan tiers and features are configurable through admin UI
-- The platform doesn't lose data silently
+- Core invoice-to-price loop works end-to-end -- **DONE** (Upload -> Review -> Match -> Approve -> Export with Shopify sync confirmation)
+- Shopify integration is stable (product sync, order sync, price push) -- **DONE** (two-part sync flow with per-item results)
+- Product import handles common formats -- **DONE**
+- Sales data ingestion from e-commerce platform (order history, sales volumes, revenue by product) -- **PARTIAL** (Shopify order sync stores data, analytics routes exist, not fully surfaced in UI)
+- Basic demand forecasting from historical sales data (seasonal trends, product momentum, sales velocity) -- **NOT STARTED**
+- Multi-tenant isolation is verified and complete (all tables have RLS) -- **DONE** (38 tables, strict policies, 836 tests)
+- Basic usage limits and plan gating are functional -- **DONE** (TenantUsage tracking, 4-stage AI throttle, Stripe billing, 14-day free trial)
+- Business Advisor provides useful data-backed answers via specialist agent tools, including sales trends and demand insights -- **PARTIAL** (sales tools exist, demand insights not built)
+- Admin dashboard shows per-agent and per-tenant usage and cost data -- **PARTIAL** (API endpoints exist, frontend admin UI unverified)
+- Plan tiers and features are configurable through admin UI -- **DONE** (API endpoints + admin routes)
+- The platform doesn't lose data silently -- **PARTIAL** (Shopify push now reports per-item results; signal collection and API usage logging still fire-and-forget)
 
 **What "beta ready" does not require:**
 - Labour, fixed, or utilities cost agents

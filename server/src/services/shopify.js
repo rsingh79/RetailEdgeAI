@@ -10,8 +10,9 @@
 
 import crypto from 'crypto';
 import { encrypt, decrypt } from '../lib/encryption.js';
-import basePrisma from '../lib/prisma.js';
+import basePrisma, { createTenantClient } from '../lib/prisma.js';
 import { fuzzyNameScore } from './matching.js';
+import { getCostAtTimeOfSale, calculateMargin } from './analytics/costLookup.js';
 import { embedProduct } from './ai/embeddingMaintenance.js';
 import { shopifyToCanonical } from './shopifyPipelineAdapter.js';
 import { createImportJob, runImportPipeline } from './importJobService.js';
@@ -208,7 +209,8 @@ export async function handleOAuthCallback(query) {
   const accessTokenEnc = encrypt(accessToken);
 
   // 5. Upsert ShopifyIntegration record
-  await basePrisma.shopifyIntegration.upsert({
+  const tenantPrisma = createTenantClient(tenantId);
+  await tenantPrisma.shopifyIntegration.upsert({
     where: { tenantId },
     create: {
       tenantId,
@@ -226,11 +228,11 @@ export async function handleOAuthCallback(query) {
   });
 
   // 6. Ensure an ECOMMERCE store exists for Shopify (reuse shopifyImport pattern)
-  const existingStore = await basePrisma.store.findFirst({
+  const existingStore = await tenantPrisma.store.findFirst({
     where: { tenantId, type: 'ECOMMERCE', platform: 'Shopify' },
   });
   if (!existingStore) {
-    await basePrisma.store.create({
+    await tenantPrisma.store.create({
       data: {
         tenantId,
         name: `Shopify — ${shop.replace('.myshopify.com', '')}`,
@@ -409,8 +411,8 @@ export async function syncProducts(prisma, tenantId) {
     errors: [],
   };
 
-  // 1. Get integration + decrypt token
-  const integration = await basePrisma.shopifyIntegration.findUnique({
+  // 1. Get integration + decrypt token (use tenant-scoped prisma for RLS compat)
+  const integration = await prisma.shopifyIntegration.findUnique({
     where: { tenantId },
   });
   if (!integration || !integration.accessTokenEnc) {
@@ -632,7 +634,8 @@ export async function syncProducts(prisma, tenantId) {
   }
 
   // 5. Update integration metadata
-  await basePrisma.shopifyIntegration.update({
+  const tenantPrismaSync = createTenantClient(tenantId);
+  await tenantPrismaSync.shopifyIntegration.update({
     where: { tenantId },
     data: {
       lastSyncAt: new Date(),
@@ -654,7 +657,8 @@ async function createShopifyImportLog(tenantId, stats, startTime, syncType = 'pr
     ? (totalCreated + totalUpdated > 0 ? 'partial' : 'failed')
     : 'success';
 
-  await basePrisma.shopifyImportLog.create({
+  const tenantPrisma = createTenantClient(tenantId);
+  await tenantPrisma.shopifyImportLog.create({
     data: {
       tenantId,
       status,
@@ -699,6 +703,22 @@ export async function pushPriceUpdate(shop, accessToken, variantId, price, cost)
 // ── Orders Sync ───────────────────────────────────────────────
 
 /**
+ * Map Shopify financial_status to canonical sales transaction status.
+ */
+function mapFinancialStatus(shopifyStatus) {
+  const mapping = {
+    paid: 'completed',
+    partially_paid: 'completed',
+    authorized: 'completed',
+    pending: 'completed',
+    refunded: 'refunded',
+    partially_refunded: 'partially_refunded',
+    voided: 'cancelled',
+  };
+  return mapping[shopifyStatus] || 'completed';
+}
+
+/**
  * Fetch all orders from Shopify since a given date (paginated, max 20 pages = 5000 orders).
  * @param {string} shop - Shopify shop domain
  * @param {string} accessToken - Decrypted access token
@@ -735,7 +755,7 @@ export async function fetchOrders(shop, accessToken, sinceDate = null) {
  * - Updates lastOrderSyncAt and orderCount on the integration
  * - Creates a ShopifyImportLog with syncType='orders'
  */
-export async function syncOrders(prisma, tenantId) {
+export async function syncOrders(prisma, tenantId, { sinceDate: sinceDateOverride } = {}) {
   const startTime = Date.now();
   const stats = {
     productsPulled: 0,
@@ -745,8 +765,8 @@ export async function syncOrders(prisma, tenantId) {
     errors: [],
   };
 
-  // 1. Get integration + decrypt token
-  const integration = await basePrisma.shopifyIntegration.findUnique({
+  // 1. Get integration + decrypt token (use tenant-scoped prisma for RLS compat)
+  const integration = await prisma.shopifyIntegration.findUnique({
     where: { tenantId },
   });
   if (!integration || !integration.accessTokenEnc) {
@@ -758,17 +778,24 @@ export async function syncOrders(prisma, tenantId) {
 
   const accessToken = decrypt(integration.accessTokenEnc);
 
-  // 2. Fetch orders since last sync (incremental)
-  const sinceDate = integration.lastOrderSyncAt || null;
+  // 2. Fetch orders — use explicit sinceDate if provided, else incremental from last sync
+  const sinceDate = sinceDateOverride || integration.lastOrderSyncAt || null;
   const shopifyOrders = await fetchOrders(integration.shop, accessToken, sinceDate);
   stats.ordersPulled = shopifyOrders.length;
 
-  // 3. Build SKU → variant ID map for line item linking
-  // Only load active variants so we can link order lines to products
+  // 3. Build variant lookup maps for line item linking
+  // Include productId so we can link canonical SalesLineItems to products
   const allVariants = await prisma.productVariant.findMany({
     where: { isActive: true },
-    select: { id: true, sku: true, shopifyVariantId: true },
+    select: { id: true, sku: true, shopifyVariantId: true, productId: true },
   });
+  const skuToVariant = new Map();
+  const shopifyIdToVariant = new Map();
+  for (const v of allVariants) {
+    if (v.sku) skuToVariant.set(v.sku.toLowerCase(), v);
+    if (v.shopifyVariantId) shopifyIdToVariant.set(v.shopifyVariantId, v);
+  }
+  // Legacy maps for ShopifyOrderLine (needs just the variant ID)
   const skuToVariantId = new Map();
   const shopifyIdToVariantId = new Map();
   for (const v of allVariants) {
@@ -783,32 +810,48 @@ export async function syncOrders(prisma, tenantId) {
       const orderData = {
         shopifyOrderId,
         tenantId,
-        orderNumber: String(order.order_number || order.name || shopifyOrderId),
+        integrationId: integration.id,
+        shopifyOrderName: String(order.order_number || order.name || shopifyOrderId),
         customerName: order.customer
           ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || null
           : null,
         customerEmail: order.customer?.email || null,
         totalPrice: parseFloat(order.total_price) || 0,
+        subtotalPrice: parseFloat(order.subtotal_price) || 0,
+        totalDiscount: parseFloat(order.total_discounts) || 0,
+        totalTax: parseFloat(order.total_tax) || 0,
+        sourceName: order.source_name || null,
         currency: order.currency || 'AUD',
         financialStatus: order.financial_status || null,
         fulfillmentStatus: order.fulfillment_status || null,
-        orderedAt: order.created_at ? new Date(order.created_at) : new Date(),
+        orderDate: order.created_at ? new Date(order.created_at) : new Date(),
       };
 
       // Upsert the order
-      const existingOrder = await basePrisma.shopifyOrder.findUnique({
-        where: { shopifyOrderId },
+      const tenantPrisma = createTenantClient(tenantId);
+      const existingOrder = await tenantPrisma.shopifyOrder.findUnique({
+        where: {
+          integrationId_shopifyOrderId: {
+            integrationId: integration.id,
+            shopifyOrderId,
+          },
+        },
       });
 
       let dbOrder;
       if (existingOrder) {
-        dbOrder = await basePrisma.shopifyOrder.update({
-          where: { shopifyOrderId },
+        dbOrder = await tenantPrisma.shopifyOrder.update({
+          where: {
+            integrationId_shopifyOrderId: {
+              integrationId: integration.id,
+              shopifyOrderId,
+            },
+          },
           data: orderData,
         });
         stats.ordersUpdated++;
       } else {
-        dbOrder = await basePrisma.shopifyOrder.create({ data: orderData });
+        dbOrder = await tenantPrisma.shopifyOrder.create({ data: orderData });
         stats.ordersCreated++;
       }
 
@@ -823,31 +866,123 @@ export async function syncOrders(prisma, tenantId) {
         if (shopifyVariantId) productVariantId = shopifyIdToVariantId.get(shopifyVariantId) || null;
         if (!productVariantId && sku) productVariantId = skuToVariantId.get(sku.toLowerCase()) || null;
 
+        const qty = parseInt(line.quantity) || 1;
+        const unitPrice = parseFloat(line.price) || 0;
+        const lineDiscount = parseFloat(line.total_discount) || 0;
+        const lineTotal = (unitPrice * qty) - lineDiscount;
+
         const lineData = {
-          shopifyOrderId: dbOrder.shopifyOrderId,
+          orderId: dbOrder.id,
           shopifyLineId,
           productVariantId,
           sku,
-          title: line.title || null,
+          productTitle: line.title || null,
           variantTitle: line.variant_title && line.variant_title !== 'Default Title' ? line.variant_title : null,
-          quantity: parseInt(line.quantity) || 1,
-          price: parseFloat(line.price) || 0,
-          totalDiscount: parseFloat(line.total_discount) || 0,
+          quantity: qty,
+          unitPrice,
+          discount: lineDiscount,
+          totalPrice: lineTotal,
         };
 
-        await basePrisma.shopifyOrderLine.upsert({
-          where: { shopifyOrderId_shopifyLineId: { shopifyOrderId: dbOrder.shopifyOrderId, shopifyLineId } },
+        await tenantPrisma.shopifyOrderLine.upsert({
+          where: { orderId_shopifyLineId: { orderId: dbOrder.id, shopifyLineId } },
           create: lineData,
           update: lineData,
         });
       }
+
+      // ── 4b. Upsert canonical SalesTransaction + SalesLineItems ──
+      const transactionDate = order.created_at ? new Date(order.created_at) : new Date();
+      const salesTxData = {
+        tenantId,
+        source: 'shopify',
+        sourceId: shopifyOrderId,
+        channel: order.source_name || null,
+        transactionDate,
+        subtotal: parseFloat(order.subtotal_price) || null,
+        totalDiscount: parseFloat(order.total_discounts) || null,
+        totalTax: parseFloat(order.total_tax) || null,
+        totalAmount: parseFloat(order.total_price) || 0,
+        currency: order.currency || 'AUD',
+        status: mapFinancialStatus(order.financial_status),
+        customerName: orderData.customerName,
+        orderReference: order.name || `#${order.order_number}` || null,
+        metadata: { shopifyOrderId: order.id, fulfillmentStatus: order.fulfillment_status },
+      };
+
+      const salesTx = await tenantPrisma.salesTransaction.upsert({
+        where: {
+          tenantId_source_sourceId: { tenantId, source: 'shopify', sourceId: shopifyOrderId },
+        },
+        create: salesTxData,
+        update: salesTxData,
+      });
+
+      // Upsert canonical SalesLineItems with product matching + cost enrichment
+      for (const line of order.line_items || []) {
+        const shopifyVariantId = line.variant_id ? String(line.variant_id) : null;
+        const lineSku = line.sku || null;
+        const lineSourceId = String(line.id);
+
+        // Resolve product via variant lookup (same logic as ShopifyOrderLine matching)
+        let matchedVariant = null;
+        if (shopifyVariantId) matchedVariant = shopifyIdToVariant.get(shopifyVariantId) || null;
+        if (!matchedVariant && lineSku) matchedVariant = skuToVariant.get(lineSku.toLowerCase()) || null;
+
+        const productId = matchedVariant?.productId || null;
+        const variantId = matchedVariant?.id || null;
+        const matchStatus = matchedVariant ? 'matched' : 'unmatched';
+        const matchConfidence = matchedVariant ? 1.0 : null;
+
+        const qty = parseInt(line.quantity) || 1;
+        const unitPrice = parseFloat(line.price) || 0;
+        const lineDisc = parseFloat(line.total_discount) || 0;
+        const lineTotal = (unitPrice * qty) - lineDisc;
+
+        // Cost-at-time-of-sale lookup
+        let costFields;
+        if (productId) {
+          const cost = await getCostAtTimeOfSale(tenantPrisma, productId, transactionDate);
+          costFields = calculateMargin(unitPrice, cost);
+        } else {
+          costFields = calculateMargin(unitPrice, null);
+        }
+
+        const salesLineData = {
+          transactionId: salesTx.id,
+          tenantId,
+          productId,
+          variantId,
+          sourceProductId: line.product_id ? String(line.product_id) : null,
+          sourceVariantId: lineSourceId,
+          productName: line.title || 'Unknown',
+          sku: lineSku,
+          quantity: qty,
+          unitPriceAtSale: unitPrice,
+          discount: lineDisc,
+          lineTotal,
+          matchStatus,
+          matchConfidence,
+          ...costFields,
+        };
+
+        await tenantPrisma.salesLineItem.upsert({
+          where: {
+            transactionId_sourceVariantId: { transactionId: salesTx.id, sourceVariantId: lineSourceId },
+          },
+          create: salesLineData,
+          update: salesLineData,
+        });
+      }
+
     } catch (err) {
       stats.errors.push({ order: order.order_number || order.id, error: err.message });
     }
   }
 
   // 5. Update integration metadata
-  await basePrisma.shopifyIntegration.update({
+  const tenantPrismaOrders = createTenantClient(tenantId);
+  await tenantPrismaOrders.shopifyIntegration.update({
     where: { tenantId },
     data: {
       lastOrderSyncAt: new Date(),
@@ -1049,7 +1184,8 @@ export async function dismissVariants(tenantId, variantIds) {
   const existing = new Set((integration.dismissedVariants || []).map(String));
   for (const id of ids) existing.add(String(id));
 
-  await basePrisma.shopifyIntegration.update({
+  const tenantPrisma = createTenantClient(tenantId);
+  await tenantPrisma.shopifyIntegration.update({
     where: { tenantId },
     data: { dismissedVariants: [...existing] },
   });

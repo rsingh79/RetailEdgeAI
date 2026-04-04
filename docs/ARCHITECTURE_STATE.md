@@ -1,5 +1,5 @@
 # Architecture State — RetailEdgeAI
-## Last verified: 2026-03-29
+## Last verified: 2026-04-04
 
 This document reflects what is ACTUALLY built and deployed right now. Not planned, not discussed — only what exists in the code today. It will be regenerated periodically.
 
@@ -13,7 +13,9 @@ RetailEdgeAI is a Node.js (ES Modules) monorepo with a React 19 SPA frontend and
 
 ### Database schema summary
 
-The Prisma schema contains 40+ models across ~1440 lines. Below, each model lists whether it has a PostgreSQL Row-Level Security policy (RLS) and whether it is in the Prisma `$extends` tenant-scoped set (App Scope).
+The Prisma schema contains 40+ models across ~1500 lines. Below, each model lists whether it has a PostgreSQL Row-Level Security policy (RLS) and whether it is in the Prisma `$extends` tenant-scoped set (App Scope).
+
+> **RLS enforcement (as of 2026-03-31):** All 38 tenant-scoped tables have strict RLS policies. Every tenant-scoped query via `createTenantClient()` wraps in a batch `$transaction` with `SET LOCAL "app.current_tenant_id"`, enforcing RLS at the database level. Admin operations use `adminPrisma` which connects as a BYPASSRLS role. The previous `current_tenant_id() IS NULL` fallback has been removed — no session variable = zero rows (safe default).
 
 #### Tenant management
 | Model | Purpose | RLS | App Scope |
@@ -21,7 +23,7 @@ The Prisma schema contains 40+ models across ~1440 lines. Below, each model list
 | Tenant | Root entity for each business account | Yes | No (is the tenant) |
 | User | Authentication, role assignment. tenantId nullable for SYSTEM_ADMIN | Yes | Yes |
 | PlatformSettings | Singleton (id="singleton") for global config: trial days, lock policy | No | No (global) |
-| TenantAccessLog | Records lock/unlock/register events | No | No |
+| TenantAccessLog | Records lock/unlock/register events | Yes | Yes |
 
 #### Products and catalog
 | Model | Purpose | RLS | App Scope |
@@ -52,35 +54,35 @@ The Prisma schema contains 40+ models across ~1440 lines. Below, each model list
 #### Gmail integration
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
-| GmailIntegration | OAuth/IMAP credentials (encrypted), polling config, sender whitelist | No | Yes |
-| GmailImportLog | Three-layer dedup log (messageId, fileHash, invoice identity) | No | Yes |
+| GmailIntegration | OAuth/IMAP credentials (encrypted), polling config, sender whitelist | Yes | Yes |
+| GmailImportLog | Three-layer dedup log (messageId, fileHash, invoice identity) | Yes | Yes |
 
 #### Folder polling integration
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
-| FolderIntegration | Local/UNC folder path, polling config. One per tenant (unique tenantId) | No | No |
-| FolderImportLog | Three-layer dedup log for folder imports | No | No |
+| FolderIntegration | Local/UNC folder path, polling config. One per tenant (unique tenantId) | Yes | Yes |
+| FolderImportLog | Three-layer dedup log for folder imports | Yes | Yes |
 
 #### Shopify integration
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
-| ShopifyIntegration | OAuth token (encrypted), shop domain, sync timestamps, dismissed variants JSON | No | Yes |
-| ShopifyImportLog | Sync history with product/order counts, duration, errors | No | Yes |
-| ShopifyOrder | Synced order headers with financial/fulfillment status | No | No |
-| ShopifyOrderLine | Order line items linked to ProductVariant by shopifyVariantId/SKU | No | No |
+| ShopifyIntegration | OAuth token (encrypted), shop domain, sync timestamps, dismissed variants JSON | Yes | Yes |
+| ShopifyImportLog | Sync history with product/order counts, duration, errors | Yes | Yes |
+| ShopifyOrder | Synced order headers with financial/fulfillment status | Yes | Yes |
+| ShopifyOrderLine | Order line items linked to ProductVariant by shopifyVariantId/SKU | No (child of ShopifyOrder via FK) | No (child) |
 
 #### Google Drive integration
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
-| DriveIntegration | OAuth credentials (encrypted), folder ID, polling config | No | Yes |
-| DriveImportLog | Three-layer dedup log for Drive imports | No | Yes |
+| DriveIntegration | OAuth credentials (encrypted), folder ID, polling config | Yes | Yes |
+| DriveImportLog | Three-layer dedup log for Drive imports | Yes | Yes |
 
 #### Competitor intelligence
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
-| CompetitorMonitor | Tracks competitor + product + URL for price scraping | No | Yes |
-| CompetitorPrice | Price observations with special/unit price tracking | No | Yes |
-| PriceAlert | Alerts: undercut, margin squeeze, cost increase, opportunity | No | No |
+| CompetitorMonitor | Tracks competitor + product + URL for price scraping | Yes | Yes |
+| CompetitorPrice | Price observations with special/unit price tracking | Yes | Yes |
+| PriceAlert | Alerts: undercut, margin squeeze, cost increase, opportunity | Yes | Yes |
 
 #### Business AI chat
 | Model | Purpose | RLS | App Scope |
@@ -99,7 +101,7 @@ The Prisma schema contains 40+ models across ~1440 lines. Below, each model list
 #### API usage tracking
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
-| ApiUsageLog | Every Claude API call: tokens, cost, duration, status | No | No |
+| ApiUsageLog | Every Claude API call: tokens, cost, duration, status | Yes | Yes |
 | AuditLog | Business action audit trail with trigger source tracking | Yes | Yes |
 
 #### Legacy prompt system
@@ -108,38 +110,38 @@ The Prisma schema contains 40+ models across ~1440 lines. Below, each model list
 | AgentType | Agent definitions (ocr_extraction, product_matching) | No | No (global) |
 | PromptTemplate | Versioned prompt templates per agent | No | No (global) |
 | PromptCondition | Individual rules within a template, with validation keys | No | No (global) |
-| TenantPromptOverride | Tenant add/remove/replace actions on conditions | No | No |
-| PromptConflict | Detected contradictions between tenant and generic conditions | No | No |
-| PromptChangeLog | Audit trail for prompt modifications | No | No |
+| TenantPromptOverride | Tenant add/remove/replace actions on conditions | Yes | Yes |
+| PromptConflict | Detected contradictions between tenant and generic conditions | Yes | Yes |
+| PromptChangeLog | Audit trail for prompt modifications | Yes | Yes |
 
 #### Prompt evolution system
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
 | AgentRole | Agent definitions for evolution system (parallel to AgentType) | No | No (global) |
 | PromptBaseVersion | Versioned base prompts with parent lineage, performance snapshots | No | No (global) |
-| TenantPromptConfig | Structured tenant customization (tone, instructions, terminology, escalation) | No | No |
-| TenantFewShotExample | Auto-curated or manual examples with quality scores | No | No |
-| InteractionSignal | Interaction metrics: resolution, satisfaction, overrides, cost, latency | No | No |
-| PromptSuggestion | AI-generated improvement proposals with approval workflow | No | No |
-| PromptAuditLog | Audit trail for evolution system changes | No | No |
+| TenantPromptConfig | Structured tenant customization (tone, instructions, terminology, escalation) | Yes | Yes |
+| TenantFewShotExample | Auto-curated or manual examples with quality scores | Yes | Yes |
+| InteractionSignal | Interaction metrics: resolution, satisfaction, overrides, cost, latency | Yes | Yes |
+| PromptSuggestion | AI-generated improvement proposals with approval workflow | Yes (nullable policy) | Yes |
+| PromptAuditLog | Audit trail for evolution system changes | Yes (nullable policy) | Yes |
 
 #### Product import pipeline
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
 | GlobalSourceRegistry | System-level import source definitions (Shopify, WooCommerce, etc.) | No | No (global) |
-| TenantSourceRegistry | Tenant-customized source configs with webhook secret | No | Yes |
-| ImportJob | Tracks a single import run: status, row counts, errors, timing | No | Yes |
-| ApprovalQueueEntry | Human review queue with risk levels, confidence, dual approval support | No | Yes |
-| ProductImportRecord | Per-row import data: raw, normalized, fingerprint, match result | No | Yes |
+| TenantSourceRegistry | Tenant-customized source configs with webhook secret | Yes | Yes |
+| ImportJob | Tracks a single import run: status, row counts, errors, timing | Yes | Yes |
+| ApprovalQueueEntry | Human review queue with risk levels, confidence, dual approval support | Yes | Yes |
+| ProductImportRecord | Per-row import data: raw, normalized, fingerprint, match result | Yes | Yes |
 
 #### AI Service Abstraction Layer
 | Model | Purpose | RLS | App Scope |
 |-------|---------|-----|-----------|
 | AiServiceRegistry | Maps task_key to provider, model, config. Platform-level routing configuration | No (platform-level) | No (platform-level) |
-| AiServiceLog | Logs every AI service call with intent, task_key, provider, tokens, latency, cost | No (platform-level) | No |
-| ProductEmbedding | Stores product embedding vectors (pgvector) for semantic matching. One embedding per product per model | No | Yes |
+| AiServiceLog | Logs every AI service call with intent, task_key, provider, tokens, latency, cost | Yes (nullable policy) | Yes |
+| ProductEmbedding | Stores product embedding vectors (pgvector) for semantic matching. One embedding per product per model | Yes | Yes |
 
-**Summary:** 10 tables have RLS policies (Tenant, User, Store, Product, Supplier, Invoice, PricingRule, AuditLog, ImportTemplate, Conversation). 23 tables are in the Prisma $extends scoped set (including ProductEmbedding). 34 tables have a tenantId column (plus AiServiceLog which has a nullable tenantId for cross-tenant platform queries). The gap between "has tenantId" and "has RLS + app scoping" represents models that rely on only one layer of protection or on manual filtering by calling code. AiServiceRegistry and AiServiceLog are intentionally platform-level with no RLS — they are accessed via basePrisma for cross-tenant admin queries.
+**Summary:** 38 tables have RLS policies — every table with a tenantId column. 37 tables are in the Prisma `$extends` tenant-scoped set (`TENANT_SCOPED_MODELS`). 3 tables have nullable tenantId (PromptSuggestion, PromptAuditLog, AiServiceLog) with special nullable-aware policies that hide null-tenantId system rows from tenant queries. 6 child tables (ProductVariant, InvoiceLine, InvoiceLineMatch, SupplierProductMapping, Message, ShopifyOrderLine) have no tenantId column — they rely on transitive protection via FK to RLS-protected parents. Direct queries to child tables should always go through parent includes or use explicit FK joins. Global tables (Feature, PlanTier, PlanTierFeature, PlanTierLimit, AgentType, PromptTemplate, PromptCondition, AgentRole, PromptBaseVersion, GlobalSourceRegistry, AiServiceRegistry, PlatformSettings) have no tenantId and no RLS — they are accessed via `adminPrisma` (BYPASSRLS) for system operations.
 
 ---
 
@@ -398,6 +400,55 @@ Note: Stages 5–7 (risk analyser, confidence scorer, approval classifier) were 
 | Chat rate limit cleanup | 5 minutes | `chatRateLimit.js:16` | **Active** — prunes expired sliding window entries from in-memory Map |
 | Suggestion engine (daily) | Not scheduled | `suggestionEngine.js` | **Not scheduled** — must be triggered manually via `POST /api/suggestions/analyze` or `POST /api/admin/meta-optimizer/run`. No cron job exists |
 | Meta-optimizer (weekly) | Not scheduled | `metaOptimizer.js` | **Not scheduled** — must be triggered manually via admin API. No cron job exists |
+| Shopify sync scheduler | Configurable | `shopifySyncScheduler.js` | **Active** — periodic product/order sync for tenants with auto-sync enabled |
+
+---
+
+### New middleware (Sessions 6-8)
+
+| Middleware | File | Purpose |
+|---|---|---|
+| `errorHandler` | `middleware/errorHandler.js` | Global error handler, structured JSON, no stack traces in prod |
+| `securityHeaders` | `middleware/securityHeaders.js` | Helmet-based CSP, HSTS, X-Frame-Options |
+| `requestLogger` | `middleware/requestLogger.js` | Structured per-request logging |
+| `rateLimits` | `middleware/rateLimits.js` | 5-tier rate limiting (auth/AI/write/read/admin) |
+| `subscriptionCheck` | `middleware/subscriptionCheck.js` | Stripe subscription status validation (fail-open) |
+| `usageEnforcement` | `middleware/usageEnforcement.js` | Per-tenant usage cap checks against TenantUsage |
+| `usageNotification` | `middleware/usageNotification.js` | 4-stage invisible AI throttle |
+
+### New routes (Sessions 6-8)
+
+| Route file | Path | Purpose |
+|---|---|---|
+| `routes/billing.js` | `/api/billing/*` | Stripe checkout, portal, subscription management |
+| `routes/usage.js` | `/api/usage/*` | Tenant usage stats and limits |
+| `routes/webhooks.js` | `/api/webhooks/*` | Stripe webhook handler |
+| `routes/health.js` | `/api/health` | Health check (DB, memory, uptime) |
+| `routes/analytics.js` | `/api/analytics/*` | Sales analytics and demand data |
+| `routes/admin/billing.js` | `/api/admin/billing/*` | Admin billing management |
+
+### New schema models (Sessions 6-8)
+
+| Model | Purpose |
+|---|---|
+| `TenantUsage` | Per-tenant monthly usage counters (AI queries, invoices, products, etc.) |
+| `SubscriptionEvent` | Stripe subscription lifecycle events |
+| `PriceChangeLog` | Audit trail for product price changes (cost/sell, source, reason) |
+
+### Invoice workflow changes (Sessions 8.5 + Export Flow Fix)
+
+- **Review.jsx**: Reduced from 4 steps to 3 (removed ExportPanel placeholder). "Approve & Export" navigates to Export page with invoice pre-selected
+- **Export.jsx**: Two-section layout (Ready to Export / Previously Exported). Search, sort, pagination. Shopify sync two-part flow (review + results screens). Per-item Shopify API results. Failure report CSV export
+- **WorkflowBreadcrumb**: Shared component with `onStepClick` prop for clickable completed steps
+- **StepProgress**: Internal Review.jsx steps with clickable back-navigation
+- **MatchResolutionPanel**: Approved-invoice UX with `currentMatches` (plural), orphaned match display, single-select correction behaviour
+- **Invoice corrections**: `POST /invoices/:id/lines/:lineId/correct-match` with cost reversal. 409 NEWER_INVOICE_EXISTS. Stale data protection via `dataVersion`
+- **Multi-tab detection**: BroadcastChannel heartbeat + conditional polling via `tabSync.js`
+- **Backend Shopify push**: `pushPriceUpdate()` now awaited per-item (not fire-and-forget), results returned to frontend
+
+### Data issues (known)
+
+- **348 orphaned InvoiceLineMatch records**: Both `productId` and `productVariantId` are NULL due to migration gap + Shopify variant cascade. Frontend shows "(product link lost)" with pricing data preserved. 58 were backfilled via name-matching script on 2026-04-04
 
 ---
 
@@ -411,13 +462,19 @@ Note: Stages 5–7 (risk analyser, confidence scorer, approval classifier) were 
 
 3. **Prompt Management agent — listed as "Built."** Functional, but operates on the legacy prompt system only. It cannot manage evolution system configs (TenantPromptConfig), few-shot examples, or suggestion review.
 
+3a. **Invoice workflow — listed as "4 steps."** **RESOLVED (2026-04-04):** Reduced to 3 steps (OCR & Extract, Match & Price, Review & Approve). The old ExportPanel (Step 4) was a placeholder with alert() stubs. Export now lives on a dedicated Export page with Shopify sync confirmation, search/sort/pagination, and per-item results.
+
+3b. **"Basic usage limits and plan gating are functional."** **RESOLVED (2026-03-28):** Full usage enforcement via TenantUsage tracking, 4-stage invisible AI throttle, per-feature limits, and Stripe billing integration.
+
+3c. **"The platform doesn't lose data silently."** **PARTIALLY RESOLVED (2026-04-04):** Shopify price push is no longer fire-and-forget — results are collected per-item and shown to the user. Signal collection and API usage logging remain fire-and-forget (RISK-002 still open).
+
 #### Features required for beta that are not built
 
-4. **"Sales data ingestion from e-commerce platform (order history, sales volumes, revenue by product)."** Shopify order sync exists and stores orders, but there is no sales analysis layer. The Business Advisor has no tool for querying Shopify orders or computing revenue by product. Order data is stored but not surfaced.
+4. **"Sales data ingestion from e-commerce platform (order history, sales volumes, revenue by product)."** Shopify order sync exists and stores orders. Sales analytics routes exist (`routes/analytics.js`). The Business Advisor has sales tools (`services/agents/tools/salesTools.js`). Revenue by product queries are functional. Status: Partially built — analytics layer exists but is not fully surfaced in the UI.
 
 5. **"Basic demand forecasting from historical sales data (seasonal trends, product momentum, sales velocity)."** No demand forecasting code exists anywhere in the codebase. No Demand Forecast agent, no sales trend analysis, no velocity calculations.
 
-6. **"Multi-tenant isolation is verified and complete (all tables have RLS)."** Only 10 of 34 tenant-scoped tables have RLS policies. The rest rely on application-level scoping alone (and some lack even that — see schema summary above).
+6. **"Multi-tenant isolation is verified and complete (all tables have RLS)."** ~~Only 10 of 34 tenant-scoped tables have RLS policies.~~ **RESOLVED (2026-03-31):** All 38 tenant-scoped tables now have strict RLS policies. The `current_tenant_id() IS NULL` fallback has been removed. Every query via `createTenantClient()` sets `SET LOCAL` in a batch transaction. `adminPrisma` (BYPASSRLS) is used for auth, admin, and system operations. 618 tests passing.
 
 7. **"Admin dashboard shows per-agent and per-tenant usage and cost data."** The admin routes provide raw data endpoints. The frontend admin UI exists as HTML mockups (`mockups/admin-portal.html`) but it is unverified whether a functional React admin dashboard is built in the client.
 

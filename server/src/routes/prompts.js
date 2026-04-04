@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { basePrisma } from '../lib/prisma.js';
 import { getEffectivePrompt, getGenericConditions, invalidatePromptCache } from '../services/promptComposer.js';
 import { detectConflicts, getUnresolvedConflicts } from '../services/promptConflictDetector.js';
 import { runValidator } from '../services/promptValidators.js';
@@ -10,7 +9,7 @@ const router = Router();
 // GET /api/prompts/agents — list agents available to this tenant
 router.get('/agents', async (req, res) => {
   try {
-    const agents = await basePrisma.agentType.findMany({
+    const agents = await req.prisma.agentType.findMany({
       where: { isActive: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -29,7 +28,7 @@ router.get('/agents/:key/conditions', async (req, res) => {
 
     const genericConditions = await getGenericConditions(req.params.key);
 
-    const overrides = await basePrisma.tenantPromptOverride.findMany({
+    const overrides = await req.prisma.tenantPromptOverride.findMany({
       where: {
         tenantId: req.tenantId,
         agentTypeKey: req.params.key,
@@ -97,7 +96,7 @@ router.post('/agents/:key/overrides', async (req, res) => {
       );
     }
 
-    const override = await basePrisma.tenantPromptOverride.create({
+    const override = await req.prisma.tenantPromptOverride.create({
       data: {
         tenantId: req.tenantId,
         promptConditionId: condition?.id || null,
@@ -111,7 +110,7 @@ router.post('/agents/:key/overrides', async (req, res) => {
     });
 
     // Log the change
-    await basePrisma.promptChangeLog.create({
+    await req.prisma.promptChangeLog.create({
       data: {
         tenantId: req.tenantId,
         userId: req.user?.id || null,
@@ -140,7 +139,7 @@ router.post('/agents/:key/overrides', async (req, res) => {
 // PUT /api/prompts/overrides/:id — update an override
 router.put('/overrides/:id', async (req, res) => {
   try {
-    const existing = await basePrisma.tenantPromptOverride.findUnique({
+    const existing = await req.prisma.tenantPromptOverride.findUnique({
       where: { id: req.params.id },
     });
     if (!existing || existing.tenantId !== req.tenantId) {
@@ -149,7 +148,7 @@ router.put('/overrides/:id', async (req, res) => {
 
     const { customText, isActive } = req.body;
 
-    const updated = await basePrisma.tenantPromptOverride.update({
+    const updated = await req.prisma.tenantPromptOverride.update({
       where: { id: req.params.id },
       data: {
         ...(customText !== undefined && { customText }),
@@ -168,19 +167,19 @@ router.put('/overrides/:id', async (req, res) => {
 // DELETE /api/prompts/overrides/:id — revert to generic
 router.delete('/overrides/:id', async (req, res) => {
   try {
-    const existing = await basePrisma.tenantPromptOverride.findUnique({
+    const existing = await req.prisma.tenantPromptOverride.findUnique({
       where: { id: req.params.id },
     });
     if (!existing || existing.tenantId !== req.tenantId) {
       return res.status(404).json({ error: 'Override not found' });
     }
 
-    await basePrisma.tenantPromptOverride.delete({
+    await req.prisma.tenantPromptOverride.delete({
       where: { id: req.params.id },
     });
 
     // Log the revert
-    await basePrisma.promptChangeLog.create({
+    await req.prisma.promptChangeLog.create({
       data: {
         tenantId: req.tenantId,
         userId: req.user?.id || null,
@@ -247,7 +246,7 @@ router.post('/conflicts/:id/resolve', async (req, res) => {
 // GET /api/prompts/change-log — tenant's prompt change audit trail
 router.get('/change-log', async (req, res) => {
   try {
-    const logs = await basePrisma.promptChangeLog.findMany({
+    const logs = await req.prisma.promptChangeLog.findMany({
       where: { tenantId: req.tenantId },
       orderBy: { createdAt: 'desc' },
       take: parseInt(req.query.limit) || 50,

@@ -1,0 +1,235 @@
+# RetailEdgeAI: Production Deployment Checklist
+
+**Purpose:** This checklist captures every manual step, configuration change, and
+verification task required before and during the first production deployment.
+Update this document as new requirements emerge during the build.
+
+**Last updated:** March 2026 (post-Session 2a — RLS enforcement)
+
+---
+
+## PRE-DEPLOYMENT: Infrastructure & Database
+
+### Database (DigitalOcean Managed PostgreSQL)
+
+- [ ] **Create production database** (if not using `defaultdb`)
+  - Decide: use `defaultdb` as production, or create a dedicated `retailedge_prod`
+  - Enable pgvector extension: `CREATE EXTENSION IF NOT EXISTS vector;`
+
+- [ ] **BYPASSRLS grant for admin role** *(manual DBA step — cannot be automated via Prisma)*
+  ```sql
+  -- Connect as doadmin (superuser) to the production database
+  -- This allows the adminPrisma client (retailedge role) to bypass RLS
+  -- for auth routes, admin operations, and background jobs
+  ALTER ROLE retailedge BYPASSRLS;
+  ```
+  **Why:** Prisma migrations run as `retailedge_app` which cannot grant BYPASSRLS.
+  This must be done by `doadmin`. Without this, auth/login, admin routes, and
+  background jobs will fail because `adminPrisma` won't be able to see any
+  tenant-scoped data.
+
+- [ ] **Verify role permissions**
+  ```sql
+  -- Connect as doadmin and verify
+  SELECT rolname, rolbypassrls FROM pg_roles
+  WHERE rolname IN ('retailedge', 'retailedge_app');
+  -- Expected: retailedge = true, retailedge_app = false
+  ```
+
+- [ ] **Run Prisma migrations against production**
+  ```bash
+  # From the server directory, with DATABASE_URL pointing to production
+  npx prisma migrate deploy
+  ```
+
+- [ ] **Verify RLS policies are active on production**
+  ```sql
+  -- Connect as doadmin to production database
+  SELECT schemaname, tablename, policyname, permissive, qual
+  FROM pg_policies
+  WHERE schemaname = 'public'
+  ORDER BY tablename;
+  -- Should show strict policies (no IS NULL fallback) on all tenant-scoped tables
+  ```
+
+- [ ] **Grant table permissions to retailedge_app** (if fresh database)
+  ```sql
+  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO retailedge_app;
+  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO retailedge_app;
+  ```
+
+### Environment Variables
+
+- [ ] **Production `.env` file** — verify all variables are set:
+  ```
+  DATABASE_URL=           # retailedge role (admin, BYPASSRLS) — production
+  DATABASE_URL_APP=       # retailedge_app role (RLS enforced) — production
+  DATABASE_URL_ADMIN=     # doadmin role — for migrations only, not runtime
+
+  NODE_ENV=production
+  PORT=3000
+
+  JWT_SECRET=             # Strong random secret (min 32 chars)
+  JWT_EXPIRY=             # e.g., 7d
+
+  # AI Providers
+  COHERE_API_KEY=         # Production Cohere key
+  ANTHROPIC_API_KEY=      # Production Anthropic key (if using Claude API)
+
+  # Integrations
+  SHOPIFY_CLIENT_ID=      # Production Shopify app credentials
+  SHOPIFY_CLIENT_SECRET=
+  SHOPIFY_REDIRECT_URI=   # Must use production domain
+
+  # Billing (when Session 7 is complete)
+  STRIPE_SECRET_KEY=      # Production Stripe key (NOT test key)
+  STRIPE_WEBHOOK_SECRET=  # From Stripe dashboard webhook config
+  STRIPE_PRICE_STARTER=   # Stripe Price ID for $49/mo
+  STRIPE_PRICE_GROWTH=    # Stripe Price ID for $129/mo
+  STRIPE_PRICE_PRO=       # Stripe Price ID for $299/mo
+
+  # Email (for notifications, support)
+  SMTP_HOST=
+  SMTP_PORT=
+  SMTP_USER=
+  SMTP_PASSWORD=
+  SUPPORT_EMAIL=
+
+  # Cloudflare
+  CLOUDFLARE_TUNNEL_TOKEN=  # If using Cloudflare Tunnel for Shopify HTTPS
+  ```
+
+- [ ] **Remove any test/dev keys** — grep for `sk_test_`, `test_`, localhost references
+- [ ] **Verify DATABASE_URL uses `retailedge` role** (admin with BYPASSRLS)
+- [ ] **Verify DATABASE_URL_APP uses `retailedge_app` role** (RLS enforced)
+
+### Server (DigitalOcean Droplet)
+
+- [ ] **Nginx configuration** — verify production domain is configured
+  - SSL certificate (via Cloudflare or Let's Encrypt)
+  - Proxy pass to port 3000
+  - Security headers (X-Frame-Options, X-Content-Type-Options, HSTS)
+  - Rate limiting at Nginx level (backup to application-level)
+
+- [ ] **PM2 configuration** — verify production ecosystem file
+  ```bash
+  pm2 start ecosystem.config.js --env production
+  pm2 save
+  pm2 startup  # Ensure auto-restart on reboot
+  ```
+
+- [ ] **Firewall rules** — verify UFW or DigitalOcean firewall
+  - Allow: 80 (HTTP), 443 (HTTPS), 22 (SSH — restrict to your IP)
+  - Block: everything else (including port 3000 directly)
+
+- [ ] **Log rotation** — PM2 logs don't rotate by default
+  ```bash
+  pm2 install pm2-logrotate
+  pm2 set pm2-logrotate:max_size 10M
+  pm2 set pm2-logrotate:retain 7
+  ```
+
+---
+
+## PRE-DEPLOYMENT: Legal & Business
+
+- [ ] **Business registration** — Pty Ltd registered with ASIC, ABN obtained, GST registered
+- [ ] **Terms of Service** — reviewed, placeholders filled, published on website
+- [ ] **Privacy Policy** — reviewed, placeholders filled, published on website
+- [ ] **Acceptable Use Policy** — reviewed, placeholders filled, published on website
+- [ ] **Data Processing Agreement** — template ready for customers who request it
+- [ ] **Professional Indemnity Insurance** — policy active (covers AI advisory liability)
+- [ ] **Cyber Liability Insurance** — policy active (covers data breach costs)
+- [ ] **Stripe account** — production mode enabled, bank account connected, pricing created
+- [ ] **Domain** — RetailEdgeAI domain purchased, DNS configured
+- [ ] **Support email** — set up and monitored
+
+---
+
+## DEPLOYMENT: Step-by-Step
+
+### 1. Backup current state
+```bash
+# Snapshot the droplet via DigitalOcean console
+# Backup the database
+pg_dump -h <host> -U doadmin -d defaultdb -F c -f backup_pre_deploy_$(date +%Y%m%d).dump
+```
+
+### 2. Manual DBA steps (connect as doadmin)
+```sql
+-- MUST be done before deploying new code
+ALTER ROLE retailedge BYPASSRLS;
+
+-- Verify
+SELECT rolname, rolbypassrls FROM pg_roles
+WHERE rolname IN ('retailedge', 'retailedge_app');
+```
+
+### 3. Deploy code
+```bash
+cd /path/to/retailedgeai
+git pull origin main
+cd server
+npm install --production
+npx prisma migrate deploy
+npx prisma generate
+```
+
+### 4. Verify database state
+```sql
+-- Connect as doadmin
+-- Check migrations applied
+SELECT migration_name, finished_at FROM _prisma_migrations ORDER BY finished_at DESC LIMIT 5;
+
+-- Check RLS policies (should show strict policies, no IS NULL fallback)
+SELECT tablename, policyname, qual FROM pg_policies WHERE schemaname = 'public' LIMIT 20;
+
+-- Check role permissions
+SELECT rolname, rolbypassrls FROM pg_roles WHERE rolname IN ('retailedge', 'retailedge_app');
+```
+
+### 5. Restart application
+```bash
+pm2 restart all
+pm2 logs --lines 50  # Watch for startup errors
+```
+
+### 6. Smoke tests
+- [ ] Can access the landing page / marketing site
+- [ ] Can register a new account (tests adminPrisma + auth flow)
+- [ ] Can log in with the new account (tests JWT + tenant context)
+- [ ] Can import a product (tests RLS enforcement on write)
+- [ ] Can query the product back (tests RLS enforcement on read)
+- [ ] Can connect Shopify (if applicable — tests integration routes)
+- [ ] Can submit an AI query (tests ASAL + usage tracking)
+- [ ] Admin routes work (tests adminPrisma BYPASSRLS)
+- [ ] `/health` endpoint returns healthy status
+
+---
+
+## POST-DEPLOYMENT: Monitoring
+
+- [ ] **Uptime monitoring** — set up external monitor hitting `/health` endpoint
+  (UptimeRobot free tier, or Cloudflare health check)
+- [ ] **Error alerting** — configure PM2 or a log watcher to alert on repeated errors
+- [ ] **Database monitoring** — DigitalOcean provides basic metrics; watch for:
+  - Connection count approaching pool limit
+  - Query latency spikes (the batch transaction adds ~1-2ms per query)
+  - Disk usage growth
+- [ ] **AI API spend monitoring** — check Cohere and Anthropic dashboards daily for
+  the first week, then weekly
+
+---
+
+## FUTURE DEPLOYMENT NOTES
+
+*(Add items here as new sessions complete)*
+
+- **Session 2b:** When RLS is added to the remaining 25+ tables, verify all new
+  policies are strict (no NULL fallback) and run the full test suite.
+- **Session 7 (Stripe):** Webhook endpoint must be registered in Stripe dashboard
+  with the production URL. Verify webhook signature secret is in `.env`.
+- **Session 8 (Rate Limiting):** Verify rate limit values are appropriate for
+  production traffic, not test values.
+- **Session 10 (Landing Page):** DNS cutover — update Cloudflare DNS to point
+  domain to the production droplet. TTL considerations.

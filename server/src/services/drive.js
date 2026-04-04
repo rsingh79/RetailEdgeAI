@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { encrypt, decrypt } from '../lib/encryption.js';
 import { extractInvoiceData } from './ocr.js';
 import { applyOcrToInvoice } from './invoiceProcessor.js';
-import basePrisma from '../lib/prisma.js';
+import basePrisma, { createTenantClient } from '../lib/prisma.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
@@ -137,7 +137,8 @@ export async function handleDriveOAuthCallback(tenantId, code) {
   const tokens = await exchangeDriveCode(code, integration.googleClientId, googleClientSecret);
 
   // Update the pending record with OAuth tokens
-  await basePrisma.driveIntegration.update({
+  const tenantPrisma = createTenantClient(tenantId);
+  await tenantPrisma.driveIntegration.update({
     where: { id: integration.id },
     data: {
       email: tokens.email,

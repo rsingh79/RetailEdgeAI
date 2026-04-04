@@ -23,9 +23,11 @@ const FEATURES = [
   { key: 'reports',            name: 'Reports',                  category: 'core',          icon: '📊', isCore: true,  sortOrder: 6 },
 
   // Gatable features (can be toggled per tier)
+  { key: 'product_import',           name: 'AI Product Import Pipeline', category: 'core',        icon: '📥', isCore: false, sortOrder: 7 },
   { key: 'email_integration',        name: 'Email Integration',        category: 'integrations',  icon: '📧', isCore: false, sortOrder: 10 },
   { key: 'folder_polling',           name: 'Folder Polling',           category: 'integrations',  icon: '📁', isCore: false, sortOrder: 11 },
   { key: 'shopify_integration',     name: 'Shopify Integration',      category: 'integrations',  icon: '🛍️', isCore: false, sortOrder: 12 },
+  { key: 'drive_integration',        name: 'Google Drive Integration', category: 'integrations',  icon: '☁️', isCore: false, sortOrder: 13 },
   { key: 'pricing_rules',            name: 'Pricing Rules',            category: 'pricing',       icon: '💰', isCore: false, sortOrder: 20 },
   { key: 'demand_analysis',          name: 'Demand Analysis',          category: 'intelligence',  icon: '📈', isCore: false, sortOrder: 30 },
   { key: 'competitor_intelligence',  name: 'Competitor Intelligence',  category: 'intelligence',  icon: '🕵️', isCore: false, sortOrder: 31 },
@@ -38,15 +40,16 @@ const FEATURES = [
 
 const TIERS = [
   {
-    slug: 'basic',
-    name: 'Basic',
+    slug: 'starter',
+    name: 'Starter',
     description: 'Essential tools for small retailers — upload invoices, manage products, review & match, export, and AI insights.',
-    monthlyPrice: 29,
-    annualPrice: 290,
+    monthlyPrice: 49,
+    annualPrice: 490,
     sortOrder: 1,
     isDefault: true,
     featureKeys: [
       'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
+      'product_import',
     ],
     limits: {
       max_users: 5,
@@ -60,26 +63,30 @@ const TIERS = [
       max_shopify_syncs_per_month: 0,
       max_competitors_monitored: 0,
       max_demand_products: 0,
+      ai_queries_per_month: 50,
+      max_integrations: 1,
+      historical_sync_months: 12,
+      analysis_window_months: 12,
     },
   },
   {
-    slug: 'medium',
-    name: 'Medium',
-    description: 'Growing retailers — everything in Basic plus email/folder imports, pricing rules, and demand analysis.',
-    monthlyPrice: 79,
-    annualPrice: 790,
+    slug: 'growth',
+    name: 'Growth',
+    description: 'Growing retailers — everything in Starter plus email/folder imports, pricing rules, and demand analysis.',
+    monthlyPrice: 129,
+    annualPrice: 1290,
     sortOrder: 2,
     isDefault: false,
     featureKeys: [
       'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
-      'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis',
-      'ai_advisor',
+      'product_import', 'email_integration', 'folder_polling', 'shopify_integration',
+      'drive_integration', 'pricing_rules', 'demand_analysis', 'ai_advisor',
     ],
     limits: {
       max_users: 15,
       max_stores: 10,
       max_invoice_pages_per_month: 500,
-      max_products: 2000,
+      max_products: 5000,
       max_pricing_rules: 20,
       max_exports_per_month: 200,
       max_email_imports_per_month: 100,
@@ -87,19 +94,24 @@ const TIERS = [
       max_shopify_syncs_per_month: 100,
       max_competitors_monitored: 0,
       max_demand_products: 0,
+      ai_queries_per_month: 200,
+      max_integrations: 3,
+      historical_sync_months: 24,
+      analysis_window_months: 24,
     },
   },
   {
-    slug: 'high',
-    name: 'High',
-    description: 'Full platform — everything in Medium plus competitor intelligence, demand forecasting, and supplier comparison.',
-    monthlyPrice: 199,
-    annualPrice: 1990,
+    slug: 'professional',
+    name: 'Professional',
+    description: 'Full platform — everything in Growth plus competitor intelligence, demand forecasting, and supplier comparison.',
+    monthlyPrice: 299,
+    annualPrice: 2990,
     sortOrder: 3,
     isDefault: false,
     featureKeys: [
       'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
-      'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis',
+      'product_import', 'email_integration', 'folder_polling', 'shopify_integration',
+      'drive_integration', 'pricing_rules', 'demand_analysis',
       'competitor_intelligence', 'demand_forecasting', 'supplier_comparison',
       'ai_advisor',
     ],
@@ -107,7 +119,7 @@ const TIERS = [
       max_users: 999,
       max_stores: 999,
       max_invoice_pages_per_month: 2000,
-      max_products: 999999,
+      max_products: 20000,
       max_pricing_rules: 999,
       max_exports_per_month: 999,
       max_email_imports_per_month: 500,
@@ -115,6 +127,43 @@ const TIERS = [
       max_shopify_syncs_per_month: 500,
       max_competitors_monitored: 50,
       max_demand_products: 100,
+      ai_queries_per_month: 500,
+      max_integrations: 10,
+      historical_sync_months: 60,
+      analysis_window_months: 60,
+    },
+  },
+  {
+    slug: 'enterprise',
+    name: 'Enterprise',
+    description: 'Unlimited everything — custom pricing, dedicated support, and full platform access.',
+    monthlyPrice: 0,
+    annualPrice: 0,
+    sortOrder: 4,
+    isDefault: false,
+    featureKeys: [
+      'invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports',
+      'product_import', 'email_integration', 'folder_polling', 'shopify_integration',
+      'drive_integration', 'pricing_rules', 'demand_analysis',
+      'competitor_intelligence', 'demand_forecasting', 'supplier_comparison',
+      'ai_advisor',
+    ],
+    limits: {
+      max_users: -1,
+      max_stores: -1,
+      max_invoice_pages_per_month: -1,
+      max_products: -1,
+      max_pricing_rules: -1,
+      max_exports_per_month: -1,
+      max_email_imports_per_month: -1,
+      max_folder_imports_per_month: -1,
+      max_shopify_syncs_per_month: -1,
+      max_competitors_monitored: -1,
+      max_demand_products: -1,
+      ai_queries_per_month: -1,
+      max_integrations: -1,
+      historical_sync_months: -1,
+      analysis_window_months: -1,
     },
   },
 ];
@@ -122,9 +171,14 @@ const TIERS = [
 // ── Legacy plan → tier mapping ───────────────────────────────────────
 
 const LEGACY_PLAN_MAP = {
-  starter: 'basic',
-  professional: 'medium',
-  enterprise: 'high',
+  // Old legacy plan field values → new tier slugs
+  starter: 'starter',
+  professional: 'growth',
+  enterprise: 'professional',
+  // Old tier slugs → new tier slugs (for data migration)
+  basic: 'starter',
+  medium: 'growth',
+  high: 'professional',
 };
 
 // ── Limit descriptions ───────────────────────────────────────────────
@@ -140,6 +194,10 @@ const LIMIT_DESCRIPTIONS = {
   max_folder_imports_per_month: 'Folder invoice imports per month',
   max_competitors_monitored: 'Competitors monitored',
   max_demand_products: 'Products with demand analysis',
+  ai_queries_per_month: 'AI queries per month (internal)',
+  max_integrations: 'Maximum connected integrations',
+  historical_sync_months: 'Months of historical order sync allowed',
+  analysis_window_months: 'Months of sales data available for AI analysis',
 };
 
 // ── Main ─────────────────────────────────────────────────────────────
@@ -244,7 +302,7 @@ async function main() {
   if (tenants.length > 0) {
     console.log(`  🔄 Migrating ${tenants.length} tenant(s) from legacy plan field...\n`);
     for (const tenant of tenants) {
-      const tierSlug = LEGACY_PLAN_MAP[tenant.plan] || 'basic';
+      const tierSlug = LEGACY_PLAN_MAP[tenant.plan] || 'starter';
       const tierId = tierMap[tierSlug];
       if (tierId) {
         await prisma.tenant.update({

@@ -10,6 +10,7 @@
 
 import { generate } from '../ai/aiServiceRouter.js';
 import { assemblePrompt } from '../promptAssemblyEngine.js';
+import { logPriceChange } from '../priceChangeLogger.js';
 
 // ── In-memory session store (uploadId → session) ──
 const sessions = new Map();
@@ -530,9 +531,55 @@ export async function applyImport({ session, testResults, prisma, source, allRow
       if (existing) {
         product = await prisma.product.update({ where: { id: existing.id }, data: productData });
         updated++;
+        // Log product-level price changes (update path)
+        if (productData.costPrice != null) {
+          logPriceChange(prisma, {
+            tenantId: product.tenantId,
+            productId: product.id,
+            priceType: 'cost_price',
+            oldPrice: existing.costPrice ?? null,
+            newPrice: productData.costPrice,
+            changeSource: 'bulk_import',
+            reason: 'AI product import agent',
+          }).catch(() => {});
+        }
+        if (productData.sellingPrice != null) {
+          logPriceChange(prisma, {
+            tenantId: product.tenantId,
+            productId: product.id,
+            priceType: 'selling_price',
+            oldPrice: existing.sellingPrice ?? null,
+            newPrice: productData.sellingPrice,
+            changeSource: 'bulk_import',
+            reason: 'AI product import agent',
+          }).catch(() => {});
+        }
       } else {
         product = await prisma.product.create({ data: productData });
         created++;
+        // Log product-level price changes (create path — oldPrice = null)
+        if (product.costPrice != null) {
+          logPriceChange(prisma, {
+            tenantId: product.tenantId,
+            productId: product.id,
+            priceType: 'cost_price',
+            oldPrice: null,
+            newPrice: product.costPrice,
+            changeSource: 'bulk_import',
+            reason: 'AI product import agent',
+          }).catch(() => {});
+        }
+        if (product.sellingPrice != null) {
+          logPriceChange(prisma, {
+            tenantId: product.tenantId,
+            productId: product.id,
+            priceType: 'selling_price',
+            oldPrice: null,
+            newPrice: product.sellingPrice,
+            changeSource: 'bulk_import',
+            reason: 'AI product import agent',
+          }).catch(() => {});
+        }
       }
 
       // Create variants if this is a grouped import
@@ -560,9 +607,59 @@ export async function applyImport({ session, testResults, prisma, source, allRow
 
             if (existingVariant) {
               await prisma.productVariant.update({ where: { id: existingVariant.id }, data: variantData });
+              // Log variant-level price changes (update path)
+              if (variantData.currentCost > 0) {
+                logPriceChange(prisma, {
+                  tenantId: product.tenantId,
+                  productId: product.id,
+                  variantId: existingVariant.id,
+                  priceType: 'cost_price',
+                  oldPrice: existingVariant.currentCost ?? null,
+                  newPrice: variantData.currentCost,
+                  changeSource: 'bulk_import',
+                  reason: 'AI product import agent',
+                }).catch(() => {});
+              }
+              if (variantData.salePrice > 0) {
+                logPriceChange(prisma, {
+                  tenantId: product.tenantId,
+                  productId: product.id,
+                  variantId: existingVariant.id,
+                  priceType: 'sale_price',
+                  oldPrice: existingVariant.salePrice ?? null,
+                  newPrice: variantData.salePrice,
+                  changeSource: 'bulk_import',
+                  reason: 'AI product import agent',
+                }).catch(() => {});
+              }
             } else {
-              await prisma.productVariant.create({ data: variantData });
+              const newVariant = await prisma.productVariant.create({ data: variantData });
               variantsCreated++;
+              // Log variant-level price changes (create path — oldPrice = null)
+              if (variantData.currentCost > 0) {
+                logPriceChange(prisma, {
+                  tenantId: product.tenantId,
+                  productId: product.id,
+                  variantId: newVariant.id,
+                  priceType: 'cost_price',
+                  oldPrice: null,
+                  newPrice: variantData.currentCost,
+                  changeSource: 'bulk_import',
+                  reason: 'AI product import agent',
+                }).catch(() => {});
+              }
+              if (variantData.salePrice > 0) {
+                logPriceChange(prisma, {
+                  tenantId: product.tenantId,
+                  productId: product.id,
+                  variantId: newVariant.id,
+                  priceType: 'sale_price',
+                  oldPrice: null,
+                  newPrice: variantData.salePrice,
+                  changeSource: 'bulk_import',
+                  reason: 'AI product import agent',
+                }).catch(() => {});
+              }
             }
           } catch (vErr) {
             // Non-fatal — product was created, variant failed

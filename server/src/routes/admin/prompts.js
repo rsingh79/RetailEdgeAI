@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { basePrisma } from '../../lib/prisma.js';
+import { adminPrisma } from '../../lib/prisma.js';
 import { getEffectivePrompt, getGenericConditions, invalidateAllForAgent } from '../../services/promptComposer.js';
 
 const router = Router();
@@ -7,7 +7,7 @@ const router = Router();
 // GET /api/admin/prompts/agents — list all agent types
 router.get('/agents', async (req, res) => {
   try {
-    const agents = await basePrisma.agentType.findMany({
+    const agents = await adminPrisma.agentType.findMany({
       orderBy: { createdAt: 'asc' },
     });
     res.json(agents);
@@ -20,7 +20,7 @@ router.get('/agents', async (req, res) => {
 // GET /api/admin/prompts/agents/:key — agent + active template + conditions
 router.get('/agents/:key', async (req, res) => {
   try {
-    const agent = await basePrisma.agentType.findUnique({
+    const agent = await adminPrisma.agentType.findUnique({
       where: { key: req.params.key },
       include: {
         promptTemplates: {
@@ -43,19 +43,19 @@ router.get('/agents/:key', async (req, res) => {
 // POST /api/admin/prompts/agents/:key/versions — create new template version
 router.post('/agents/:key/versions', async (req, res) => {
   try {
-    const agent = await basePrisma.agentType.findUnique({
+    const agent = await adminPrisma.agentType.findUnique({
       where: { key: req.params.key },
     });
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
     // Deactivate current active template
-    await basePrisma.promptTemplate.updateMany({
+    await adminPrisma.promptTemplate.updateMany({
       where: { agentTypeId: agent.id, isActive: true },
       data: { isActive: false },
     });
 
     // Get next version number
-    const maxVersion = await basePrisma.promptTemplate.aggregate({
+    const maxVersion = await adminPrisma.promptTemplate.aggregate({
       where: { agentTypeId: agent.id },
       _max: { version: true },
     });
@@ -63,7 +63,7 @@ router.post('/agents/:key/versions', async (req, res) => {
 
     const { preamble, postamble, conditions } = req.body;
 
-    const template = await basePrisma.promptTemplate.create({
+    const template = await adminPrisma.promptTemplate.create({
       data: {
         agentTypeId: agent.id,
         version: nextVersion,
@@ -101,7 +101,7 @@ router.put('/conditions/:id', async (req, res) => {
   try {
     const { text, category, isRequired, validationKey, validationDesc, orderIndex } = req.body;
 
-    const condition = await basePrisma.promptCondition.update({
+    const condition = await adminPrisma.promptCondition.update({
       where: { id: req.params.id },
       data: {
         ...(text !== undefined && { text }),
@@ -126,7 +126,7 @@ router.get('/tenants/:tenantId/:agentKey', async (req, res) => {
     const effective = await getEffectivePrompt(req.params.agentKey, req.params.tenantId);
     if (!effective) return res.status(404).json({ error: 'No active template found' });
 
-    const overrides = await basePrisma.tenantPromptOverride.findMany({
+    const overrides = await adminPrisma.tenantPromptOverride.findMany({
       where: {
         tenantId: req.params.tenantId,
         agentTypeKey: req.params.agentKey,
@@ -144,7 +144,7 @@ router.get('/tenants/:tenantId/:agentKey', async (req, res) => {
 // GET /api/admin/prompts/tenants/:tenantId/overrides — list all overrides for a tenant
 router.get('/tenants/:tenantId/overrides', async (req, res) => {
   try {
-    const overrides = await basePrisma.tenantPromptOverride.findMany({
+    const overrides = await adminPrisma.tenantPromptOverride.findMany({
       where: { tenantId: req.params.tenantId },
       include: { promptCondition: true },
       orderBy: { createdAt: 'desc' },
@@ -159,7 +159,7 @@ router.get('/tenants/:tenantId/overrides', async (req, res) => {
 // GET /api/admin/prompts/conflicts — unresolved conflicts (all tenants)
 router.get('/conflicts', async (req, res) => {
   try {
-    const conflicts = await basePrisma.promptConflict.findMany({
+    const conflicts = await adminPrisma.promptConflict.findMany({
       where: { resolution: null },
       include: { promptCondition: true },
       orderBy: { createdAt: 'desc' },
@@ -174,7 +174,7 @@ router.get('/conflicts', async (req, res) => {
 // GET /api/admin/prompts/change-log/:tenantId — prompt change history for a tenant
 router.get('/change-log/:tenantId', async (req, res) => {
   try {
-    const logs = await basePrisma.promptChangeLog.findMany({
+    const logs = await adminPrisma.promptChangeLog.findMany({
       where: { tenantId: req.params.tenantId },
       orderBy: { createdAt: 'desc' },
       take: parseInt(req.query.limit) || 50,

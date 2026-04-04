@@ -14,6 +14,10 @@ import {
   runImportPipeline,
 } from '../services/importJobService.js';
 import {
+  checkProductCapacity,
+  recordProductsCreated,
+} from '../middleware/usageEnforcement.js';
+import {
   analyzeFile,
   chat,
   getSession,
@@ -24,6 +28,7 @@ import { buildProductData, findOrCreateStore } from '../services/agents/pipeline
 import { withTenantTransaction } from '../lib/prisma.js';
 import { executeHook } from '../services/integrationHooks.js';
 import { normalizeSource } from '../services/sourceNormalizer.js';
+import { logPriceChange } from '../services/priceChangeLogger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const importsDir = path.join(__dirname, '..', '..', 'uploads', 'imports');
@@ -387,6 +392,23 @@ router.post('/import/confirm', async (req, res) => {
       where: { archivedAt: null },
     });
 
+    // ── Usage cap: pre-flight product capacity check ──
+    if (!dryRun) {
+      const capacity = await checkProductCapacity(
+        req.prisma, req.tenantId, catalogProductCount, canonicalProducts.length,
+      );
+      if (!capacity.allowed) {
+        return res.status(429).json({
+          message: capacity.message,
+          code: 'PRODUCT_LIMIT_REACHED',
+          currentCount: capacity.currentCount,
+          limit: capacity.limit,
+          remaining: capacity.remaining,
+          importSize: capacity.importSize,
+        });
+      }
+    }
+
     const result = await runImportPipeline({
       importJobId,
       products: canonicalProducts,
@@ -410,6 +432,12 @@ router.post('/import/confirm', async (req, res) => {
         catalogProductCount,
       },
     });
+
+    // ── Usage cap: record actual product count after successful import ──
+    if (!dryRun && result.context?.rowsCreated > 0) {
+      const newCatalogCount = await req.prisma.product.count({ where: { archivedAt: null } });
+      recordProductsCreated(req.prisma, req.tenantId, newCatalogCount);
+    }
 
     // Save template if requested
     const systemName = session.systemName || session.fileName;
@@ -641,6 +669,34 @@ router.post('/approval-queue/bulk', async (req, res) => {
             });
           });
 
+          // Log price changes for new product (oldPrice = null)
+          if (newProduct.costPrice != null) {
+            logPriceChange(req.prisma, {
+              tenantId: req.tenantId,
+              productId: newProduct.id,
+              priceType: 'cost_price',
+              oldPrice: null,
+              newPrice: newProduct.costPrice,
+              changeSource: 'approval_action',
+              changedBy: req.user.id,
+              sourceRef: entry.id,
+              reason: 'Bulk approval from import queue',
+            }).catch(() => {});
+          }
+          if (newProduct.sellingPrice != null) {
+            logPriceChange(req.prisma, {
+              tenantId: req.tenantId,
+              productId: newProduct.id,
+              priceType: 'selling_price',
+              oldPrice: null,
+              newPrice: newProduct.sellingPrice,
+              changeSource: 'approval_action',
+              changedBy: req.user.id,
+              sourceRef: entry.id,
+              reason: 'Bulk approval from import queue',
+            }).catch(() => {});
+          }
+
           // Link any archived predecessors to this product
           try {
             const archivedPredecessors = await req.prisma.product.findMany({
@@ -676,19 +732,50 @@ router.post('/approval-queue/bulk', async (req, res) => {
               const sourceSystem = nd.sourceSystem || 'Manual';
               const store = await findOrCreateStore(sourceSystem, req.tenantId, req.prisma);
               const sku = nd.sku || `${sourceSystem}-${newProduct.id}`;
-              await req.prisma.productVariant.create({
+              const variantSalePrice = nd.price ? parseFloat(nd.price) : (nd.sellingPrice ? parseFloat(nd.sellingPrice) : 0);
+              const variantCost = nd.costPrice ? parseFloat(nd.costPrice) : 0;
+              const newVariant = await req.prisma.productVariant.create({
                 data: {
                   productId: newProduct.id,
                   storeId: store.id,
                   name: nd.name || 'Default',
                   sku,
                   barcode: nd.barcode || null,
-                  salePrice: nd.price ? parseFloat(nd.price) : (nd.sellingPrice ? parseFloat(nd.sellingPrice) : 0),
-                  currentCost: nd.costPrice ? parseFloat(nd.costPrice) : 0,
+                  salePrice: variantSalePrice,
+                  currentCost: variantCost,
                   unitQty: 1,
                   isActive: true,
                 },
               });
+              // Log variant-level price changes
+              if (variantCost > 0) {
+                logPriceChange(req.prisma, {
+                  tenantId: req.tenantId,
+                  productId: newProduct.id,
+                  variantId: newVariant.id,
+                  priceType: 'cost_price',
+                  oldPrice: null,
+                  newPrice: variantCost,
+                  changeSource: 'approval_action',
+                  changedBy: req.user.id,
+                  sourceRef: entry.id,
+                  reason: 'Bulk approval from import queue',
+                }).catch(() => {});
+              }
+              if (variantSalePrice > 0) {
+                logPriceChange(req.prisma, {
+                  tenantId: req.tenantId,
+                  productId: newProduct.id,
+                  variantId: newVariant.id,
+                  priceType: 'sale_price',
+                  oldPrice: null,
+                  newPrice: variantSalePrice,
+                  changeSource: 'approval_action',
+                  changedBy: req.user.id,
+                  sourceRef: entry.id,
+                  reason: 'Bulk approval from import queue',
+                }).catch(() => {});
+              }
             }
           } catch (variantErr) {
             console.warn(
@@ -806,6 +893,15 @@ router.post('/approval-queue/:queueId/approve', async (req, res) => {
       confidenceScore: entry.confidenceScore ?? null,
     };
 
+    // Capture old prices BEFORE update (for UPDATE path)
+    let oldProductPrices = null;
+    if (matchAction === 'UPDATE' && matchedProductId) {
+      oldProductPrices = await req.prisma.product.findUnique({
+        where: { id: matchedProductId },
+        select: { costPrice: true, sellingPrice: true },
+      });
+    }
+
     // Write product inside transaction
     const { writtenProduct, action } = await withTenantTransaction(
       req.tenantId,
@@ -829,6 +925,34 @@ router.post('/approval-queue/:queueId/approve', async (req, res) => {
         return { writtenProduct, action };
       }
     );
+
+    // Log product-level price changes
+    if (writtenProduct.costPrice != null) {
+      logPriceChange(req.prisma, {
+        tenantId: req.tenantId,
+        productId: writtenProduct.id,
+        priceType: 'cost_price',
+        oldPrice: oldProductPrices?.costPrice ?? null,
+        newPrice: writtenProduct.costPrice,
+        changeSource: 'approval_action',
+        changedBy: req.user.id,
+        sourceRef: entry.id,
+        reason: `Approval queue entry ${action.toLowerCase()}`,
+      }).catch(() => {});
+    }
+    if (writtenProduct.sellingPrice != null) {
+      logPriceChange(req.prisma, {
+        tenantId: req.tenantId,
+        productId: writtenProduct.id,
+        priceType: 'selling_price',
+        oldPrice: oldProductPrices?.sellingPrice ?? null,
+        newPrice: writtenProduct.sellingPrice,
+        changeSource: 'approval_action',
+        changedBy: req.user.id,
+        sourceRef: entry.id,
+        reason: `Approval queue entry ${action.toLowerCase()}`,
+      }).catch(() => {});
+    }
 
     // Link any archived predecessors to this product and transfer variants
     try {
@@ -879,19 +1003,50 @@ router.post('/approval-queue/:queueId/approve', async (req, res) => {
         const sourceSystem = nd.sourceSystem || 'Manual';
         const store = await findOrCreateStore(sourceSystem, req.tenantId, req.prisma);
         const sku = nd.sku || `${sourceSystem}-${writtenProduct.id}`;
-        await req.prisma.productVariant.create({
+        const variantSalePrice = nd.price ? parseFloat(nd.price) : (nd.sellingPrice ? parseFloat(nd.sellingPrice) : 0);
+        const variantCost = nd.costPrice ? parseFloat(nd.costPrice) : 0;
+        const newVariant = await req.prisma.productVariant.create({
           data: {
             productId: writtenProduct.id,
             storeId: store.id,
             name: nd.name || 'Default',
             sku,
             barcode: nd.barcode || null,
-            salePrice: nd.price ? parseFloat(nd.price) : (nd.sellingPrice ? parseFloat(nd.sellingPrice) : 0),
-            currentCost: nd.costPrice ? parseFloat(nd.costPrice) : 0,
+            salePrice: variantSalePrice,
+            currentCost: variantCost,
             unitQty: 1,
             isActive: true,
           },
         });
+        // Log variant-level price changes
+        if (variantCost > 0) {
+          logPriceChange(req.prisma, {
+            tenantId: req.tenantId,
+            productId: writtenProduct.id,
+            variantId: newVariant.id,
+            priceType: 'cost_price',
+            oldPrice: null,
+            newPrice: variantCost,
+            changeSource: 'approval_action',
+            changedBy: req.user.id,
+            sourceRef: entry.id,
+            reason: `Approval queue entry ${action.toLowerCase()}`,
+          }).catch(() => {});
+        }
+        if (variantSalePrice > 0) {
+          logPriceChange(req.prisma, {
+            tenantId: req.tenantId,
+            productId: writtenProduct.id,
+            variantId: newVariant.id,
+            priceType: 'sale_price',
+            oldPrice: null,
+            newPrice: variantSalePrice,
+            changeSource: 'approval_action',
+            changedBy: req.user.id,
+            sourceRef: entry.id,
+            reason: `Approval queue entry ${action.toLowerCase()}`,
+          }).catch(() => {});
+        }
       }
     } catch (variantErr) {
       console.warn(

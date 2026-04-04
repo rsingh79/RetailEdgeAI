@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { basePrisma as prisma } from '../lib/prisma.js';
+import { adminPrisma as prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
+import { TIER_LIMITS, BILLING_DEFAULTS } from '../config/tierLimits.js';
 
 const router = Router();
 
@@ -12,7 +13,40 @@ router.post('/register', async (req, res) => {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Email already registered' });
 
-    const tenant = await prisma.tenant.create({ data: { name: tenantName || 'My Business' } });
+    // Find the Growth tier for trial (generous limits to demo the product)
+    const trialTierSlug = BILLING_DEFAULTS.trialTier;
+    const trialDays = BILLING_DEFAULTS.trialDays;
+    const trialLimits = TIER_LIMITS[trialTierSlug] || TIER_LIMITS.growth;
+
+    const growthTier = await prisma.planTier.findUnique({ where: { slug: trialTierSlug } });
+    const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+
+    const tenant = await prisma.tenant.create({
+      data: {
+        name: tenantName || 'My Business',
+        planTierId: growthTier?.id || null,
+        plan: trialTierSlug,
+        subscriptionStatus: 'trialing',
+        trialStartedAt: new Date(),
+        trialEndsAt,
+        trialTier: trialTierSlug,
+        // No stripeCustomerId — deferred until plan selection
+      },
+    });
+
+    // Create TenantUsage with Growth-tier limits for the trial period
+    await prisma.tenantUsage.create({
+      data: {
+        tenantId: tenant.id,
+        billingPeriodStart: new Date(),
+        billingPeriodEnd: trialEndsAt,
+        aiQueriesLimit: trialLimits.aiQueries,
+        productsLimit: trialLimits.products,
+        integrationsLimit: trialLimits.integrations,
+        historicalSyncMonths: trialLimits.historicalSyncMonths,
+      },
+    });
+
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: { email, passwordHash, name, role: 'OWNER', tenantId: tenant.id },
@@ -61,6 +95,10 @@ router.get('/me', authenticate, async (req, res) => {
             maxStores: true,
             maxApiCallsPerMonth: true,
             subscriptionStatus: true,
+            trialEndsAt: true,
+            trialStartedAt: true,
+            stripeCustomerId: true,
+            billingPeriodEnd: true,
             planTierId: true,
             planTier: {
               select: {
@@ -98,12 +136,22 @@ router.get('/me', authenticate, async (req, res) => {
       }
     }
 
+    // Calculate trial days remaining
+    let trialDaysRemaining = null;
+    const status = user.tenant?.subscriptionStatus;
+    if ((status === 'trialing' || status === 'trial') && user.tenant?.trialEndsAt) {
+      const msRemaining = new Date(user.tenant.trialEndsAt) - new Date();
+      trialDaysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+    }
+
     res.json({
       ...user,
       enabledFeatures,
       limits,
       tierName: user.tenant?.planTier?.name || null,
       tierSlug: user.tenant?.planTier?.slug || user.tenant?.plan || null,
+      trialDaysRemaining,
+      hasStripeCustomer: !!user.tenant?.stripeCustomerId,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

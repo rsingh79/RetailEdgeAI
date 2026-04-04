@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { basePrisma } from '../lib/prisma.js';
 import { handleChatMessage, confirmAction } from '../services/promptChatAgent.js';
 
 const router = Router();
@@ -100,7 +99,7 @@ router.delete('/history', (req, res) => {
 // GET /api/prompt-chat/change-log — tenant's prompt change audit trail
 router.get('/change-log', async (req, res) => {
   try {
-    const logs = await basePrisma.promptChangeLog.findMany({
+    const logs = await req.prisma.promptChangeLog.findMany({
       where: { tenantId: req.tenantId },
       orderBy: { createdAt: 'desc' },
       take: parseInt(req.query.limit) || 50,

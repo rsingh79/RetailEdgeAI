@@ -23,7 +23,7 @@
  * @module promptAssemblyEngine
  */
 
-import { basePrisma } from '../lib/prisma.js';
+import { basePrisma, createTenantClient } from '../lib/prisma.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CACHE LAYER
@@ -483,7 +483,8 @@ export async function assemblePrompt({
 
   // Update usage counters for examples (fire-and-forget)
   if (exampleIds.length > 0) {
-    basePrisma.tenantFewShotExample.updateMany({
+    const tenantPrisma = createTenantClient(tenantId);
+    tenantPrisma.tenantFewShotExample.updateMany({
       where: { id: { in: exampleIds } },
       data: { timesUsed: { increment: 1 }, lastUsedAt: new Date() },
     }).catch((err) => console.error('[PromptAssembly] Failed to update example usage:', err.message));

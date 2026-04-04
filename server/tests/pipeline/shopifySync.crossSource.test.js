@@ -6,8 +6,8 @@ vi.mock('../../src/lib/encryption.js', () => ({
   decrypt: vi.fn((v) => v.replace('enc:', '')),
 }));
 
-vi.mock('../../src/lib/prisma.js', () => ({
-  default: {
+vi.mock('../../src/lib/prisma.js', () => {
+  const mockClient = {
     shopifyIntegration: {
       findUnique: vi.fn().mockResolvedValue({
         tenantId: 'tenant-1',
@@ -18,9 +18,23 @@ vi.mock('../../src/lib/prisma.js', () => ({
       update: vi.fn().mockResolvedValue({}),
     },
     shopifyImportLog: { create: vi.fn().mockResolvedValue({}) },
-  },
-  withTenantTransaction: vi.fn(),
-}));
+    shopifyOrder: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    shopifyOrderLine: { upsert: vi.fn().mockResolvedValue({}) },
+    store: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
+    },
+  };
+  return {
+    default: mockClient,
+    createTenantClient: vi.fn(() => mockClient),
+    withTenantTransaction: vi.fn(),
+  };
+});
 
 vi.mock('../../src/services/matching.js', () => ({
   fuzzyNameScore: vi.fn(() => 0),
@@ -56,6 +70,16 @@ const { syncProducts, normalizeShop } = await import('../../src/services/shopify
 
 function createMockPrisma() {
   return {
+    shopifyIntegration: {
+      findUnique: vi.fn().mockResolvedValue({
+        tenantId: 'tenant-1',
+        shop: 'teststore.myshopify.com',
+        accessTokenEnc: 'enc:test-token',
+        isActive: true,
+      }),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    shopifyImportLog: { create: vi.fn().mockResolvedValue({}) },
     store: {
       findFirst: vi.fn().mockResolvedValue({ id: 'store-1', name: 'Shopify Store', type: 'ECOMMERCE', platform: 'Shopify' }),
       create: vi.fn().mockResolvedValue({ id: 'store-1' }),

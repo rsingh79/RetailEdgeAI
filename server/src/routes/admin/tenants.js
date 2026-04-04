@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { basePrisma } from '../../lib/prisma.js';
+import { adminPrisma } from '../../lib/prisma.js';
 
 const router = Router();
 
@@ -34,7 +34,7 @@ router.get('/', async (req, res) => {
       1
     );
 
-    const tenants = await basePrisma.tenant.findMany({
+    const tenants = await adminPrisma.tenant.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
 
     // Attach API usage stats per tenant
     const tenantIds = tenants.map((t) => t.id);
-    const usageByTenant = await basePrisma.apiUsageLog.groupBy({
+    const usageByTenant = await adminPrisma.apiUsageLog.groupBy({
       by: ['tenantId'],
       where: { tenantId: { in: tenantIds }, createdAt: { gte: startOfMonth } },
       _sum: { costUsd: true },
@@ -75,7 +75,7 @@ router.get('/', async (req, res) => {
 // GET /api/admin/tenants/:id — Full tenant detail
 router.get('/:id', async (req, res) => {
   try {
-    const tenant = await basePrisma.tenant.findUnique({
+    const tenant = await adminPrisma.tenant.findUnique({
       where: { id: req.params.id },
       include: {
         users: {
@@ -109,7 +109,7 @@ router.get('/:id', async (req, res) => {
     }
 
     // Get access logs
-    const accessLogs = await basePrisma.tenantAccessLog.findMany({
+    const accessLogs = await adminPrisma.tenantAccessLog.findMany({
       where: { tenantId: tenant.id },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -121,7 +121,7 @@ router.get('/:id', async (req, res) => {
       new Date().getMonth(),
       1
     );
-    const usageSummary = await basePrisma.apiUsageLog.aggregate({
+    const usageSummary = await adminPrisma.apiUsageLog.aggregate({
       where: { tenantId: tenant.id, createdAt: { gte: startOfMonth } },
       _sum: { costUsd: true, inputTokens: true, outputTokens: true },
       _count: true,
@@ -165,7 +165,7 @@ router.post('/', async (req, res) => {
     }
 
     // Check if owner email already exists
-    const existingUser = await basePrisma.user.findUnique({
+    const existingUser = await adminPrisma.user.findUnique({
       where: { email: ownerEmail },
     });
     if (existingUser) {
@@ -178,12 +178,12 @@ router.post('/', async (req, res) => {
       : new Date(Date.now() + 14 * 86400000); // default 14 days
 
     // Find default tier
-    const defaultTier = await basePrisma.planTier.findFirst({
+    const defaultTier = await adminPrisma.planTier.findFirst({
       where: { isDefault: true, isActive: true },
     });
 
     // Create tenant
-    const tenant = await basePrisma.tenant.create({
+    const tenant = await adminPrisma.tenant.create({
       data: {
         name,
         abn: abn || null,
@@ -202,7 +202,7 @@ router.post('/', async (req, res) => {
     const tempPassword = Math.random().toString(36).slice(-10);
     const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    const owner = await basePrisma.user.create({
+    const owner = await adminPrisma.user.create({
       data: {
         tenantId: tenant.id,
         email: ownerEmail,
@@ -213,7 +213,7 @@ router.post('/', async (req, res) => {
     });
 
     // Log the registration
-    await basePrisma.tenantAccessLog.create({
+    await adminPrisma.tenantAccessLog.create({
       data: {
         tenantId: tenant.id,
         action: 'REGISTERED',
@@ -251,7 +251,7 @@ router.patch('/:id', async (req, res) => {
     if (contactEmail !== undefined) updateData.contactEmail = contactEmail;
     if (contactPhone !== undefined) updateData.contactPhone = contactPhone;
 
-    const tenant = await basePrisma.tenant.update({
+    const tenant = await adminPrisma.tenant.update({
       where: { id: req.params.id },
       data: updateData,
     });
@@ -269,7 +269,7 @@ router.post('/:id/lock', async (req, res) => {
   try {
     const { reason } = req.body;
 
-    const tenant = await basePrisma.tenant.update({
+    const tenant = await adminPrisma.tenant.update({
       where: { id: req.params.id },
       data: {
         isLocked: true,
@@ -279,7 +279,7 @@ router.post('/:id/lock', async (req, res) => {
       },
     });
 
-    await basePrisma.tenantAccessLog.create({
+    await adminPrisma.tenantAccessLog.create({
       data: {
         tenantId: tenant.id,
         action: 'LOCKED',
@@ -299,7 +299,7 @@ router.post('/:id/lock', async (req, res) => {
 // POST /api/admin/tenants/:id/unlock — Unlock tenant access
 router.post('/:id/unlock', async (req, res) => {
   try {
-    const tenant = await basePrisma.tenant.update({
+    const tenant = await adminPrisma.tenant.update({
       where: { id: req.params.id },
       data: {
         isLocked: false,
@@ -309,7 +309,7 @@ router.post('/:id/unlock', async (req, res) => {
       },
     });
 
-    await basePrisma.tenantAccessLog.create({
+    await adminPrisma.tenantAccessLog.create({
       data: {
         tenantId: tenant.id,
         action: 'UNLOCKED',
@@ -342,7 +342,7 @@ router.patch('/:id/subscription', async (req, res) => {
     // DB-driven tier change
     if (planTierId !== undefined) {
       // Verify the tier exists
-      const tier = await basePrisma.planTier.findUnique({
+      const tier = await adminPrisma.planTier.findUnique({
         where: { id: planTierId },
         include: {
           limits: true,
@@ -365,7 +365,7 @@ router.patch('/:id/subscription', async (req, res) => {
       if (limitMap.max_invoice_pages_per_month) updateData.maxApiCallsPerMonth = limitMap.max_invoice_pages_per_month;
     } else if (plan !== undefined) {
       // Legacy: look up tier by slug and assign
-      const tier = await basePrisma.planTier.findUnique({
+      const tier = await adminPrisma.planTier.findUnique({
         where: { slug: plan },
         include: { limits: true },
       });
@@ -390,14 +390,14 @@ router.patch('/:id/subscription', async (req, res) => {
     if (paymentMethodOnFile !== undefined)
       updateData.paymentMethodOnFile = paymentMethodOnFile;
 
-    const tenant = await basePrisma.tenant.update({
+    const tenant = await adminPrisma.tenant.update({
       where: { id: req.params.id },
       data: updateData,
     });
 
     // Log plan/tier change
     if (planTierId !== undefined || plan !== undefined) {
-      await basePrisma.tenantAccessLog.create({
+      await adminPrisma.tenantAccessLog.create({
         data: {
           tenantId: tenant.id,
           action: 'PLAN_CHANGED',

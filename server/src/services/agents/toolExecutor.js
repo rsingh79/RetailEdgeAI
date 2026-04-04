@@ -10,6 +10,7 @@ import {
   competitorToolDefs,
   competitorToolExecutors,
 } from './tools/competitorTools.js';
+import { salesToolDefs, salesToolExecutors } from './tools/salesTools.js';
 
 // ── All tool definitions (sent to Claude) ──
 export const allToolDefs = [
@@ -17,6 +18,7 @@ export const allToolDefs = [
   ...productToolDefs,
   ...pricingToolDefs,
   ...competitorToolDefs,
+  ...salesToolDefs,
 ];
 
 // ── Executor map: toolName → async function(input, prisma) ──
@@ -25,6 +27,7 @@ const executorMap = {
   ...productToolExecutors,
   ...pricingToolExecutors,
   ...competitorToolExecutors,
+  ...salesToolExecutors,
 };
 
 /**

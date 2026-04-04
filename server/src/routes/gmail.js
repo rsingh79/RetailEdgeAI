@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getAuthUrl, pollGmailForInvoices } from '../services/gmail.js';
 import { testImapConnection, pollImapForInvoices } from '../services/imap.js';
 import { encrypt } from '../lib/encryption.js';
+import { enforceIntegrationLimit } from '../middleware/usageEnforcement.js';
 
 const router = Router();
 
@@ -59,7 +60,7 @@ router.get('/status', async (req, res) => {
 });
 
 // POST /api/gmail/save-credentials — Save Google Cloud OAuth credentials
-router.post('/save-credentials', async (req, res) => {
+router.post('/save-credentials', enforceIntegrationLimit('gmail'), async (req, res) => {
   try {
     const { googleClientId, googleClientSecret } = req.body;
 
@@ -262,7 +263,7 @@ router.post('/imap/test-connection', async (req, res) => {
 });
 
 // POST /api/gmail/imap/save-credentials — Save IMAP email + encrypted App Password
-router.post('/imap/save-credentials', async (req, res) => {
+router.post('/imap/save-credentials', enforceIntegrationLimit('gmail'), async (req, res) => {
   try {
     const { email, password, senderWhitelist, labelFilter, pollIntervalMin, initialLookbackDays } = req.body;
 

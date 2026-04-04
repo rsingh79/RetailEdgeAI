@@ -1,4 +1,4 @@
-import { basePrisma } from '../lib/prisma.js';
+import { adminPrisma } from '../lib/prisma.js';
 
 /**
  * Middleware factory: returns 403 if the tenant's plan tier lacks the required feature.
@@ -21,7 +21,7 @@ export function requirePlan(featureKey) {
     }
 
     try {
-      const tenant = await basePrisma.tenant.findUnique({
+      const tenant = await adminPrisma.tenant.findUnique({
         where: { id: req.user.tenantId },
         select: {
           plan: true,

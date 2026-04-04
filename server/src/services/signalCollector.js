@@ -11,7 +11,7 @@
  * - Fire-and-forget — errors are logged, never propagated
  * - All public methods return immediately (no await needed by callers)
  */
-import { basePrisma } from '../lib/prisma.js';
+import { basePrisma, createTenantClient } from '../lib/prisma.js';
 
 const FLUSH_INTERVAL_MS = 5_000;   // flush every 5 seconds
 const FLUSH_THRESHOLD = 20;         // flush when buffer reaches this size
@@ -259,7 +259,8 @@ async function flushBuffer() {
         return;
       }
 
-      await basePrisma.interactionSignal.create({
+      const tenantPrisma = createTenantClient(signal.tenantId);
+      await tenantPrisma.interactionSignal.create({
         data: {
           conversationId: signal.conversationId,
           tenantId: signal.tenantId,

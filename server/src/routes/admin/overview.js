@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { basePrisma } from '../../lib/prisma.js';
+import { adminPrisma } from '../../lib/prisma.js';
 
 const router = Router();
 
@@ -12,19 +12,19 @@ router.get('/stats', async (_req, res) => {
 
     const [totalTenants, trialTenants, lockedTenants, monthlyUsage, activeUsers] =
       await Promise.all([
-        basePrisma.tenant.count(),
-        basePrisma.tenant.count({
+        adminPrisma.tenant.count(),
+        adminPrisma.tenant.count({
           where: { subscriptionStatus: 'trial', trialEndsAt: { gt: now } },
         }),
-        basePrisma.tenant.count({
+        adminPrisma.tenant.count({
           where: { isLocked: true },
         }),
-        basePrisma.apiUsageLog.aggregate({
+        adminPrisma.apiUsageLog.aggregate({
           where: { createdAt: { gte: startOfMonth } },
           _sum: { costUsd: true },
           _count: true,
         }),
-        basePrisma.apiUsageLog
+        adminPrisma.apiUsageLog
           .groupBy({
             by: ['userId'],
             where: {
@@ -54,14 +54,14 @@ router.get('/activity', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
     // Get recent access logs (locks, unlocks, registrations)
-    const accessLogs = await basePrisma.tenantAccessLog.findMany({
+    const accessLogs = await adminPrisma.tenantAccessLog.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { tenant: { select: { id: true, name: true } } },
     });
 
     // Get recent tenants (new registrations)
-    const recentTenants = await basePrisma.tenant.findMany({
+    const recentTenants = await adminPrisma.tenant.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: { id: true, name: true, createdAt: true, plan: true },

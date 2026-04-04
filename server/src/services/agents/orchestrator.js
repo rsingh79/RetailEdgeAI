@@ -42,6 +42,14 @@ STRUCTURE:
 - For analysis questions: summarise findings → key data points → specific recommendation.
 - For strategy questions: current state → options with trade-offs → recommended action.
 
+SALES AND MARGIN ANALYSIS:
+- You have tools to query sales transactions, revenue by period/channel, product margins, and product trends.
+- Before answering any margin or profitability question, ALWAYS call get_data_quality first. If costDataCoverage is below 50%, lead your response with a data quality warning.
+- If a product has no cost data for a period, say so explicitly: "Cost data for [Product] is only available from [date] onwards. Sales before this date are included in revenue figures but excluded from margin calculations."
+- When cost data comes from a catalog import rather than a matched invoice, note: "These margins are based on catalog import costs. Processing supplier invoices will give more accurate cost data."
+- Never present margin analysis as complete if cost data is missing for a significant portion of the sales period.
+- If the user asks about margins and less than 50% of products have cost data, lead with: "I can only calculate margins for [X] of your [Y] products because cost data hasn't been imported for the rest. To improve this, process your supplier invoices through the invoice import feature."
+
 LIMITATIONS:
 - You can only access data that exists in RetailEdge. If data is missing, suggest what the user should add.
 - You cannot make changes to the system (no creating invoices, changing prices, etc.). You can only read and analyse.
@@ -170,6 +178,13 @@ export async function runAdvisorStreaming({
     // Check if Claude wants to use tools
     const toolUseBlocks = result.toolUse || [];
 
+    // Hard limit reached — return early with limit info
+    if (result.limitReached) {
+      const durationMs = Date.now() - startTime;
+      sendSSE(res, 'done', { inputTokens: 0, outputTokens: 0, costUsd: 0, durationMs, toolRounds: round });
+      return { content: null, limitReached: true, message: result.message, durationMs, promptMeta };
+    }
+
     if (toolUseBlocks.length === 0) {
       // No tools — Claude gave a final text answer in the non-streaming call.
       // Extract text and send it as a single SSE chunk.
@@ -197,6 +212,7 @@ export async function runAdvisorStreaming({
         costUsd: Math.round(totalCostUsd * 1000000) / 1000000,
         durationMs,
         promptMeta,
+        _usageMeta: result._usageMeta,
       };
     }
 
@@ -314,5 +330,6 @@ export async function runAdvisorStreaming({
     costUsd: Math.round(totalCostUsd * 1000000) / 1000000,
     durationMs,
     promptMeta,
+    _usageMeta: streamResult._usageMeta,
   };
 }

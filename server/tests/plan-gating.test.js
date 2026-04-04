@@ -29,8 +29,8 @@ describe('Plan Gating', () => {
 
     // Create tenants for each plan
     starterTenant = await createTestTenantWithPlan('Starter Biz', 'starter');
-    proTenant = await createTestTenantWithPlan('Pro Biz', 'professional');
-    enterpriseTenant = await createTestTenantWithPlan('Enterprise Biz', 'enterprise');
+    proTenant = await createTestTenantWithPlan('Pro Biz', 'growth');
+    enterpriseTenant = await createTestTenantWithPlan('Enterprise Biz', 'professional');
 
     // Create users
     starterUser = await createTestUser(starterTenant.id, { role: 'OWNER' });
@@ -61,7 +61,7 @@ describe('Plan Gating', () => {
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('PLAN_UPGRADE_REQUIRED');
       expect(res.body.requiredFeature).toBe('email_integration');
-      expect(res.body.currentPlan).toBe('basic');
+      expect(res.body.currentPlan).toBe('starter');
     });
 
     it('returns 403 for starter user accessing competitor routes', async () => {
@@ -82,7 +82,7 @@ describe('Plan Gating', () => {
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('PLAN_UPGRADE_REQUIRED');
       expect(res.body.requiredFeature).toBe('competitor_intelligence');
-      expect(res.body.currentPlan).toBe('medium');
+      expect(res.body.currentPlan).toBe('growth');
     });
 
     it('allows professional user to access Gmail routes', async () => {
@@ -172,13 +172,13 @@ describe('Plan Gating', () => {
       expect(res.body.tenant.maxApiCallsPerMonth).toBe(100);
     });
 
-    it('returns tenant plan info for enterprise user', async () => {
+    it('returns tenant plan info for professional user', async () => {
       const res = await request(app)
         .get('/api/auth/me')
         .set('Authorization', `Bearer ${enterpriseToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.tenant.plan).toBe('enterprise');
+      expect(res.body.tenant.plan).toBe('professional');
       expect(res.body.tenant.maxApiCallsPerMonth).toBe(2000);
     });
 
@@ -203,10 +203,17 @@ describe('Plan Gating', () => {
       expect(planHasFeature('starter', 'invoices')).toBe(true);
     });
 
-    it('professional plan includes gmail but not competitor', async () => {
+    it('growth plan includes gmail but not competitor', async () => {
+      const { planHasFeature } = await import('../src/config/plans.js');
+      expect(planHasFeature('growth', 'gmail_integration')).toBe(true);
+      expect(planHasFeature('growth', 'competitor_intelligence')).toBe(false);
+    });
+
+    it('professional plan includes all features', async () => {
       const { planHasFeature } = await import('../src/config/plans.js');
       expect(planHasFeature('professional', 'gmail_integration')).toBe(true);
-      expect(planHasFeature('professional', 'competitor_intelligence')).toBe(false);
+      expect(planHasFeature('professional', 'competitor_intelligence')).toBe(true);
+      expect(planHasFeature('professional', 'invoices')).toBe(true);
     });
 
     it('enterprise plan includes all features', async () => {
@@ -228,14 +235,18 @@ describe('Plan Gating', () => {
       expect(starter.maxStores).toBe(2);
       expect(starter.maxApiCallsPerMonth).toBe(100);
 
+      const growth = getPlanLimits('growth');
+      expect(growth.maxUsers).toBe(15);
+      expect(growth.maxStores).toBe(10);
+      expect(growth.maxApiCallsPerMonth).toBe(500);
+
       const pro = getPlanLimits('professional');
-      expect(pro.maxUsers).toBe(15);
-      expect(pro.maxStores).toBe(10);
-      expect(pro.maxApiCallsPerMonth).toBe(500);
+      expect(pro.maxUsers).toBe(999);
+      expect(pro.maxApiCallsPerMonth).toBe(2000);
 
       const ent = getPlanLimits('enterprise');
       expect(ent.maxUsers).toBe(Infinity);
-      expect(ent.maxApiCallsPerMonth).toBe(2000);
+      expect(ent.maxApiCallsPerMonth).toBe(Infinity);
     });
 
     it('getPlanLimits falls back to starter for unknown plan', async () => {

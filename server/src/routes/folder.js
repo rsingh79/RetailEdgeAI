@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { validateFolderPath, scanFolder, pollFolderForInvoices } from '../services/folder.js';
+import { enforceIntegrationLimit } from '../middleware/usageEnforcement.js';
 
 const router = Router();
 
@@ -160,7 +161,7 @@ router.post('/browse', async (req, res) => {
 });
 
 // POST /api/folder-polling/configure — Save folder path, file patterns, and poll interval
-router.post('/configure', async (req, res) => {
+router.post('/configure', enforceIntegrationLimit('folder'), async (req, res) => {
   try {
     const { folderPath, filePatterns, pollIntervalMin, moveToProcessed } = req.body;
 

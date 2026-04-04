@@ -126,14 +126,28 @@ export async function extractInvoiceData(fileBuffer, mimeType, tenantId, userId)
   const result = await generate('ocr_extraction', null, contentBlocks, {
     tenantId,
     userId,
-    maxTokens: 4096,
+    maxTokens: 8192,
   });
 
+  // Check for truncated response (max_tokens hit)
+  if (result.raw?.stop_reason === 'max_tokens') {
+    console.warn('[OCR] Response truncated at max_tokens — JSON likely incomplete');
+  }
+
   const text = result.response || '';
+  if (!text.trim()) {
+    throw new Error('OCR returned empty response — model may have failed to process the document');
+  }
 
   // Parse the JSON response — strip any accidental markdown fencing
   const cleaned = text.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
-  const data = JSON.parse(cleaned);
+  let data;
+  try {
+    data = JSON.parse(cleaned);
+  } catch (parseErr) {
+    console.error('[OCR] Failed to parse response as JSON. First 500 chars:', cleaned.substring(0, 500));
+    throw new Error(`OCR response is not valid JSON: ${parseErr.message}`);
+  }
 
   // Validate required structure
   if (!data.lineItems || !Array.isArray(data.lineItems)) {

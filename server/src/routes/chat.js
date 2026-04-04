@@ -317,6 +317,25 @@ router.post(
           );
       }
 
+      // Send usage warning via SSE if approaching limit
+      if (result._usageMeta && !clientDisconnected && !res.writableEnded) {
+        res.write(`event: usage_warning\ndata: ${JSON.stringify({
+          percent: result._usageMeta.percentUsed,
+          message: "You're approaching your monthly plan limit. Upgrade for uninterrupted access.",
+          upgradeUrl: '/settings/billing',
+          dismissable: true,
+        })}\n\n`);
+      }
+
+      // Send hard limit info via SSE if reached
+      if (result.limitReached && !clientDisconnected && !res.writableEnded) {
+        res.write(`event: usage_limit\ndata: ${JSON.stringify({
+          limitReached: true,
+          message: result.message || result.limitMessage,
+          upgradeUrl: '/settings/billing',
+        })}\n\n`);
+      }
+
       // End the SSE stream
       if (!res.writableEnded) {
         res.end();

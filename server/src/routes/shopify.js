@@ -12,8 +12,11 @@
  */
 
 import { Router } from 'express';
-import { buildAuthUrl, syncProducts, syncOrders, matchVariants, linkVariant, dismissVariants } from '../services/shopify.js';
-import basePrisma from '../lib/prisma.js';
+import { buildAuthUrl, syncProducts, syncOrders, fetchOrders, matchVariants, linkVariant, dismissVariants } from '../services/shopify.js';
+import { getCurrentUsage } from '../services/usageTracker.js';
+import { TIER_LIMITS } from '../config/tierLimits.js';
+import { adminPrisma } from '../lib/prisma.js';
+import { decrypt } from '../lib/encryption.js';
 
 const router = Router();
 
@@ -55,8 +58,9 @@ router.get('/status', async (req, res) => {
 });
 
 // ── POST /auth-url — Generate Shopify OAuth URL ─────────────
+import { enforceIntegrationLimit } from '../middleware/usageEnforcement.js';
 
-router.post('/auth-url', async (req, res) => {
+router.post('/auth-url', enforceIntegrationLimit('shopify'), async (req, res) => {
   try {
     const { shop } = req.body;
     if (!shop) {
@@ -86,17 +90,236 @@ router.post('/sync', async (req, res) => {
   }
 });
 
-// ── POST /sync-orders — Trigger order sync from Shopify ──────
+// ── GET /sync-options — Pre-sync configuration for the UI ────
+
+const ALL_MONTH_OPTIONS = [1, 3, 6, 12, 24, 36, 48, 60];
+
+function _getNextTier(currentSlug) {
+  const order = ['starter', 'growth', 'professional', 'enterprise'];
+  const idx = order.indexOf(currentSlug);
+  return idx >= 0 && idx < order.length - 1 ? order[idx + 1] : null;
+}
+
+router.get('/sync-options', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const usage = await getCurrentUsage(req.prisma, tenantId);
+    const maxMonths = usage.historicalSyncMonths;
+    const unlimited = maxMonths === -1;
+
+    const tenant = await adminPrisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { planTier: { select: { slug: true, name: true } } },
+    });
+    const tierSlug = tenant?.planTier?.slug || 'starter';
+    const tierName = tenant?.planTier?.name || 'Starter';
+
+    const options = unlimited
+      ? [...ALL_MONTH_OPTIONS, 'unlimited']
+      : ALL_MONTH_OPTIONS.filter((m) => m <= maxMonths);
+
+    const integration = await req.prisma.shopifyIntegration.findUnique({
+      where: { tenantId },
+    });
+
+    // Estimate order count if integration exists
+    let estimatedOrders = null;
+    if (integration?.accessTokenEnc) {
+      try {
+        const token = decrypt(integration.accessTokenEnc);
+        const countRes = await fetch(
+          `https://${integration.shop}/admin/api/2024-01/orders/count.json?status=any`,
+          { headers: { 'X-Shopify-Access-Token': token } },
+        );
+        if (countRes.ok) {
+          const data = await countRes.json();
+          estimatedOrders = data.count || null;
+        }
+      } catch { /* best-effort estimate */ }
+    }
+
+    const nextTier = _getNextTier(tierSlug);
+    const nextTierLimits = nextTier ? TIER_LIMITS[nextTier] : null;
+
+    res.json({
+      maxMonthsAllowed: unlimited ? -1 : maxMonths,
+      tierName,
+      suggestedMonths: unlimited ? null : maxMonths,
+      options,
+      estimatedOrders,
+      alreadySynced: !!integration?.historicalSyncedAt,
+      previousSyncMonths: integration?.historicalSyncMonths || null,
+      lastSyncAt: integration?.lastSyncAt || integration?.lastOrderSyncAt || null,
+      autoSyncEnabled: integration?.autoSyncEnabled || false,
+      upgradeMessage: nextTierLimits
+        ? `Upgrade to ${nextTier.charAt(0).toUpperCase() + nextTier.slice(1)} for up to ${nextTierLimits.historicalSyncMonths === -1 ? 'unlimited' : nextTierLimits.historicalSyncMonths + ' months of'} history.`
+        : null,
+    });
+  } catch (err) {
+    console.error('Shopify sync-options error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── POST /sync-orders — Mode A: Historical import ────────────
 
 router.post('/sync-orders', async (req, res) => {
   try {
-    const stats = await syncOrders(req.prisma, req.user.tenantId);
+    const tenantId = req.user.tenantId;
+    const { historicalMonths, enableAutoSync } = req.body;
+
+    if (!historicalMonths || historicalMonths < 1) {
+      return res.status(400).json({ message: 'historicalMonths is required (minimum 1).' });
+    }
+
+    // Tier enforcement — only applies to historical import
+    const usage = await getCurrentUsage(req.prisma, tenantId);
+    const maxMonths = usage.historicalSyncMonths;
+    if (maxMonths !== -1 && historicalMonths > maxMonths) {
+      const tenant = await adminPrisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { planTier: { select: { name: true, slug: true } } },
+      });
+      const tierName = tenant?.planTier?.name || 'current';
+      const nextTier = _getNextTier(tenant?.planTier?.slug || 'starter');
+      const nextLimits = nextTier ? TIER_LIMITS[nextTier] : null;
+      return res.status(400).json({
+        error: 'Exceeds plan limit',
+        code: 'HISTORICAL_SYNC_LIMIT',
+        message: `Your ${tierName} plan allows up to ${maxMonths} months of historical data.`,
+        maxAllowed: maxMonths,
+        requested: historicalMonths,
+        upgradeMessage: nextLimits
+          ? `Upgrade to ${nextTier.charAt(0).toUpperCase() + nextTier.slice(1)} for up to ${nextLimits.historicalSyncMonths === -1 ? 'unlimited' : nextLimits.historicalSyncMonths + ' months'}.`
+          : null,
+      });
+    }
+
+    // Mark sync in progress
+    await req.prisma.shopifyIntegration.update({
+      where: { tenantId },
+      data: { syncStatus: 'in_progress' },
+    });
+
+    // Compute date boundary and run sync
+    const fromDate = new Date();
+    fromDate.setMonth(fromDate.getMonth() - historicalMonths);
+
+    const stats = await syncOrders(req.prisma, tenantId, { sinceDate: fromDate });
+    const now = new Date();
+
+    // Update integration with sync metadata
+    await req.prisma.shopifyIntegration.update({
+      where: { tenantId },
+      data: {
+        historicalSyncMonths: historicalMonths,
+        historicalSyncedAt: now,
+        lastSyncAt: now,
+        syncStatus: 'completed',
+        autoSyncEnabled: !!enableAutoSync,
+        autoSyncConsentedAt: enableAutoSync ? now : undefined,
+      },
+    });
+
     res.json({
-      message: 'Order sync complete',
+      message: 'Historical import complete',
+      historicalMonths,
+      autoSyncEnabled: !!enableAutoSync,
       ...stats,
     });
   } catch (err) {
-    console.error('Shopify order sync error:', err);
+    console.error('Shopify sync-orders error:', err);
+    // Mark as failed
+    try {
+      await req.prisma.shopifyIntegration.update({
+        where: { tenantId: req.user.tenantId },
+        data: { syncStatus: 'failed' },
+      });
+    } catch { /* best-effort */ }
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── POST /sync-now — Mode B: Manual catch-up sync ────────────
+
+router.post('/sync-now', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const integration = await req.prisma.shopifyIntegration.findUnique({
+      where: { tenantId },
+    });
+
+    if (!integration) {
+      return res.status(404).json({ message: 'Shopify not connected.' });
+    }
+
+    const lastSync = integration.lastSyncAt || integration.lastOrderSyncAt;
+    if (!lastSync) {
+      return res.status(400).json({
+        error: 'No previous sync',
+        message: 'Please run a historical import first before using Sync Now.',
+      });
+    }
+
+    await req.prisma.shopifyIntegration.update({
+      where: { tenantId },
+      data: { syncStatus: 'in_progress' },
+    });
+
+    const stats = await syncOrders(req.prisma, tenantId, { sinceDate: lastSync });
+    const now = new Date();
+
+    await req.prisma.shopifyIntegration.update({
+      where: { tenantId },
+      data: { lastSyncAt: now, syncStatus: 'completed' },
+    });
+
+    res.json({
+      message: 'Catch-up sync complete',
+      syncedFrom: lastSync,
+      syncedTo: now,
+      ...stats,
+    });
+  } catch (err) {
+    console.error('Shopify sync-now error:', err);
+    try {
+      await req.prisma.shopifyIntegration.update({
+        where: { tenantId: req.user.tenantId },
+        data: { syncStatus: 'failed' },
+      });
+    } catch { /* best-effort */ }
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── PUT /auto-sync — Mode C: Toggle automatic daily sync ─────
+
+router.put('/auto-sync', async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ message: 'enabled (boolean) is required.' });
+    }
+
+    const data = { autoSyncEnabled: enabled };
+    if (enabled) {
+      data.autoSyncConsentedAt = new Date();
+    }
+
+    const updated = await req.prisma.shopifyIntegration.update({
+      where: { tenantId },
+      data,
+    });
+
+    res.json({
+      autoSyncEnabled: updated.autoSyncEnabled,
+      consentedAt: updated.autoSyncConsentedAt,
+    });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ message: 'Shopify not connected.' });
+    console.error('Shopify auto-sync toggle error:', err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -121,7 +344,7 @@ router.get('/orders', async (req, res) => {
             },
           },
         },
-        orderBy: { orderedAt: 'desc' },
+        orderBy: { orderDate: 'desc' },
         skip,
         take: limit,
       }),
@@ -206,7 +429,7 @@ router.delete('/disconnect', async (req, res) => {
     }
 
     // Delete integration record (import logs preserved for audit)
-    await basePrisma.shopifyIntegration.delete({
+    await req.prisma.shopifyIntegration.delete({
       where: { tenantId: req.user.tenantId },
     });
 

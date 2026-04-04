@@ -17,6 +17,7 @@
     "test:watch": "cd server && npm run test:watch"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "pngjs": "^7.0.0"
   }
 }

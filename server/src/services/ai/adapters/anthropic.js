@@ -77,7 +77,12 @@ export async function generate(systemPrompt, userPrompt, model, config = {}) {
   }
 
   // Build API params
-  const params = { model, max_tokens: maxTokens, system: systemPrompt, messages };
+  // Anthropic API requires system to be an array of content blocks
+  const system = systemPrompt
+    ? [{ type: 'text', text: systemPrompt }]
+    : undefined;
+  const params = { model, max_tokens: maxTokens, messages };
+  if (system) params.system = system;
   if (temperature !== undefined) params.temperature = temperature;
   if (tools?.length) params.tools = tools;
   if (tool_choice) params.tool_choice = tool_choice;

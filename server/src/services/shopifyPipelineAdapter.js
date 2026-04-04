@@ -5,6 +5,7 @@
 
 import { createCanonicalProduct } from './agents/pipeline/canonicalProduct.js';
 import { registerIntegrationHook } from './integrationHooks.js';
+import { logPriceChange } from './priceChangeLogger.js';
 
 // ── Shopify → CanonicalProduct transformer ──
 
@@ -106,7 +107,13 @@ async function processShopifyVariants(product, metadata, prisma) {
       ? `${product.name} - ${variant.title}`
       : product.name;
 
-    await prisma.productVariant.upsert({
+    // Check if variant exists BEFORE upsert to capture old prices
+    const existingVariant = await prisma.productVariant.findUnique({
+      where: { storeId_sku: { storeId: store.id, sku: variant.sku } },
+      select: { id: true, currentCost: true, salePrice: true },
+    });
+
+    const upsertedVariant = await prisma.productVariant.upsert({
       where: { storeId_sku: { storeId: store.id, sku: variant.sku } },
       create: {
         productId: product.id,
@@ -131,6 +138,47 @@ async function processShopifyVariants(product, metadata, prisma) {
         isActive: true,
       },
     });
+
+    // Log price changes
+    if (product.tenantId) {
+      if (existingVariant) {
+        // Update path — log cost only if create set it (update doesn't touch currentCost)
+        logPriceChange(prisma, {
+          tenantId: product.tenantId,
+          productId: product.id,
+          variantId: upsertedVariant.id,
+          priceType: 'sale_price',
+          oldPrice: existingVariant.salePrice,
+          newPrice: variant.price,
+          changeSource: 'shopify_sync',
+          sourceRef: variant.shopifyProductId,
+        }).catch(() => {});
+      } else {
+        // Create path — log both cost and sale price
+        if (variant.price > 0) {
+          logPriceChange(prisma, {
+            tenantId: product.tenantId,
+            productId: product.id,
+            variantId: upsertedVariant.id,
+            priceType: 'cost_price',
+            oldPrice: null,
+            newPrice: variant.price,
+            changeSource: 'shopify_sync',
+            sourceRef: variant.shopifyProductId,
+          }).catch(() => {});
+          logPriceChange(prisma, {
+            tenantId: product.tenantId,
+            productId: product.id,
+            variantId: upsertedVariant.id,
+            priceType: 'sale_price',
+            oldPrice: null,
+            newPrice: variant.price,
+            changeSource: 'shopify_sync',
+            sourceRef: variant.shopifyProductId,
+          }).catch(() => {});
+        }
+      }
+    }
   }
 
   console.log(

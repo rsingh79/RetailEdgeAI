@@ -7,6 +7,7 @@ import XLSX from 'xlsx';
 import { isShopifyFormat, groupShopifyRows, importShopifyProducts } from '../services/shopifyImport.js';
 import { embedProduct } from '../services/ai/embeddingMaintenance.js';
 import { normalizeSource } from '../services/sourceNormalizer.js';
+import { logPriceChange } from '../services/priceChangeLogger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const importsDir = path.join(__dirname, '..', '..', 'uploads', 'imports');
@@ -162,6 +163,88 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Get price history for a product
+router.get('/:id/price-history', async (req, res) => {
+  try {
+    const { startDate, endDate, priceType, limit, offset } = req.query;
+    const take = Math.min(parseInt(limit) || 50, 200);
+    const skip = parseInt(offset) || 0;
+
+    // Verify product exists and belongs to tenant
+    const product = await req.prisma.product.findFirst({
+      where: { id: req.params.id },
+      select: { id: true },
+    });
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+
+    const where = { productId: req.params.id };
+    if (priceType) where.priceType = priceType;
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    const [entries, total] = await Promise.all([
+      req.prisma.priceChangeLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      req.prisma.priceChangeLog.count({ where }),
+    ]);
+
+    // Batch-enrich invoice-sourced entries with invoice + supplier context
+    const invoiceSources = new Set(['invoice_processing', 'invoice_correction']);
+    const invoiceIds = [
+      ...new Set(
+        entries
+          .filter((e) => invoiceSources.has(e.changeSource) && e.sourceRef)
+          .map((e) => e.sourceRef)
+      ),
+    ];
+
+    let invoiceLookup = {};
+    if (invoiceIds.length > 0) {
+      try {
+        const invoices = await req.prisma.invoice.findMany({
+          where: { id: { in: invoiceIds } },
+          select: {
+            id: true,
+            invoiceNumber: true,
+            invoiceDate: true,
+            supplier: { select: { id: true, name: true } },
+          },
+        });
+        for (const inv of invoices) {
+          invoiceLookup[inv.id] = {
+            invoiceId: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDate: inv.invoiceDate,
+            supplierId: inv.supplier?.id || null,
+            supplierName: inv.supplier?.name || null,
+          };
+        }
+      } catch {
+        // Invoice lookup failure should never break the price history response
+      }
+    }
+
+    const enrichedEntries = entries.map((e) => ({
+      ...e,
+      invoiceContext:
+        invoiceSources.has(e.changeSource) && e.sourceRef
+          ? invoiceLookup[e.sourceRef] || null
+          : null,
+    }));
+
+    res.json({ entries: enrichedEntries, total, limit: take, offset: skip });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Create a new product
 router.post('/', async (req, res) => {
   try {
@@ -183,6 +266,30 @@ router.post('/', async (req, res) => {
         source: normalizeSource(source.trim()),
       },
     });
+
+    // Fire-and-forget price change logging (new product — oldPrice is null)
+    if (product.costPrice != null) {
+      logPriceChange(req.prisma, {
+        tenantId: req.tenantId,
+        productId: product.id,
+        priceType: 'cost_price',
+        oldPrice: null,
+        newPrice: product.costPrice,
+        changeSource: 'manual_edit',
+        changedBy: req.user.userId,
+      }).catch(() => {});
+    }
+    if (product.sellingPrice != null) {
+      logPriceChange(req.prisma, {
+        tenantId: req.tenantId,
+        productId: product.id,
+        priceType: 'selling_price',
+        oldPrice: null,
+        newPrice: product.sellingPrice,
+        changeSource: 'manual_edit',
+        changedBy: req.user.userId,
+      }).catch(() => {});
+    }
 
     // Fire-and-forget embedding for the new product
     embedProduct({

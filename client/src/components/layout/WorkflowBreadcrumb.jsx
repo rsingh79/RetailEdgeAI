@@ -34,19 +34,23 @@ const activeStyles = {
   3: 'bg-emerald-100 text-emerald-700',
 };
 
-export default function WorkflowBreadcrumb({ step }) {
+export default function WorkflowBreadcrumb({ step, onStepClick }) {
   return (
     <div className="flex items-center gap-2 text-sm mb-4">
       {steps.map((s, i) => {
         const isCompleted = s.num < step;
         const isActive = s.num === step;
         const isFuture = s.num > step;
+        const clickable = isCompleted && onStepClick;
 
         return (
           <div key={s.num} className="flex items-center gap-2">
             {i > 0 && <ChevronRight />}
             {isCompleted && (
-              <div className="flex items-center gap-2 px-3 py-1.5 text-emerald-600 rounded-full">
+              <div
+                className={`flex items-center gap-2 px-3 py-1.5 text-emerald-600 rounded-full ${clickable ? 'cursor-pointer hover:bg-emerald-50' : ''}`}
+                onClick={() => clickable && onStepClick(s.num)}
+              >
                 <CheckCircle />
                 {s.label}
               </div>

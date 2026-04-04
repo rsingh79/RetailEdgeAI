@@ -27,8 +27,31 @@ export const api = {
   getInvoiceCounts: () => request('/invoices/counts'),
   getDashboardStats: () => request('/invoices/dashboard-stats'),
   getActionInvoices: () => request('/invoices/action-invoices'),
-  getInvoices: () => request('/invoices'),
+  getInvoices: (params) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return request(`/invoices${qs}`);
+  },
   getInvoice: (id) => request(`/invoices/${id}`),
+  getInvoiceDetails: (id) => request(`/invoices/${id}/details`),
+  correctMatch: async (invoiceId, lineId, body) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE}/invoices/${invoiceId}/lines/${lineId}/correct-match`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({ message: res.statusText }));
+    if (!res.ok) {
+      const err = new Error(data.message || 'Correction failed');
+      err.code = data.code;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  },
   uploadInvoice: (formData) =>
     fetch(`${API_BASE}/invoices/upload`, {
       method: 'POST',
@@ -52,6 +75,10 @@ export const api = {
     return request(`/products${qs}`);
   },
   getProduct: (id) => request(`/products/${id}`),
+  getProductPriceHistory: (id, params) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : '';
+    return request(`/products/${id}/price-history${qs}`);
+  },
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
   bulkDeleteProducts: (ids) => request('/products/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),

@@ -42,6 +42,9 @@ docker-data/
 # Test data (real invoices/CSVs)
 TESTING/
 
+# Screenshot testing
+screenshots/
+
 # Accidental Windows nul device files
 nul
 server/nul

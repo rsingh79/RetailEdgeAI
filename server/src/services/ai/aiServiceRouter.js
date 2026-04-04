@@ -9,8 +9,10 @@
  * Public API: generate(), embed(), rerank(), invalidateCache()
  */
 
-import { basePrisma } from '../../lib/prisma.js';
+import { basePrisma, createTenantClient, adminPrisma } from '../../lib/prisma.js';
 import { loadAdapter } from './adapters/index.js';
+import { incrementUsage } from '../usageTracker.js';
+import { AI_THROTTLE } from '../../config/tierLimits.js';
 
 // ─── Registry Cache ─────────────────────────────────────────
 // In-memory cache of registry entries, keyed by taskKey.
@@ -18,6 +20,25 @@ import { loadAdapter } from './adapters/index.js';
 const registryCache = new Map();
 let registryCacheTimestamp = 0;
 const REGISTRY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// ─── Usage-Cap Model Throttling ─────────────────────────────
+// When usage hits 95%+, expensive models are swapped for cheaper ones.
+// This is an override layer on top of whatever the registry decided.
+const THROTTLE_MODEL_MAP = {
+  'claude-sonnet-4-6': 'claude-haiku-4-5',
+  'claude-sonnet-4-20250514': 'claude-haiku-4-5-20251001',
+  'command-r-plus': 'command-r7b',
+  // Already cheap — keep as-is
+  'claude-haiku-4-5': 'claude-haiku-4-5',
+  'claude-haiku-4-5-20251001': 'claude-haiku-4-5-20251001',
+  'command-r7b': 'command-r7b',
+};
+
+function _getThrottledModel(intendedModel) {
+  return THROTTLE_MODEL_MAP[intendedModel] || intendedModel;
+}
+
+const THROTTLE_MAX_TOKENS = 1000;
 
 // ─── Public API ─────────────────────────────────────────────
 
@@ -55,13 +76,66 @@ export async function generate(taskKey, systemPrompt, userPrompt, options = {}) 
   const { tenantId, userId, requestSnippet, ...configOverrides } = options;
   const mergedConfig = { ...entry.config, ...configOverrides };
 
-  return _executeCall(
+  // ── AI query usage enforcement (tenant-scoped requests only) ──
+  let usageMeta = null;
+  if (tenantId) {
+    try {
+      const usage = await incrementUsage(null, tenantId, 'aiQueries');
+
+      if (!usage.isUnlimited) {
+        const pct = usage.percentUsed;
+
+        if (pct >= AI_THROTTLE.hardLimitPercent) {
+          // Stage 4: Hard limit — return immediately, no API call
+          return {
+            response: null,
+            limitReached: true,
+            message: `You've had a busy month! Your plan includes ${usage.limit} AI interactions per month. Upgrade for more, or your usage resets at the start of next month.`,
+            upgradeUrl: '/settings/billing',
+            provider: entry.provider,
+            model: entry.model,
+            inputTokens: 0,
+            outputTokens: 0,
+            latencyMs: 0,
+          };
+        }
+
+        if (pct >= AI_THROTTLE.throttlePercent) {
+          // Stage 3: Throttle — override model to cheaper variant, cap tokens
+          mergedConfig._modelOverride = _getThrottledModel(entry.model);
+          mergedConfig.maxTokens = Math.min(mergedConfig.maxTokens || 4096, THROTTLE_MAX_TOKENS);
+        }
+
+        if (pct >= AI_THROTTLE.softWarningPercent) {
+          // Stage 2 (90-94%): Normal models, but flag for notification header
+          // Stage 3 (95-99%): Already throttled above, also flag
+          usageMeta = {
+            percentUsed: pct,
+            limit: usage.limit,
+            remaining: usage.remaining,
+          };
+        }
+      }
+    } catch (err) {
+      // Usage tracking failure must NEVER block AI calls — degrade gracefully
+      console.warn('[ASAL] Usage tracking failed, proceeding without enforcement:', err.message);
+    }
+  }
+
+  const result = await _executeCall(
     taskKey,
     'TEXT_GENERATION',
     async (adapter, model, config) => adapter.generate(systemPrompt, userPrompt, model, config),
     mergedConfig,
     { tenantId, userId, requestSnippet },
   );
+
+  // Attach usage metadata for response middleware to set X-Usage-Approaching-Limit header
+  if (usageMeta) {
+    result._usageMeta = usageMeta;
+  }
+
+  return result;
 }
 
 /**
@@ -187,23 +261,26 @@ async function _getRegistryEntry(taskKey) {
  */
 async function _executeCall(taskKey, intent, callFn, mergedConfig, meta = {}) {
   const entry = await _getRegistryEntry(taskKey);
+  // Usage-cap throttling can override the registry's model choice.
+  // The override is injected by generate() — _executeCall itself is unaware of why.
+  const effectiveModel = mergedConfig._modelOverride || entry.model;
   const startTime = Date.now();
 
   try {
     const adapter = await loadAdapter(entry.provider);
-    const result = await callFn(adapter, entry.model, mergedConfig);
+    const result = await callFn(adapter, effectiveModel, mergedConfig);
     const latencyMs = Date.now() - startTime;
 
     // Attach provider metadata to result
     result.provider = entry.provider;
-    result.model = entry.model;
+    result.model = effectiveModel;
     result.latencyMs = latencyMs;
 
     // Fire-and-forget logging
-    _logCall(entry, { ...result, latencyMs, status: 'success' }, false, meta.tenantId).catch(
+    _logCall({ ...entry, model: effectiveModel }, { ...result, latencyMs, status: 'success' }, false, meta.tenantId).catch(
       () => {},
     );
-    _logLegacy(entry, { ...result, status: 'success', estimatedCost: _estimateCost(entry, result) }, meta).catch(() => {});
+    _logLegacy({ ...entry, model: effectiveModel }, { ...result, status: 'success', estimatedCost: _estimateCost(entry, result) }, meta).catch(() => {});
 
     return result;
   } catch (primaryError) {
@@ -211,12 +288,12 @@ async function _executeCall(taskKey, intent, callFn, mergedConfig, meta = {}) {
 
     // Log primary failure (fire-and-forget)
     _logCall(
-      entry,
+      { ...entry, model: effectiveModel },
       { latencyMs, status: 'failure', errorCode: primaryError.code || 'UNKNOWN' },
       false,
       meta.tenantId,
     ).catch(() => {});
-    _logLegacy(entry, { latencyMs, status: 'failure', estimatedCost: null }, meta).catch(() => {});
+    _logLegacy({ ...entry, model: effectiveModel }, { latencyMs, status: 'failure', estimatedCost: null }, meta).catch(() => {});
 
     // Attempt fallback if configured and error is retryable
     if (entry.fallbackProvider && entry.fallbackModel && primaryError.retryable !== false) {
@@ -261,7 +338,12 @@ async function _executeCall(taskKey, intent, callFn, mergedConfig, meta = {}) {
  */
 async function _logCall(entry, result, isFallback, tenantId) {
   try {
-    await basePrisma.aiServiceLog.create({
+    const prismaClient = tenantId ? createTenantClient(tenantId) : adminPrisma;
+    // For embed calls, Cohere returns tokenCount (billed input tokens) rather than
+    // inputTokens/outputTokens. Map tokenCount → inputTokens for consistent logging.
+    const inputTokens = result.inputTokens || result.tokenCount || null;
+    const outputTokens = result.outputTokens || null;
+    await prismaClient.aiServiceLog.create({
       data: {
         tenantId: tenantId || null,
         intent: entry.intent,
@@ -269,8 +351,8 @@ async function _logCall(entry, result, isFallback, tenantId) {
         provider: entry.provider,
         model: entry.model,
         isFallback,
-        inputTokens: result.inputTokens || null,
-        outputTokens: result.outputTokens || null,
+        inputTokens,
+        outputTokens,
         latencyMs: result.latencyMs || 0,
         estimatedCost: _estimateCost(entry, result),
         status: result.status || 'success',
@@ -290,15 +372,19 @@ async function _logCall(entry, result, isFallback, tenantId) {
  */
 async function _logLegacy(entry, result, meta = {}) {
   try {
-    await basePrisma.apiUsageLog.create({
+    const prismaClient = meta.tenantId ? createTenantClient(meta.tenantId) : adminPrisma;
+    // For embed calls, Cohere returns tokenCount rather than inputTokens/outputTokens.
+    const inputTokens = result.inputTokens || result.tokenCount || 0;
+    const outputTokens = result.outputTokens || 0;
+    await prismaClient.apiUsageLog.create({
       data: {
         tenantId: meta.tenantId || null,
         userId: meta.userId || null,
         endpoint: entry.taskKey,
         model: entry.model,
-        inputTokens: result.inputTokens || 0,
-        outputTokens: result.outputTokens || 0,
-        totalTokens: (result.inputTokens || 0) + (result.outputTokens || 0),
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
         costUsd: result.estimatedCost ? parseFloat(result.estimatedCost) : 0,
         durationMs: result.latencyMs || 0,
         status: result.status === 'success' || result.status === 'fallback_success' ? 'success' : 'error',

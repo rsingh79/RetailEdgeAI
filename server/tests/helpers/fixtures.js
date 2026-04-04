@@ -13,15 +13,6 @@ let tierMap = {}; // slug → id
 async function ensureTiersSeeded() {
   if (tiersSeeded) return;
 
-  // Check if already seeded
-  const existingCount = await testPrisma.planTier.count();
-  if (existingCount > 0) {
-    const tiers = await testPrisma.planTier.findMany();
-    for (const t of tiers) tierMap[t.slug] = t.id;
-    tiersSeeded = true;
-    return;
-  }
-
   // Seed features
   const FEATURES = [
     { key: 'invoices', name: 'Invoices', category: 'core', isCore: true, sortOrder: 1 },
@@ -30,9 +21,11 @@ async function ensureTiersSeeded() {
     { key: 'export', name: 'Export', category: 'core', isCore: true, sortOrder: 4 },
     { key: 'ai_command_centre', name: 'AI Command Centre', category: 'core', isCore: true, sortOrder: 5 },
     { key: 'reports', name: 'Reports', category: 'core', isCore: true, sortOrder: 6 },
+    { key: 'product_import', name: 'AI Product Import Pipeline', category: 'core', isCore: false, sortOrder: 7 },
     { key: 'email_integration', name: 'Email Integration', category: 'integrations', isCore: false, sortOrder: 10 },
     { key: 'folder_polling', name: 'Folder Polling', category: 'integrations', isCore: false, sortOrder: 11 },
     { key: 'shopify_integration', name: 'Shopify Integration', category: 'integrations', isCore: false, sortOrder: 12 },
+    { key: 'drive_integration', name: 'Google Drive Integration', category: 'integrations', isCore: false, sortOrder: 13 },
     { key: 'pricing_rules', name: 'Pricing Rules', category: 'pricing', isCore: false, sortOrder: 20 },
     { key: 'demand_analysis', name: 'Demand Analysis', category: 'intelligence', isCore: false, sortOrder: 30 },
     { key: 'competitor_intelligence', name: 'Competitor Intelligence', category: 'intelligence', isCore: false, sortOrder: 31 },
@@ -54,19 +47,24 @@ async function ensureTiersSeeded() {
   // Tier definitions
   const TIERS = [
     {
-      slug: 'basic', name: 'Basic', monthlyPrice: 29, annualPrice: 290, sortOrder: 1, isDefault: true,
-      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports'],
-      limits: { max_users: 5, max_stores: 2, max_invoice_pages_per_month: 100, max_products: 500, max_pricing_rules: 5, max_exports_per_month: 50, max_email_imports_per_month: 0, max_folder_imports_per_month: 0, max_shopify_syncs_per_month: 0, max_competitors_monitored: 0, max_demand_products: 0 },
+      slug: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 490, sortOrder: 1, isDefault: true,
+      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'product_import'],
+      limits: { max_users: 5, max_stores: 2, max_invoice_pages_per_month: 100, max_products: 500, max_pricing_rules: 5, max_exports_per_month: 50, max_email_imports_per_month: 0, max_folder_imports_per_month: 0, max_shopify_syncs_per_month: 0, max_competitors_monitored: 0, max_demand_products: 0, ai_queries_per_month: 50, max_integrations: 1, historical_sync_months: 12, analysis_window_months: 12 },
     },
     {
-      slug: 'medium', name: 'Medium', monthlyPrice: 79, annualPrice: 790, sortOrder: 2, isDefault: false,
-      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis', 'ai_advisor'],
-      limits: { max_users: 15, max_stores: 10, max_invoice_pages_per_month: 500, max_products: 2000, max_pricing_rules: 20, max_exports_per_month: 200, max_email_imports_per_month: 100, max_folder_imports_per_month: 100, max_shopify_syncs_per_month: 100, max_competitors_monitored: 0, max_demand_products: 0 },
+      slug: 'growth', name: 'Growth', monthlyPrice: 129, annualPrice: 1290, sortOrder: 2, isDefault: false,
+      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'product_import', 'email_integration', 'folder_polling', 'shopify_integration', 'drive_integration', 'pricing_rules', 'demand_analysis', 'ai_advisor'],
+      limits: { max_users: 15, max_stores: 10, max_invoice_pages_per_month: 500, max_products: 5000, max_pricing_rules: 20, max_exports_per_month: 200, max_email_imports_per_month: 100, max_folder_imports_per_month: 100, max_shopify_syncs_per_month: 100, max_competitors_monitored: 0, max_demand_products: 0, ai_queries_per_month: 200, max_integrations: 3, historical_sync_months: 24, analysis_window_months: 24 },
     },
     {
-      slug: 'high', name: 'High', monthlyPrice: 199, annualPrice: 1990, sortOrder: 3, isDefault: false,
-      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'email_integration', 'folder_polling', 'shopify_integration', 'pricing_rules', 'demand_analysis', 'competitor_intelligence', 'demand_forecasting', 'supplier_comparison', 'ai_advisor'],
-      limits: { max_users: 999, max_stores: 999, max_invoice_pages_per_month: 2000, max_products: 999999, max_pricing_rules: 999, max_exports_per_month: 999, max_email_imports_per_month: 500, max_folder_imports_per_month: 500, max_shopify_syncs_per_month: 500, max_competitors_monitored: 50, max_demand_products: 100 },
+      slug: 'professional', name: 'Professional', monthlyPrice: 299, annualPrice: 2990, sortOrder: 3, isDefault: false,
+      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'product_import', 'email_integration', 'folder_polling', 'shopify_integration', 'drive_integration', 'pricing_rules', 'demand_analysis', 'competitor_intelligence', 'demand_forecasting', 'supplier_comparison', 'ai_advisor'],
+      limits: { max_users: 999, max_stores: 999, max_invoice_pages_per_month: 2000, max_products: 20000, max_pricing_rules: 999, max_exports_per_month: 999, max_email_imports_per_month: 500, max_folder_imports_per_month: 500, max_shopify_syncs_per_month: 500, max_competitors_monitored: 50, max_demand_products: 100, ai_queries_per_month: 500, max_integrations: 10, historical_sync_months: 60, analysis_window_months: 60 },
+    },
+    {
+      slug: 'enterprise', name: 'Enterprise', monthlyPrice: 0, annualPrice: 0, sortOrder: 4, isDefault: false,
+      featureKeys: ['invoices', 'products', 'review_match', 'export', 'ai_command_centre', 'reports', 'product_import', 'email_integration', 'folder_polling', 'shopify_integration', 'drive_integration', 'pricing_rules', 'demand_analysis', 'competitor_intelligence', 'demand_forecasting', 'supplier_comparison', 'ai_advisor'],
+      limits: { max_users: -1, max_stores: -1, max_invoice_pages_per_month: -1, max_products: -1, max_pricing_rules: -1, max_exports_per_month: -1, max_email_imports_per_month: -1, max_folder_imports_per_month: -1, max_shopify_syncs_per_month: -1, max_competitors_monitored: -1, max_demand_products: -1, ai_queries_per_month: -1, max_integrations: -1, historical_sync_months: -1, analysis_window_months: -1 },
     },
   ];
 
@@ -94,11 +92,11 @@ async function ensureTiersSeeded() {
 }
 
 /** Legacy plan → tier slug mapping */
-const LEGACY_PLAN_MAP = { starter: 'basic', professional: 'medium', enterprise: 'high' };
+const LEGACY_PLAN_MAP = { starter: 'starter', growth: 'growth', professional: 'professional', enterprise: 'enterprise' };
 
 /**
  * Create a test tenant with a unique name.
- * Assigns the default (basic) tier.
+ * Assigns the default (starter) tier.
  */
 async function createTestTenant(name) {
   counter++;
@@ -109,7 +107,7 @@ async function createTestTenant(name) {
       currency: 'AUD',
       timezone: 'Australia/Sydney',
       plan: 'starter',
-      planTierId: tierMap.basic || null,
+      planTierId: tierMap.starter || null,
     },
   });
 }
@@ -230,19 +228,20 @@ async function createTestAccessLog(tenantId, overrides = {}) {
 }
 
 /**
- * Create a test tenant with a specific plan.
- * Now also assigns the DB-driven planTierId.
+ * Create a test tenant with a specific plan tier slug.
+ * Accepts tier slugs directly: 'starter', 'growth', 'professional', 'enterprise'.
  */
 async function createTestTenantWithPlan(name, plan = 'starter') {
   counter++;
   await ensureTiersSeeded();
   const planLimits = {
     starter: { maxUsers: 5, maxStores: 2, maxApiCallsPerMonth: 100 },
-    professional: { maxUsers: 15, maxStores: 10, maxApiCallsPerMonth: 500 },
-    enterprise: { maxUsers: 999, maxStores: 999, maxApiCallsPerMonth: 2000 },
+    growth: { maxUsers: 15, maxStores: 10, maxApiCallsPerMonth: 500 },
+    professional: { maxUsers: 999, maxStores: 999, maxApiCallsPerMonth: 2000 },
+    enterprise: { maxUsers: -1, maxStores: -1, maxApiCallsPerMonth: -1 },
   };
   const limits = planLimits[plan] || planLimits.starter;
-  const tierSlug = LEGACY_PLAN_MAP[plan] || 'basic';
+  const tierSlug = LEGACY_PLAN_MAP[plan] || 'starter';
   const planTierId = tierMap[tierSlug] || null;
   return testPrisma.tenant.create({
     data: {

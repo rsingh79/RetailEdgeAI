@@ -429,7 +429,7 @@ describe('Admin Platform Settings', () => {
     expect(res.status).toBe(200);
     expect(res.body.defaultTrialDays).toBe(14);
     expect(res.body.autoLockOnTrialExpiry).toBe(true);
-    expect(res.body.gracePeriodDays).toBe(3);
+    expect(res.body.gracePeriodDays).toBe(14);
   });
 
   it('PATCH / updates settings', async () => {

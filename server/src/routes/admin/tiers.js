@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { basePrisma } from '../../lib/prisma.js';
+import { adminPrisma } from '../../lib/prisma.js';
 
 const router = Router();
 
@@ -8,7 +8,7 @@ const router = Router();
 // GET /api/admin/tiers/features — List all features
 router.get('/features', async (req, res) => {
   try {
-    const features = await basePrisma.feature.findMany({
+    const features = await adminPrisma.feature.findMany({
       orderBy: { sortOrder: 'asc' },
       include: {
         _count: { select: { tiers: true } },
@@ -32,7 +32,7 @@ router.post('/features', async (req, res) => {
     // Ensure key is a valid slug
     const slug = key.toLowerCase().replace(/[^a-z0-9_]/g, '_');
 
-    const feature = await basePrisma.feature.create({
+    const feature = await adminPrisma.feature.create({
       data: {
         key: slug,
         name,
@@ -46,9 +46,9 @@ router.post('/features', async (req, res) => {
 
     // If core feature, auto-add to all active tiers
     if (feature.isCore) {
-      const tiers = await basePrisma.planTier.findMany({ where: { isActive: true } });
+      const tiers = await adminPrisma.planTier.findMany({ where: { isActive: true } });
       for (const tier of tiers) {
-        await basePrisma.planTierFeature.upsert({
+        await adminPrisma.planTierFeature.upsert({
           where: { planTierId_featureId: { planTierId: tier.id, featureId: feature.id } },
           create: { planTierId: tier.id, featureId: feature.id },
           update: {},
@@ -79,16 +79,16 @@ router.patch('/features/:id', async (req, res) => {
     if (isActive !== undefined) data.isActive = isActive;
     if (isCore !== undefined) data.isCore = isCore;
 
-    const feature = await basePrisma.feature.update({
+    const feature = await adminPrisma.feature.update({
       where: { id: req.params.id },
       data,
     });
 
     // If just became core, auto-add to all active tiers
     if (isCore === true) {
-      const tiers = await basePrisma.planTier.findMany({ where: { isActive: true } });
+      const tiers = await adminPrisma.planTier.findMany({ where: { isActive: true } });
       for (const tier of tiers) {
-        await basePrisma.planTierFeature.upsert({
+        await adminPrisma.planTierFeature.upsert({
           where: { planTierId_featureId: { planTierId: tier.id, featureId: feature.id } },
           create: { planTierId: tier.id, featureId: feature.id },
           update: {},
@@ -107,7 +107,7 @@ router.patch('/features/:id', async (req, res) => {
 router.delete('/features/:id', async (req, res) => {
   try {
     // Check if used in any tier
-    const usageCount = await basePrisma.planTierFeature.count({
+    const usageCount = await adminPrisma.planTierFeature.count({
       where: { featureId: req.params.id },
     });
 
@@ -117,7 +117,7 @@ router.delete('/features/:id', async (req, res) => {
       });
     }
 
-    await basePrisma.feature.delete({ where: { id: req.params.id } });
+    await adminPrisma.feature.delete({ where: { id: req.params.id } });
     res.json({ deleted: true });
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ message: 'Feature not found' });
@@ -130,7 +130,7 @@ router.delete('/features/:id', async (req, res) => {
 // GET /api/admin/tiers — List all tiers with features, limits, and tenant count
 router.get('/', async (req, res) => {
   try {
-    const tiers = await basePrisma.planTier.findMany({
+    const tiers = await adminPrisma.planTier.findMany({
       orderBy: { sortOrder: 'asc' },
       include: {
         features: {
@@ -151,7 +151,7 @@ router.get('/', async (req, res) => {
 // GET /api/admin/tiers/:id — Tier detail
 router.get('/:id', async (req, res) => {
   try {
-    const tier = await basePrisma.planTier.findUnique({
+    const tier = await adminPrisma.planTier.findUnique({
       where: { id: req.params.id },
       include: {
         features: {
@@ -183,7 +183,7 @@ router.post('/', async (req, res) => {
     const tierSlug = (slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-')).trim();
 
     // Get all core features to auto-include
-    const coreFeatures = await basePrisma.feature.findMany({
+    const coreFeatures = await adminPrisma.feature.findMany({
       where: { isCore: true },
       select: { id: true },
     });
@@ -192,7 +192,7 @@ router.post('/', async (req, res) => {
     // Merge provided featureIds with core IDs (deduplicated)
     const allFeatureIds = [...new Set([...coreIds, ...(featureIds || [])])];
 
-    const tier = await basePrisma.$transaction(async (tx) => {
+    const tier = await adminPrisma.$transaction(async (tx) => {
       // If this is the new default, unset others
       if (isDefault) {
         await tx.planTier.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
@@ -235,7 +235,7 @@ router.post('/', async (req, res) => {
     });
 
     // Fetch the full tier with includes
-    const fullTier = await basePrisma.planTier.findUnique({
+    const fullTier = await adminPrisma.planTier.findUnique({
       where: { id: tier.id },
       include: {
         features: {
@@ -262,10 +262,10 @@ router.patch('/:id', async (req, res) => {
   try {
     const { name, description, monthlyPrice, annualPrice, sortOrder, isActive, isDefault, featureIds, limits } = req.body;
 
-    const existing = await basePrisma.planTier.findUnique({ where: { id: req.params.id } });
+    const existing = await adminPrisma.planTier.findUnique({ where: { id: req.params.id } });
     if (!existing) return res.status(404).json({ message: 'Tier not found' });
 
-    await basePrisma.$transaction(async (tx) => {
+    await adminPrisma.$transaction(async (tx) => {
       // If setting as default, unset others
       if (isDefault) {
         await tx.planTier.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
@@ -321,7 +321,7 @@ router.patch('/:id', async (req, res) => {
     });
 
     // Fetch updated tier
-    const tier = await basePrisma.planTier.findUnique({
+    const tier = await adminPrisma.planTier.findUnique({
       where: { id: req.params.id },
       include: {
         features: {
@@ -343,7 +343,7 @@ router.patch('/:id', async (req, res) => {
 // DELETE /api/admin/tiers/:id — Delete tier (refuse if tenants assigned)
 router.delete('/:id', async (req, res) => {
   try {
-    const tier = await basePrisma.planTier.findUnique({
+    const tier = await adminPrisma.planTier.findUnique({
       where: { id: req.params.id },
       include: { _count: { select: { tenants: true } } },
     });
@@ -357,7 +357,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Delete cascade takes care of features and limits
-    await basePrisma.planTier.delete({ where: { id: req.params.id } });
+    await adminPrisma.planTier.delete({ where: { id: req.params.id } });
     res.json({ deleted: true });
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ message: 'Tier not found' });

@@ -10,10 +10,14 @@ export default defineConfig({
     // Run test files sequentially — they share a single test database
     fileParallelism: false,
     // Point basePrisma (via DATABASE_URL_APP) at the test database
-    // so createTenantClient works against test data
+    // so createTenantClient works against test data.
+    // Point adminPrisma (via DATABASE_URL) at the same test database
+    // with admin credentials so auth and admin routes work in tests.
     env: {
       DATABASE_URL_APP:
-        'postgresql://retailedge_app:retailedge_app_prod@retailedge-test-db-do-user-34957730-0.h.db.ondigitalocean.com:25060/retailedge_test?sslmode=require',
+        'postgresql://retailedge_app:retailedge_app@localhost:5433/retailedge_test',
+      DATABASE_URL:
+        'postgresql://retailedge:retailedge@localhost:5433/retailedge_test',
       JWT_SECRET: 'test-secret-key-for-vitest',
     },
   },

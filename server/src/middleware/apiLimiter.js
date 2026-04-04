@@ -1,4 +1,4 @@
-import { basePrisma } from '../lib/prisma.js';
+import { adminPrisma } from '../lib/prisma.js';
 
 /**
  * Middleware that checks if the tenant has exceeded their monthly API call limit.
@@ -18,7 +18,7 @@ export async function checkApiLimit(req, res, next) {
   }
 
   try {
-    const tenant = await basePrisma.tenant.findUnique({
+    const tenant = await adminPrisma.tenant.findUnique({
       where: { id: req.user.tenantId },
       select: {
         plan: true,
@@ -33,7 +33,7 @@ export async function checkApiLimit(req, res, next) {
     let maxCalls = tenant.maxApiCallsPerMonth || 100;
 
     if (tenant.planTierId) {
-      const tierLimit = await basePrisma.planTierLimit.findUnique({
+      const tierLimit = await adminPrisma.planTierLimit.findUnique({
         where: {
           planTierId_limitKey: {
             planTierId: tenant.planTierId,
@@ -48,7 +48,7 @@ export async function checkApiLimit(req, res, next) {
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const callCount = await basePrisma.apiUsageLog.count({
+    const callCount = await adminPrisma.apiUsageLog.count({
       where: {
         tenantId: req.user.tenantId,
         createdAt: { gte: startOfMonth },

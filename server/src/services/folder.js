@@ -26,7 +26,7 @@ const EXT_TO_MIME = {
 
 /**
  * Validate a folder path is safe and accessible.
- * - Must be an absolute path (drive letter or UNC)
+ * - Must be an absolute path (Unix, drive letter, or UNC)
  * - Must not contain ".." traversal
  * - Must be readable by the server process
  *
@@ -40,10 +40,13 @@ export async function validateFolderPath(folderPath) {
 
   const trimmed = folderPath.trim();
 
-  // Must be absolute: drive letter (C:\...) or UNC (\\server\share)
-  const isAbsolute = /^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\');
+  // Must be absolute: Unix (/...), drive letter (C:\...), or UNC (\\server\share)
+  const isAbsolute =
+    trimmed.startsWith('/') ||
+    /^[A-Za-z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith('\\\\');
   if (!isAbsolute) {
-    return { valid: false, error: 'Path must be absolute (e.g. C:\\Invoices or \\\\server\\share).' };
+    return { valid: false, error: 'Path must be absolute (e.g. /invoices, C:\\Invoices, or \\\\server\\share).' };
   }
 
   // No traversal — check raw input before normalizing

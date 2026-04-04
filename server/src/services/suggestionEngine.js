@@ -8,7 +8,7 @@
  * Idempotent: Running twice for the same window + tenant produces the same batchId,
  *             and skips if that batch already exists.
  */
-import { basePrisma } from '../lib/prisma.js';
+import { basePrisma, createTenantClient } from '../lib/prisma.js';
 import { generate } from './ai/aiServiceRouter.js';
 import crypto from 'crypto';
 
@@ -573,7 +573,8 @@ export async function curateExamples({
       + (signal.correctionCount === 0 ? 0.3 : 0)
       + (signal.latencyMs < 5000 ? 0.1 : 0);
 
-    const example = await basePrisma.tenantFewShotExample.create({
+    const tenantPrisma = createTenantClient(tenantId);
+    const example = await tenantPrisma.tenantFewShotExample.create({
       data: {
         tenantId,
         agentRoleId: agentRole.id,

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { basePrisma } from '../../lib/prisma.js';
+import { adminPrisma } from '../../lib/prisma.js';
 
 const router = Router();
 
@@ -23,14 +23,14 @@ router.get('/', async (req, res) => {
     }
 
     // Summary metrics
-    const summary = await basePrisma.apiUsageLog.aggregate({
+    const summary = await adminPrisma.apiUsageLog.aggregate({
       where,
       _sum: { costUsd: true, inputTokens: true, outputTokens: true },
       _count: true,
     });
 
     // Per-tenant breakdown
-    const tenantBreakdown = await basePrisma.apiUsageLog.groupBy({
+    const tenantBreakdown = await adminPrisma.apiUsageLog.groupBy({
       by: ['tenantId'],
       where,
       _sum: { costUsd: true, inputTokens: true, outputTokens: true },
@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
 
     // Get tenant names for the breakdown
     const tenantIds = tenantBreakdown.map((t) => t.tenantId);
-    const tenants = await basePrisma.tenant.findMany({
+    const tenants = await adminPrisma.tenant.findMany({
       where: { id: { in: tenantIds } },
       select: { id: true, name: true },
     });
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
 
     // Daily cost data for chart (use raw SQL for date grouping)
     // Simplified: get daily aggregation
-    const dailyCosts = await basePrisma.apiUsageLog.groupBy({
+    const dailyCosts = await adminPrisma.apiUsageLog.groupBy({
       by: ['createdAt'],
       where,
       _sum: { costUsd: true },
@@ -132,7 +132,7 @@ router.get('/agents', async (req, res) => {
     }
 
     // Group by endpoint
-    const byEndpoint = await basePrisma.apiUsageLog.groupBy({
+    const byEndpoint = await adminPrisma.apiUsageLog.groupBy({
       by: ['endpoint'],
       where,
       _sum: { costUsd: true, inputTokens: true, outputTokens: true },
@@ -141,7 +141,7 @@ router.get('/agents', async (req, res) => {
     });
 
     // Group by endpoint + tenantId (for per-tenant drilldown)
-    const byEndpointTenant = await basePrisma.apiUsageLog.groupBy({
+    const byEndpointTenant = await adminPrisma.apiUsageLog.groupBy({
       by: ['endpoint', 'tenantId'],
       where,
       _sum: { costUsd: true, inputTokens: true, outputTokens: true },
@@ -151,7 +151,7 @@ router.get('/agents', async (req, res) => {
 
     // Get tenant names
     const tenantIds = [...new Set(byEndpointTenant.map((r) => r.tenantId))];
-    const tenantsList = await basePrisma.tenant.findMany({
+    const tenantsList = await adminPrisma.tenant.findMany({
       where: { id: { in: tenantIds } },
       select: { id: true, name: true },
     });
@@ -258,14 +258,14 @@ router.get('/calls', async (req, res) => {
     }
 
     const [calls, total] = await Promise.all([
-      basePrisma.apiUsageLog.findMany({
+      adminPrisma.apiUsageLog.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
         include: { tenant: { select: { id: true, name: true } } },
       }),
-      basePrisma.apiUsageLog.count({ where }),
+      adminPrisma.apiUsageLog.count({ where }),
     ]);
 
     res.json({
@@ -285,7 +285,7 @@ router.get('/calls', async (req, res) => {
 // GET /api/admin/api-usage/calls/:id — Single call detail
 router.get('/calls/:id', async (req, res) => {
   try {
-    const call = await basePrisma.apiUsageLog.findUnique({
+    const call = await adminPrisma.apiUsageLog.findUnique({
       where: { id: req.params.id },
       include: { tenant: { select: { id: true, name: true } } },
     });

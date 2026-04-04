@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config({ override: true });
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -9,6 +9,10 @@ import { tenantScope } from './middleware/tenantScope.js';
 import { tenantAccess } from './middleware/tenantAccess.js';
 import { requirePlan } from './middleware/requirePlan.js';
 import { checkApiLimit } from './middleware/apiLimiter.js';
+import { standardLimiter, aiLimiter, authLimiter, webhookLimiter, importLimiter } from './middleware/rateLimits.js';
+import { globalErrorHandler } from './middleware/errorHandler.js';
+import { securityHeaders } from './middleware/securityHeaders.js';
+import { requestLogger } from './middleware/requestLogger.js';
 import authRoutes from './routes/auth.js';
 import invoiceRoutes from './routes/invoices.js';
 import productRoutes from './routes/products.js';
@@ -19,14 +23,17 @@ import folderRoutes from './routes/folder.js';
 import { handleOAuthCallback } from './services/gmail.js';
 import { handleOAuthCallback as handleShopifyCallback } from './services/shopify.js';
 import shopifyRoutes from './routes/shopify.js';
+import analyticsRoutes from './routes/analytics.js';
 import driveRoutes from './routes/drive.js';
 import { handleDriveOAuthCallback } from './services/drive.js';
 import { startGmailScheduler } from './services/gmailScheduler.js';
 import { startFolderScheduler } from './services/folderScheduler.js';
+import { startShopifySyncScheduler } from './services/shopifySyncScheduler.js';
 import competitorRoutes from './routes/competitor.js';
 import agentRoutes from './routes/agents.js';
 import chatRoutes from './routes/chat.js';
 import connectRoutes from './routes/connect.js';
+import usageRoutes from './routes/usage.js';
 import adminOverviewRoutes from './routes/admin/overview.js';
 import adminTenantRoutes from './routes/admin/tenants.js';
 import adminApiUsageRoutes from './routes/admin/apiUsage.js';
@@ -34,11 +41,16 @@ import adminSettingsRoutes from './routes/admin/settings.js';
 import adminTierRoutes from './routes/admin/tiers.js';
 import adminPromptRoutes from './routes/admin/prompts.js';
 import metaOptimizerRoutes from './routes/admin/metaOptimizer.js';
+import adminBillingRoutes from './routes/admin/billing.js';
 import promptRoutes from './routes/prompts.js';
 import promptChatRoutes from './routes/promptChat.js';
 import suggestionRoutes from './routes/suggestions.js';
 import productImportRoutes from './routes/productImport.js';
 import productImportV1Routes from './routes/productImportV1.js';
+import billingRoutes from './routes/billing.js';
+import webhookRoutes from './routes/webhooks.js';
+import healthRoutes from './routes/health.js';
+import { requireActiveSubscription } from './middleware/subscriptionCheck.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,13 +58,28 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
+
+// Security headers — on every response (Nginx does not set these)
+app.use(securityHeaders);
+
+// Structured request logging — before routes so timing is captured
+app.use(requestLogger);
+
+// Stripe webhooks MUST be mounted before the JSON body parser
+// because Stripe signature verification requires the raw request body.
+app.use('/api/webhooks', webhookLimiter, webhookRoutes);
+
 app.use(express.json({ limit: '10mb' }));
 
 // Serve uploaded files (protected — requires auth)
 app.use('/api/uploads', authenticate, express.static(path.join(__dirname, '..', 'uploads')));
 
 // Auth routes — public (no tenant context for register/login)
-app.use('/api/auth', authRoutes);
+// Auth rate limiter: 5 attempts/minute per IP for brute force protection
+app.use('/api/auth', authLimiter, authRoutes);
+
+// Billing routes — authenticated, tenant-scoped (checkout, cancel, portal, status)
+app.use('/api/billing', authenticate, tenantAccess, tenantScope, billingRoutes);
 
 // Gmail OAuth callback — unprotected (called by Google redirect, no JWT context)
 app.get('/api/gmail/oauth/callback', async (req, res) => {
@@ -108,39 +135,38 @@ app.get('/api/drive/oauth/callback', async (req, res) => {
   }
 });
 
-// Protected routes — authenticate + tenantAccess + tenantScope inject req.prisma
+// Protected routes — authenticate + tenantAccess + tenantScope + requireActiveSubscription
 // Every query via req.prisma is automatically scoped to the tenant
-app.use('/api/invoices', authenticate, tenantAccess, tenantScope, invoiceRoutes);
-app.use('/api/products', authenticate, tenantAccess, tenantScope, productRoutes);
-app.use('/api/product-import', authenticate, tenantAccess, tenantScope, productImportRoutes);
-app.use(
-  '/api/v1/products',
-  authenticate,
-  tenantAccess,
-  tenantScope,
-  requirePlan('product_import'),
-  productImportV1Routes
-);
-app.use('/api/pricing-rules', authenticate, tenantAccess, tenantScope, pricingRoutes);
-app.use('/api/stores', authenticate, tenantAccess, tenantScope, storeRoutes);
+const protect = [authenticate, tenantAccess, tenantScope, requireActiveSubscription];
+
+app.use('/api/invoices', ...protect, invoiceRoutes);
+app.use('/api/products', ...protect, productRoutes);
+app.use('/api/product-import', ...protect, importLimiter, productImportRoutes);
+app.use('/api/v1/products', ...protect, requirePlan('product_import'), importLimiter, productImportV1Routes);
+app.use('/api/pricing-rules', ...protect, pricingRoutes);
+app.use('/api/stores', ...protect, storeRoutes);
 
 // AI Agents — aggregates data from existing services
-app.use('/api/agents', authenticate, tenantAccess, tenantScope, agentRoutes);
+app.use('/api/agents', ...protect, agentRoutes);
 
 // POS / Ecommerce connections
-app.use('/api/connect', authenticate, tenantAccess, tenantScope, connectRoutes);
+app.use('/api/connect', ...protect, connectRoutes);
 
 // Plan-gated routes — Medium+ tiers
-app.use('/api/gmail', authenticate, tenantAccess, tenantScope, requirePlan('email_integration'), gmailRoutes);
-app.use('/api/folder-polling', authenticate, tenantAccess, tenantScope, requirePlan('folder_polling'), folderRoutes);
-app.use('/api/shopify', authenticate, tenantAccess, tenantScope, requirePlan('shopify_integration'), shopifyRoutes);
-app.use('/api/drive', authenticate, tenantAccess, tenantScope, requirePlan('drive_integration'), driveRoutes);
+app.use('/api/gmail', ...protect, requirePlan('email_integration'), gmailRoutes);
+app.use('/api/folder-polling', ...protect, requirePlan('folder_polling'), folderRoutes);
+app.use('/api/shopify', ...protect, requirePlan('shopify_integration'), shopifyRoutes);
+app.use('/api/analytics', ...protect, analyticsRoutes);
+app.use('/api/usage', ...protect, usageRoutes);
+app.use('/api/drive', ...protect, requirePlan('drive_integration'), driveRoutes);
 
 // Plan-gated routes — High tier only
-app.use('/api/competitor', authenticate, tenantAccess, tenantScope, requirePlan('competitor_intelligence'), competitorRoutes);
+// AI limiter on competitor (AI recommendation endpoint is expensive)
+app.use('/api/competitor', ...protect, requirePlan('competitor_intelligence'), competitorRoutes);
 
 // Business AI Advisor — chat interface (plan-gated)
-app.use('/api/chat', authenticate, tenantAccess, tenantScope, requirePlan('ai_advisor'), chatRoutes);
+// AI limiter: 10 requests/minute per tenant (replaces custom chatRateLimit for route-level gating)
+app.use('/api/chat', ...protect, requirePlan('ai_advisor'), aiLimiter, chatRoutes);
 
 // Admin routes — no tenantScope, requires SYSTEM_ADMIN
 const requireAdmin = [authenticate, requireRole('SYSTEM_ADMIN')];
@@ -151,22 +177,25 @@ app.use('/api/admin/settings', ...requireAdmin, adminSettingsRoutes);
 app.use('/api/admin/tiers', ...requireAdmin, adminTierRoutes);
 app.use('/api/admin/prompts', ...requireAdmin, adminPromptRoutes);
 app.use('/api/admin/meta-optimizer', ...requireAdmin, metaOptimizerRoutes);
+app.use('/api/admin', ...requireAdmin, adminBillingRoutes);
 
 // Prompt management — available to all tenants
-app.use('/api/prompts', authenticate, tenantAccess, tenantScope, promptRoutes);
-app.use('/api/prompt-chat', authenticate, tenantAccess, tenantScope, promptChatRoutes);
-app.use('/api/suggestions', authenticate, tenantAccess, tenantScope, suggestionRoutes);
+app.use('/api/prompts', ...protect, promptRoutes);
+app.use('/api/prompt-chat', ...protect, promptChatRoutes);
+app.use('/api/suggestions', ...protect, suggestionRoutes);
 
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'retailedge-api' });
-});
+// Health check — public, no auth, no rate limit
+app.use('/health', healthRoutes);
+// Backward compatibility: keep /api/health pointing to the same handler
+app.use('/api/health', healthRoutes);
 
-// Error handler
-app.use((err, _req, res, _next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
-});
+// Standard API rate limiter — catch-all for any /api route not already covered
+// by a more specific limiter above. Must be AFTER all specific route mounts.
+app.use('/api', standardLimiter);
+
+// Global error handler — MUST be the last middleware.
+// Returns standardised { error, code, message } format. Never leaks stack traces.
+app.use(globalErrorHandler);
 
 // Only listen when run directly (not when imported by tests)
 const isMainModule = process.argv[1] && !process.argv[1].includes('vitest');
@@ -194,6 +223,13 @@ if (isMainModule) {
     // } catch (err) {
     //   console.error('Failed to start schedulers:', err.message);
     // }
+
+    // Shopify daily auto-sync — runs at 02:00 UTC for opted-in tenants
+    try {
+      startShopifySyncScheduler();
+    } catch (err) {
+      console.error('Failed to start Shopify sync scheduler:', err.message);
+    }
   });
 }
 

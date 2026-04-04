@@ -281,7 +281,7 @@ function SupplierAnalysisCard({ data }) {
         </ResponsiveContainer>
 
         {/* Supplier details table */}
-        <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="mt-4 pt-4 border-t border-gray-100 overflow-x-auto -mx-4 sm:mx-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-gray-500 uppercase">

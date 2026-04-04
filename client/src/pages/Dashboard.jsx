@@ -227,16 +227,17 @@ export default function Dashboard() {
             All invoices are up to date
           </div>
         ) : (
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
           <table className="w-full">
             <thead>
               <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Supplier</th>
-                <th className="px-6 py-3">Invoice #</th>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Lines</th>
-                <th className="px-6 py-3">Total</th>
-                <th className="px-6 py-3">Next Step</th>
+                <th className="px-4 sm:px-6 py-3">Status</th>
+                <th className="px-4 sm:px-6 py-3">Supplier</th>
+                <th className="hidden sm:table-cell px-6 py-3">Invoice #</th>
+                <th className="hidden md:table-cell px-6 py-3">Date</th>
+                <th className="hidden md:table-cell px-6 py-3">Lines</th>
+                <th className="px-4 sm:px-6 py-3">Total</th>
+                <th className="hidden sm:table-cell px-6 py-3">Next Step</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -246,18 +247,18 @@ export default function Dashboard() {
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => handleActionClick(inv, { stopPropagation: () => {} })}
                 >
-                  <td className="px-6 py-3">
+                  <td className="px-4 sm:px-6 py-3">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLES[inv.status] || 'bg-gray-100 text-gray-600'}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[inv.status] || 'bg-gray-400'}`} />
                       {STATUS_LABEL[inv.status] || inv.status}
                     </span>
                   </td>
-                  <td className="px-6 py-3 text-sm font-medium">{inv.supplierName || inv.supplier || '—'}</td>
-                  <td className="px-6 py-3 text-sm text-gray-600">{inv.invoiceNumber || '—'}</td>
-                  <td className="px-6 py-3 text-sm text-gray-500">{formatDate(inv.invoiceDate || inv.createdAt)}</td>
-                  <td className="px-6 py-3 text-sm">{inv._count?.lines ?? '—'}</td>
-                  <td className="px-6 py-3 text-sm font-medium">{formatCurrency(inv.total)}</td>
-                  <td className="px-6 py-3">
+                  <td className="px-4 sm:px-6 py-3 text-sm font-medium truncate max-w-[120px] sm:max-w-none">{inv.supplierName || inv.supplier || '—'}</td>
+                  <td className="hidden sm:table-cell px-6 py-3 text-sm text-gray-600">{inv.invoiceNumber || '—'}</td>
+                  <td className="hidden md:table-cell px-6 py-3 text-sm text-gray-500">{formatDate(inv.invoiceDate || inv.createdAt)}</td>
+                  <td className="hidden md:table-cell px-6 py-3 text-sm">{inv._count?.lines ?? '—'}</td>
+                  <td className="px-4 sm:px-6 py-3 text-sm font-medium">{formatCurrency(inv.total)}</td>
+                  <td className="hidden sm:table-cell px-6 py-3">
                     {inv.status === 'APPROVED' ? (
                       <button
                         onClick={(e) => handleActionClick(inv, e)}
@@ -284,6 +285,7 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

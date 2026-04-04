@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import WorkflowBreadcrumb from '../components/layout/WorkflowBreadcrumb';
+import StaleDataBanner from '../components/ui/StaleDataBanner';
+import tabSync from '../services/tabSync';
 
 // ── Store color palette ───────────────────────────────────────
 const STORE_COLORS = [
@@ -31,20 +33,8 @@ const Warning = ({ className }) => (
 const Search = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
 );
-const Download = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-);
-const Upload = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-);
-const Store = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.15c0 .415.336.75.75.75z" /></svg>
-);
 const XMark = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-);
-const Lightning = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>
 );
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -60,24 +50,26 @@ const marginPct = (price, cost) => {
 };
 const marginDollar = (price, cost) => price - cost;
 
-// ── Step progress bar (4 steps) ──────────────────────────────
-function StepProgress({ step }) {
+// ── Step progress bar (3 steps) ──────────────────────────────
+function StepProgress({ step, onStepClick }) {
   const steps = [
     { num: 1, label: 'OCR & Extract' },
     { num: 2, label: 'Match & Price' },
     { num: 3, label: 'Review & Approve' },
-    { num: 4, label: 'Export & Push' },
   ];
   return (
     <div className="flex items-center gap-2 text-sm">
       {steps.map((s, i) => (
         <div key={s.num} className="flex items-center gap-2">
           {i > 0 && <div className={`w-8 h-px ${s.num <= step ? 'bg-teal-500' : 'bg-gray-300'}`} />}
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-            s.num < step ? 'bg-teal-100 text-teal-700' :
-            s.num === step ? 'bg-teal-600 text-white' :
-            'bg-gray-100 text-gray-500'
-          }`}>
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+              s.num < step ? 'bg-teal-100 text-teal-700' :
+              s.num === step ? 'bg-teal-600 text-white' :
+              'bg-gray-100 text-gray-500'
+            } ${s.num < step ? 'cursor-pointer hover:bg-teal-200' : ''}`}
+            onClick={() => s.num < step && onStepClick?.(s.num)}
+          >
             {s.num < step ? <Check className="w-3.5 h-3.5" /> : null}
             {s.label}
           </div>
@@ -237,7 +229,7 @@ function OCRExtractPanel({ invoice, onProceed }) {
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-sm">Extracted Line Items ({lines.length})</h3>
             </div>
-            <div className="max-h-[340px] overflow-y-auto">
+            <div className="max-h-[340px] overflow-auto -mx-4 sm:mx-0">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-gray-50 z-10">
                   <tr className="text-gray-500 uppercase">
@@ -292,7 +284,7 @@ function OCRExtractPanel({ invoice, onProceed }) {
 }
 
 // ── Match resolution panel (table-based, with pricing + AI Insight) ─
-function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmMatch, onApproveAndNext }) {
+function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmMatch, onApproveAndNext, onCorrectionComplete }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchStoreFilter, setSearchStoreFilter] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -310,13 +302,96 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
   const isNeedsReview = bestConfidence > 0 && bestConfidence < 0.9;
   const isUnmatched = !line.matches || line.matches.length === 0;
 
+  // ── Approved invoice detection ─────────────────────────────
+  const isApprovedInvoice = invoice.status === 'APPROVED' || invoice.status === 'EXPORTED';
+
+  // Extract ALL currently matched products for approved invoices (grouped by product)
+  const currentMatches = useMemo(() => {
+    if (!isApprovedInvoice) return [];
+    const activeMatches = (line.matches || []).filter(
+      (m) => m.status === 'APPROVED' || m.status === 'CONFIRMED' || m.status === 'EXPORTED'
+    );
+    if (activeMatches.length === 0) return [];
+
+    const byProduct = {};
+    for (const m of activeMatches) {
+      let pid, pName, pSource, pCost, pPrice, pCategory, pBarcode, pBaseUnit;
+      let isOrphaned = false;
+      if (m.productVariant?.product) {
+        const p = m.productVariant.product;
+        pid = p.id; pName = p.name; pSource = p.source; pCost = p.costPrice; pPrice = p.sellingPrice;
+        pCategory = p.category; pBarcode = p.barcode; pBaseUnit = p.baseUnit;
+      } else if (m.product) {
+        pid = m.product.id; pName = m.product.name; pSource = m.product.source;
+        pCost = m.product.costPrice; pPrice = m.product.sellingPrice;
+        pCategory = m.product.category; pBarcode = m.product.barcode; pBaseUnit = m.product.baseUnit;
+      } else {
+        pid = `orphan-${m.id}`;
+        pName = '(product link lost — search to re-match)';
+        pSource = null; pCost = m.previousCost; pPrice = m.currentPrice;
+        pCategory = null; pBarcode = null; pBaseUnit = null;
+        isOrphaned = true;
+      }
+
+      if (!byProduct[pid]) {
+        byProduct[pid] = {
+          productId: pid, productName: pName, confidence: m.confidence,
+          matchReason: m.matchReason, source: pSource,
+          costPrice: pCost, sellingPrice: pPrice,
+          category: pCategory, barcode: pBarcode, baseUnit: pBaseUnit,
+          variants: [], isSuggestion: true, isOrphaned,
+        };
+      }
+
+      const variant = m.productVariant ? {
+        ...m.productVariant,
+        matchId: m.id,
+        newCost: m.newCost, previousCost: m.previousCost,
+        currentPrice: m.currentPrice, suggestedPrice: m.suggestedPrice,
+        approvedPrice: m.approvedPrice, exportFlagged: m.exportFlagged,
+      } : {
+        id: null, sku: pBarcode || '', name: pName, size: null,
+        unitQty: 1, currentCost: pCost, salePrice: pPrice, store: null,
+        matchId: m.id,
+        newCost: m.newCost, previousCost: m.previousCost,
+        currentPrice: m.currentPrice, suggestedPrice: m.suggestedPrice,
+        approvedPrice: m.approvedPrice, exportFlagged: m.exportFlagged,
+      };
+      if (!byProduct[pid].variants.some((v) => v.id === variant.id)) {
+        byProduct[pid].variants.push(variant);
+      }
+    }
+    return Object.values(byProduct);
+  }, [isApprovedInvoice, line.matches]);
+
+  const currentMatchProductIds = useMemo(
+    () => new Set(currentMatches.map((m) => m.productId)),
+    [currentMatches]
+  );
+  const hasOrphanedMatch = currentMatches.some((m) => m.isOrphaned);
+
   function toggleProduct(productId) {
-    setSelectedProductIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(productId)) next.delete(productId);
-      else next.add(productId);
-      return next;
-    });
+    if (isApprovedInvoice) {
+      // For approved invoices: current matches stay selected together.
+      // Toggling a search result replaces all current matches with the new selection.
+      // Toggling a current match does nothing (can't deselect confirmed matches individually).
+      if (currentMatchProductIds.has(productId)) return; // can't deselect a current match
+      setSelectedProductIds((prev) => {
+        if (prev.has(productId)) {
+          // Deselecting a search result — revert to current matches
+          return new Set(currentMatchProductIds);
+        }
+        // Select only this new product (replaces current matches)
+        return new Set([productId]);
+      });
+    } else {
+      setSelectedProductIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(productId)) next.delete(productId);
+        else next.add(productId);
+        return next;
+      });
+    }
     setIsConfirmed(false);
   }
 
@@ -333,7 +408,13 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
         pid = m.product.id; pName = m.product.name; pSource = m.product.source;
         pCost = m.product.costPrice; pPrice = m.product.sellingPrice;
         pCategory = m.product.category; pBarcode = m.product.barcode; pBaseUnit = m.product.baseUnit;
-      } else continue;
+      } else {
+        // Orphaned match — product FK lost, use match's own pricing data
+        pid = `orphan-${m.id}`;
+        pName = '(product link lost)';
+        pSource = null; pCost = m.previousCost; pPrice = m.currentPrice;
+        pCategory = null; pBarcode = null; pBaseUnit = null;
+      }
       if (!byProduct[pid]) {
         byProduct[pid] = {
           productId: pid, productName: pName, confidence: m.confidence,
@@ -389,18 +470,26 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
   }, [line.matches, baseUnitCost]);
 
   useEffect(() => {
-    if (suggestions.length > 0 && selectedProductIds.size === 0) {
+    if (isApprovedInvoice && currentMatchProductIds.size > 0) {
+      // For approved invoices, select all current matches
+      setSelectedProductIds(new Set(currentMatchProductIds));
+    } else if (suggestions.length > 0 && selectedProductIds.size === 0) {
       setSelectedProductIds(new Set(suggestions.map((s) => s.productId)));
     }
-  }, [suggestions]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [suggestions, isApprovedInvoice, currentMatchProductIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const words = line.description.split(/\s+/).slice(0, 2).join(' ');
     setSearchQuery(words);
-    if (suggestions.length === 0) {
+    if (isApprovedInvoice && !hasOrphanedMatch) {
+      // For approved invoices with valid matches, don't auto-search
+      return;
+    }
+    // Auto-search for: unapproved invoices with no suggestions, or orphaned matches
+    if (suggestions.length === 0 || hasOrphanedMatch) {
       doSearch(words, '');
     }
-  }, [line.description, suggestions.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [line.description, suggestions.length, isApprovedInvoice, hasOrphanedMatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function doSearch(q, storeId) {
     if (!q || q.length < 2) return;
@@ -416,12 +505,13 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
     setSearchResults([]);
   }
 
-  const allProducts = useMemo(() => {
-    const seen = new Set();
-    const merged = [];
-    for (const s of suggestions) {
-      seen.add(s.productId);
-      merged.push(s);
+  // For approved invoices: search results exclude the current match to prevent duplicates
+  const searchResultProducts = useMemo(() => {
+    const results = [];
+    const seen = new Set(suggestions.map((s) => s.productId));
+    // Also skip current match product from search results for approved invoices
+    if (isApprovedInvoice) {
+      for (const id of currentMatchProductIds) seen.add(id);
     }
     for (const p of searchResults) {
       if (seen.has(p.id)) continue;
@@ -448,7 +538,7 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
             approvedPrice: null,
             exportFlagged: false,
           }];
-      merged.push({
+      results.push({
         productId: p.id, productName: p.name, confidence: null,
         matchReason: null, source: p.source,
         costPrice: p.costPrice, sellingPrice: p.sellingPrice,
@@ -456,13 +546,38 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
         variants: searchVariants, isSuggestion: false,
       });
     }
-    merged.sort((a, b) => (b.confidence ?? -1) - (a.confidence ?? -1));
     // Sort variants heaviest to lightest
+    for (const item of results) {
+      item.variants.sort((a, b) => (b.unitQty || 0) - (a.unitQty || 0));
+    }
+    return results;
+  }, [searchResults, suggestions, isApprovedInvoice, currentMatchProductIds, baseUnitCost]);
+
+  const allProducts = useMemo(() => {
+    if (isApprovedInvoice) {
+      // For approved invoices: all current matches first, then search results
+      const seen = new Set(currentMatches.map((m) => m.productId));
+      const merged = [...currentMatches];
+      merged.push(...searchResultProducts.filter((p) => !seen.has(p.productId)));
+      for (const item of merged) {
+        item.variants.sort((a, b) => (b.unitQty || 0) - (a.unitQty || 0));
+      }
+      return merged;
+    }
+    // Unapproved: original behaviour — suggestions + search results
+    const seen = new Set();
+    const merged = [];
+    for (const s of suggestions) {
+      seen.add(s.productId);
+      merged.push(s);
+    }
+    merged.push(...searchResultProducts.filter((p) => !seen.has(p.productId)));
+    merged.sort((a, b) => (b.confidence ?? -1) - (a.confidence ?? -1));
     for (const item of merged) {
       item.variants.sort((a, b) => (b.unitQty || 0) - (a.unitQty || 0));
     }
     return merged;
-  }, [suggestions, searchResults]);
+  }, [isApprovedInvoice, currentMatches, suggestions, searchResultProducts]);
 
   function handleSellPriceChange(variantKey, value) {
     setPriceOverrides((prev) => ({ ...prev, [variantKey]: value }));
@@ -497,8 +612,45 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
           if (priceOverrides[key] != null) variantOverrides[key] = priceOverrides[key];
         }
       }
-      await onConfirmMatch(line.id, [...selectedProductIds], saveMapping, variantOverrides);
-      setIsConfirmed(true);
+
+      // For approved invoices where the user selected a DIFFERENT product:
+      // Use the correction API (cost reversal + application)
+      const selectedPid = [...selectedProductIds][0];
+      if (isApprovedInvoice && currentMatchProductIds.size > 0 && !currentMatchProductIds.has(selectedPid)) {
+        const newItem = allProducts.find((p) => p.productId === selectedPid);
+        const newVariant = newItem?.variants?.[0];
+        const newVariantId = newVariant?.id || null;
+        try {
+          await api.correctMatch(invoice.id, line.id, {
+            action: 'rematch',
+            newProductId: selectedPid,
+            newProductVariantId: newVariantId,
+            dataVersion: invoice.dataVersion,
+          });
+          setIsConfirmed(true);
+          onCorrectionComplete?.();
+        } catch (err) {
+          if (err.code === 'NEWER_INVOICE_EXISTS') {
+            // Re-try with acknowledgement
+            if (confirm(`Warning: A newer invoice has already updated this product's cost.\n\n${err.data?.newerInvoice?.invoiceNumber ? `Invoice #${err.data.newerInvoice.invoiceNumber}` : 'Another invoice'} was processed after this one.\n\nProceed anyway? (Cost revert will be skipped)`)) {
+              await api.correctMatch(invoice.id, line.id, {
+                action: 'rematch',
+                newProductId: selectedPid,
+                newProductVariantId: newVariantId,
+                dataVersion: invoice.dataVersion,
+                acknowledgeNewerInvoice: true,
+              });
+              setIsConfirmed(true);
+              onCorrectionComplete?.();
+            }
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        await onConfirmMatch(line.id, [...selectedProductIds], saveMapping, variantOverrides);
+        setIsConfirmed(true);
+      }
     } finally { setConfirming(false); }
   }
 
@@ -606,21 +758,35 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
         <div className="col-span-9 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              {searchResults.length === 0 && suggestions.length > 0 ? 'AI Suggestions' : 'Select Products to Match'}
+              {isApprovedInvoice && currentMatches.length > 0
+                ? (hasOrphanedMatch ? 'Match (product link lost)'
+                  : [...currentMatchProductIds].every((id) => selectedProductIds.has(id)) ? `Currently Matched (${currentMatches.length} product${currentMatches.length !== 1 ? 's' : ''})`
+                  : 'Previously Matched (deselected)')
+                : searchResults.length === 0 && suggestions.length > 0 ? 'AI Suggestions' : 'Select Products to Match'}
             </h4>
             <span className="text-xs text-teal-600 font-medium">
               {selectedProductIds.size > 0 ? `${selectedProductIds.size} of ${allProducts.length} selected` : `${allProducts.length} results`}
             </span>
           </div>
 
+          {isApprovedInvoice && currentMatches.length > 0 && searchResultProducts.length === 0 && !searching && (
+            <p className="text-xs text-gray-400 italic">
+              {hasOrphanedMatch
+                ? 'The product link was lost during a catalog sync. Pricing data is preserved. Search below to re-link this line to a product.'
+                : 'To change the match, search for a different product below.'}
+            </p>
+          )}
+
           {searching && <div className="text-sm text-gray-400 py-8 text-center">Searching...</div>}
           {!searching && allProducts.length === 0 && (
-            <div className="text-sm text-gray-400 py-8 text-center">No results found</div>
+            <div className="text-sm text-gray-400 py-8 text-center">
+              {isApprovedInvoice ? 'The previously matched product is no longer in your catalog. Please search for a new match.' : 'No results found'}
+            </div>
           )}
 
           {!searching && allProducts.length > 0 && (
-            <div className="border border-gray-200 rounded-lg overflow-auto max-h-[340px]">
-              <table className="w-full text-sm min-w-[1000px]">
+            <div className="border border-gray-200 rounded-lg overflow-auto max-h-[340px] -mx-4 sm:mx-0">
+              <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                     <th colSpan={4} className="py-1"></th>
@@ -652,7 +818,7 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {allProducts.map((item) => {
+                  {allProducts.map((item, itemIndex) => {
                     const isSelected = selectedProductIds.has(item.productId);
                     const hasVariants = item.variants.length > 1 || (item.variants.length === 1 && item.variants[0].id != null);
                     const anyVariantPriceChanged = item.variants.some((v) => {
@@ -660,13 +826,25 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                       return vp.priceChanged;
                     });
 
+                    // Divider between current match and search results for approved invoices
+                    const showDivider = isApprovedInvoice && currentMatches.length > 0 && itemIndex === currentMatches.length;
+
                     if (!hasVariants) {
                       const v = item.variants[0] || {};
                       const p = getVariantPricing(v, item.productId);
                       const overrideKey = v.id || item.productId;
                       return (
+                        <React.Fragment key={`row-${item.productId}`}>
+                        {showDivider && (
+                          <tr><td colSpan={12} className="px-4 py-2 bg-gray-50">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                              <div className="flex-1 border-t border-dashed border-gray-300" />
+                              Search Results — {searchResultProducts.length} result{searchResultProducts.length !== 1 ? 's' : ''}
+                              <div className="flex-1 border-t border-dashed border-gray-300" />
+                            </div>
+                          </td></tr>
+                        )}
                         <tr
-                          key={item.productId}
                           className={`cursor-pointer transition ${item.isSuggestion ? 'border-l-2 border-l-teal-400' : ''} ${isSelected ? 'bg-teal-50/60 hover:bg-teal-50' : 'hover:bg-gray-50'}`}
                           onClick={() => toggleProduct(item.productId)}
                         >
@@ -745,11 +923,21 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
                             ) : <span className="text-gray-300">—</span>}
                           </td>
                         </tr>
+                        </React.Fragment>
                       );
                     }
 
                     return (
                       <React.Fragment key={item.productId}>
+                        {showDivider && (
+                          <tr><td colSpan={12} className="px-4 py-2 bg-gray-50">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                              <div className="flex-1 border-t border-dashed border-gray-300" />
+                              Search Results — {searchResultProducts.length} result{searchResultProducts.length !== 1 ? 's' : ''}
+                              <div className="flex-1 border-t border-dashed border-gray-300" />
+                            </div>
+                          </td></tr>
+                        )}
                         <tr
                           className={`cursor-pointer transition ${item.isSuggestion ? 'border-l-2 border-l-teal-400' : ''} ${isSelected ? 'bg-teal-50/60 hover:bg-teal-50' : 'hover:bg-gray-50'}`}
                           onClick={() => toggleProduct(item.productId)}
@@ -956,7 +1144,7 @@ function MatchResolutionPanel({ line, invoice, stores, storeColorMap, onConfirmM
 }
 
 // ── Line item row (expandable, with 3 intervention states) ───
-function LineItemRow({ line, invoice, stores, storeColorMap, expanded, onToggle, onConfirmMatch, onApproveLine, onPriceUpdate, onApproveAndNext }) {
+function LineItemRow({ line, invoice, stores, storeColorMap, expanded, onToggle, onConfirmMatch, onApproveLine, onPriceUpdate, onApproveAndNext, onCorrectionComplete }) {
   const hasMatches = line.matches && line.matches.length > 0;
   const bestConfidence = hasMatches ? Math.max(...line.matches.map((m) => m.confidence)) : 0;
   const isAutoMatched = hasMatches && bestConfidence >= 0.9;
@@ -993,13 +1181,17 @@ function LineItemRow({ line, invoice, stores, storeColorMap, expanded, onToggle,
         ? 'border-2 border-amber-400 shadow-sm'
         : 'border-2 border-red-300 shadow-sm';
 
-  const headerBgClass = isApproved
-    ? 'bg-green-50/30'
-    : isNeedsReview
-      ? 'bg-amber-50/50'
-      : isUnmatched
-        ? 'bg-red-50/50'
-        : '';
+  const hasNewerWarning = hasMatches && line.matches.some(m => m.newerInvoiceWarning);
+
+  const headerBgClass = hasNewerWarning
+    ? 'bg-amber-50/50'
+    : isApproved
+      ? 'bg-green-50/30'
+      : isNeedsReview
+        ? 'bg-amber-50/50'
+        : isUnmatched
+          ? 'bg-red-50/50'
+          : '';
 
   return (
     <div className={`bg-white rounded-xl overflow-hidden ${borderClass}`}>
@@ -1029,6 +1221,20 @@ function LineItemRow({ line, invoice, stores, storeColorMap, expanded, onToggle,
               Matched → <span className="font-medium text-gray-700">{primaryMatchName}</span>
             </div>
           )}
+          {hasMatches && line.matches.some(m => m.newerInvoiceWarning) && (() => {
+            const warning = line.matches.find(m => m.newerInvoiceWarning)?.newerInvoiceWarning;
+            return (
+              <div className="mt-1 flex items-start gap-1.5 text-xs text-amber-700 bg-amber-100 rounded px-2 py-1">
+                <Warning className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Updated by newer invoice: #{warning.invoiceNumber || '—'}
+                  {warning.supplierName && ` (${warning.supplierName})`}
+                  {warning.invoiceDate && ` — ${new Date(warning.invoiceDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                  {warning.newCost != null && ` — cost set to $${Number(warning.newCost).toFixed(2)}`}
+                </span>
+              </div>
+            );
+          })()}
           {isNeedsReview && (
             <div className="text-xs text-amber-700 mt-0.5 font-medium">
               ⚠ AI found a probable match but confidence is below 90% — please confirm or select a different product
@@ -1081,6 +1287,7 @@ function LineItemRow({ line, invoice, stores, storeColorMap, expanded, onToggle,
         }`}>
           {isApproved ? '✓ Approved' : isAutoMatched ? '✓ Matched' : isNeedsReview ? '⬤ Needs Review' : '⬤ Unmatched'}
         </span>
+
       </div>
 
       {/* Expanded detail */}
@@ -1092,6 +1299,7 @@ function LineItemRow({ line, invoice, stores, storeColorMap, expanded, onToggle,
           storeColorMap={storeColorMap}
           onConfirmMatch={onConfirmMatch}
           onApproveAndNext={onApproveAndNext}
+          onCorrectionComplete={onCorrectionComplete}
         />
       )}
     </div>
@@ -1172,7 +1380,7 @@ function ApprovalSummary({ invoice, onGoToItem, onApproveAnyway, onBack, onConfi
             <Check className="w-5 h-5 text-emerald-600" />
             <span className="font-semibold text-sm">Approved — {approvedLines.length} line item{approvedLines.length !== 1 ? 's' : ''}, {totalMatches} SKU{totalMatches !== 1 ? 's' : ''}</span>
           </div>
-          <div className="max-h-[420px] overflow-y-auto">
+          <div className="max-h-[420px] overflow-auto -mx-4 sm:mx-0">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100 bg-gray-50">
@@ -1195,8 +1403,9 @@ function ApprovalSummary({ invoice, onGoToItem, onApproveAnyway, onBack, onConfi
                     const size = m.productVariant?.size;
                     const newPrice = m.approvedPrice ?? m.suggestedPrice ?? m.currentPrice;
                     const margin = newPrice && m.newCost ? ((newPrice - m.newCost) / newPrice * 100) : null;
+                    const newerWarning = m.newerInvoiceWarning;
                     return (
-                      <tr key={m.id} className={mi === 0 ? 'border-t border-gray-200' : ''}>
+                      <tr key={m.id} className={`${mi === 0 ? 'border-t border-gray-200' : ''} ${newerWarning ? 'bg-amber-50/50' : ''}`}>
                         {mi === 0 ? (
                           <td className="px-5 py-2.5 font-medium align-top" rowSpan={matches.length}>
                             <div>{line.description}</div>
@@ -1210,6 +1419,16 @@ function ApprovalSummary({ invoice, onGoToItem, onApproveAnyway, onBack, onConfi
                             {size && <span className="px-1 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px]">{size}</span>}
                             {storeName && <span>· {storeName}</span>}
                           </div>
+                          {newerWarning && (
+                            <div className="mt-1 flex items-start gap-1 text-[10px] text-amber-700 bg-amber-100 rounded px-1.5 py-1">
+                              <Warning className="w-3 h-3 mt-0.5 shrink-0" />
+                              <span>
+                                Cost updated by #{newerWarning.invoiceNumber || '—'}
+                                {newerWarning.supplierName && ` (${newerWarning.supplierName})`}
+                                {newerWarning.newCost != null && ` to ${money(newerWarning.newCost)}`}
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono text-gray-500 text-xs">{money(m.previousCost)}</td>
                         <td className={`px-3 py-2.5 text-right font-mono text-xs font-medium ${
@@ -1306,7 +1525,9 @@ function ApprovalSummary({ invoice, onGoToItem, onApproveAnyway, onBack, onConfi
           onClick={onConfirmExports}
           className="px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition flex items-center gap-2"
         >
-          Approve All & Continue to Export
+          {invoice.status === 'APPROVED' || invoice.status === 'EXPORTED'
+            ? 'Continue to Export'
+            : 'Approve All & Continue to Export'}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -1314,136 +1535,6 @@ function ApprovalSummary({ invoice, onGoToItem, onApproveAnyway, onBack, onConfi
   );
 }
 
-// ── Step 4: Export & Push panel ───────────────────────────────
-function ExportPanel({ invoice, exportData, stores, storeColorMap, onDone, navigate }) {
-  function downloadCSV(storeExport) {
-    const headers = ['SKU', 'Product', 'Size', 'Previous Cost', 'New Cost', 'Current Price', 'New Price', 'Shelf Location'];
-    const rows = storeExport.items.map((item) =>
-      [item.sku, item.productName, item.size || '', item.previousCost, item.newCost, item.currentPrice, item.newPrice, item.shelfLocation || ''].join(',')
-    );
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${storeExport.store.name.replace(/[^a-zA-Z0-9]/g, '_')}-price-update.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  const totalItems = exportData?.stores?.reduce((sum, s) => sum + s.items.length, 0) || 0;
-  const priceChanges = exportData?.stores?.reduce((sum, s) => sum + s.items.filter(i => i.newPrice !== i.currentPrice).length, 0) || 0;
-
-  return (
-    <div className="space-y-6">
-      {/* Success banner */}
-      <div className="bg-green-600 rounded-xl p-5 text-white flex items-center gap-4">
-        <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-          <span className="text-3xl">✅</span>
-        </div>
-        <div>
-          <h2 className="text-lg font-bold">Invoice {invoice.invoiceNumber || ''} Approved — Ready to Push</h2>
-          <p className="text-green-100 mt-0.5">
-            {invoice.lines?.length || 0} line items matched · {totalItems} SKUs updated · {priceChanges} price change{priceChanges !== 1 ? 's' : ''} across {exportData?.stores?.length || 0} store{exportData?.stores?.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-      </div>
-
-      {/* Per-store push cards */}
-      <div className="grid grid-cols-2 gap-4">
-        {(exportData?.stores || []).map((storeExport, i) => {
-          const color = STORE_COLORS[i % STORE_COLORS.length];
-          const platform = storeExport.store.platform || storeExport.store.type || 'Store';
-          return (
-            <div key={storeExport.store.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className={`${color.pushBg} px-5 py-3 text-white flex items-center justify-between`}>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 bg-white/50 rounded-full" />
-                  <span className="font-semibold">{storeExport.store.name}</span>
-                </div>
-                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                  {storeExport.items.length} product{storeExport.items.length !== 1 ? 's' : ''} · {platform}
-                </span>
-              </div>
-              <div className="p-5 space-y-3">
-                <div className="flex gap-2">
-                  <button
-                    className={`flex-1 px-4 py-2.5 ${color.pushBg} text-white rounded-lg text-sm font-medium ${color.pushHover} transition flex items-center justify-center gap-2`}
-                    onClick={() => {
-                      // Future: integrate with POS API
-                      alert(`Push to ${platform} coming soon! For now, download the CSV.`);
-                    }}
-                  >
-                    <Upload className="w-4 h-4" />
-                    Push to {platform === 'POS' ? 'POS' : platform}
-                  </button>
-                  <button
-                    onClick={() => downloadCSV(storeExport)}
-                    className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
-                  >
-                    CSV
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500">
-                  {platform === 'POS'
-                    ? 'Pushes cost and price updates directly to your POS catalog via API'
-                    : 'Updates product prices on your store via API'
-                  }
-                </p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Push All */}
-      {(exportData?.stores?.length || 0) > 1 && (
-        <div className="bg-teal-50 border border-teal-200 rounded-xl p-5 flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-teal-900">Push to all connected stores at once</h3>
-            <p className="text-sm text-teal-700 mt-0.5">Updates prices on all connected stores simultaneously. Changes reflect within 30 seconds.</p>
-          </div>
-          <button
-            className="px-6 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition flex items-center gap-2"
-            onClick={() => alert('Push All coming soon! For now, download CSVs from each store.')}
-          >
-            <Lightning className="w-5 h-5" />
-            Push All Stores Now
-          </button>
-        </div>
-      )}
-
-      {/* Audit record */}
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 flex items-center gap-3 text-sm text-gray-600">
-        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-          <path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-        </svg>
-        <span>
-          Invoice <strong>{invoice.invoiceNumber || invoice.id}</strong> approved on{' '}
-          <strong>{new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
-          {' · '}{totalItems} SKU{totalItems !== 1 ? 's' : ''} updated
-        </span>
-      </div>
-
-      {/* Done / Full Export buttons */}
-      <div className="flex justify-between">
-        <button
-          onClick={() => navigate(`/export?invoiceId=${invoice.id}`)}
-          className="px-5 py-2.5 text-sm font-medium text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100 transition flex items-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          Go to Full Export
-        </button>
-        <button
-          onClick={onDone}
-          className="px-6 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition"
-        >
-          Done — Return to Invoices
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════
 // ── MAIN REVIEW PAGE ─────────────────────────────────────────
@@ -1463,7 +1554,7 @@ export default function Review({ invoiceIdProp, onApproved }) {
   const [error, setError] = useState(null);
   const [expandedLines, setExpandedLines] = useState(new Set());
   const [approving, setApproving] = useState(false);
-  const [exportData, setExportData] = useState(null);
+  const [staleData, setStaleData] = useState(false);
 
   // If no invoiceId, show a placeholder
   if (!invoiceId) {
@@ -1490,25 +1581,31 @@ export default function Review({ invoiceIdProp, onApproved }) {
     async function load() {
       try {
         const [inv, storeList] = await Promise.all([
-          api.getInvoice(invoiceId),
+          api.getInvoiceDetails(invoiceId),
           api.getStores(),
         ]);
         if (cancelled) return;
         setInvoice(inv);
         setStores(storeList);
 
-        // If matches already exist, skip to step 2
-        const hasMatches = inv.lines?.some((l) => l.matches?.length > 0);
-        if (hasMatches) {
+        const isApprovedInvoice = inv.status === 'APPROVED' || inv.status === 'EXPORTED';
+
+        // Approved invoices always land on Step 2 (Match & Price) for browsing/correction
+        if (isApprovedInvoice) {
           setStep(2);
-          // Auto-expand lines that need review
-          const needsReview = new Set();
-          inv.lines?.forEach((l) => {
-            const best = l.matches?.length > 0 ? Math.max(...l.matches.map(m => m.confidence || 0)) : 0;
-            if (l.status === 'NEEDS_REVIEW' || best < 0.9) needsReview.add(l.id);
-            if (!l.matches || l.matches.length === 0) needsReview.add(l.id);
-          });
-          setExpandedLines(needsReview);
+        } else {
+          // For non-approved: if matches already exist, skip to step 2
+          const hasMatches = inv.lines?.some((l) => l.matches?.length > 0);
+          if (hasMatches) {
+            setStep(2);
+            const needsReview = new Set();
+            inv.lines?.forEach((l) => {
+              const best = l.matches?.length > 0 ? Math.max(...l.matches.map(m => m.confidence || 0)) : 0;
+              if (l.status === 'NEEDS_REVIEW' || best < 0.9) needsReview.add(l.id);
+              if (!l.matches || l.matches.length === 0) needsReview.add(l.id);
+            });
+            setExpandedLines(needsReview);
+          }
         }
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -1520,7 +1617,27 @@ export default function Review({ invoiceIdProp, onApproved }) {
     return () => { cancelled = true; };
   }, [invoiceId]);
 
+  // ── TabSync for approved invoices ──
+  useEffect(() => {
+    if (invoice?.status !== 'APPROVED' && invoice?.status !== 'EXPORTED') return;
+    tabSync.setSensitiveScreen('invoice_detail', invoice.dataVersion, { invoiceId: invoice.id });
+    tabSync.onStaleData = () => setStaleData(true);
+    return () => {
+      tabSync.clearSensitiveScreen();
+      tabSync.onStaleData = null;
+    };
+  }, [invoice?.id, invoice?.dataVersion, invoice?.status]);
+
   // ── Handlers ──
+  const loadInvoice = useCallback(async () => {
+    try {
+      const inv = await api.getInvoiceDetails(invoiceId);
+      setInvoice(inv);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [invoiceId]);
+
   const toggleLine = useCallback((lineId) => {
     setExpandedLines((prev) => {
       const next = new Set(prev);
@@ -1630,19 +1747,18 @@ export default function Review({ invoiceIdProp, onApproved }) {
   const handleConfirmExports = useCallback(async () => {
     setApproving(true);
     try {
-      await api.approveInvoice(invoiceId);
-      const data = await api.getExportData(invoiceId);
-      setExportData(data);
-      const updated = await api.getInvoice(invoiceId);
-      setInvoice(updated);
-      setStep(4);
+      // Skip re-approval for already-approved invoices
+      if (invoice?.status !== 'APPROVED' && invoice?.status !== 'EXPORTED') {
+        await api.approveInvoice(invoiceId);
+      }
       onApproved?.(invoiceId);
+      navigate(`/export?invoiceId=${invoiceId}`);
     } catch (err) {
       setError(err.message);
     } finally {
       setApproving(false);
     }
-  }, [invoiceId, onApproved]);
+  }, [invoiceId, onApproved, invoice?.status, navigate]);
 
   // Proceed from Step 1 to Step 2: run auto-matching
   const handleProceedToMatching = useCallback(async () => {
@@ -1701,7 +1817,7 @@ export default function Review({ invoiceIdProp, onApproved }) {
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
-      <WorkflowBreadcrumb step={2} />
+      <WorkflowBreadcrumb step={2} onStepClick={(s) => { if (s === 1) navigate('/invoices'); }} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1720,8 +1836,14 @@ export default function Review({ invoiceIdProp, onApproved }) {
               )}
             </p>
           </div>
+          {(invoice.status === 'APPROVED' || invoice.status === 'EXPORTED') && (
+            <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+              <Check className="w-3.5 h-3.5" />
+              {invoice.status}
+            </span>
+          )}
         </div>
-        <StepProgress step={step} />
+        <StepProgress step={step} onStepClick={(s) => setStep(s)} />
       </div>
 
       {/* GST & Freight info bar */}
@@ -1824,6 +1946,11 @@ export default function Review({ invoiceIdProp, onApproved }) {
             </div>
           </div>
 
+          {/* Stale data banner */}
+          {staleData && (
+            <StaleDataBanner onRefresh={() => { setStaleData(false); loadInvoice(); }} />
+          )}
+
           {/* Line items */}
           {(invoice.lines || []).map((line) => (
             <div key={line.id} ref={el => lineRefs.current[line.id] = el}>
@@ -1838,6 +1965,10 @@ export default function Review({ invoiceIdProp, onApproved }) {
                 onApproveLine={handleApproveLine}
                 onPriceUpdate={handlePriceUpdate}
                 onApproveAndNext={handleApproveAndNext}
+                onCorrectionComplete={() => {
+                  tabSync.notifyDataChanged('invoice_detail', invoice.dataVersion);
+                  loadInvoice();
+                }}
               />
             </div>
           ))}
@@ -1880,17 +2011,6 @@ export default function Review({ invoiceIdProp, onApproved }) {
         />
       )}
 
-      {/* ═══ Step 4: Export & Push ═══ */}
-      {step === 4 && (
-        <ExportPanel
-          invoice={invoice}
-          exportData={exportData}
-          stores={stores}
-          storeColorMap={storeColorMap}
-          onDone={() => navigate('/invoices')}
-          navigate={navigate}
-        />
-      )}
 
       {approving && (
         <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import * as XLSX from 'xlsx';
 import WorkflowBreadcrumb from '../components/layout/WorkflowBreadcrumb';
+import StaleDataBanner from '../components/ui/StaleDataBanner';
+import tabSync from '../services/tabSync';
 
 // ── Icons ─────────────────────────────────────────────────────
 const Check = ({ className }) => (
@@ -13,6 +15,16 @@ const Check = ({ className }) => (
 const Download = ({ className }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+  </svg>
+);
+const SearchIcon = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+);
+const ArrowLeft = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
   </svg>
 );
 const Pencil = ({ className }) => (
@@ -129,6 +141,7 @@ function EditablePrice({ value, matchId, onSave }) {
 
 export default function Export() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const preselectedInvoiceId = searchParams.get('invoiceId');
 
   // ── State ───
@@ -152,6 +165,34 @@ export default function Export() {
   const [platformActions, setPlatformActions] = useState({});
   // Whether Shopify integration is active
   const [shopifyConnected, setShopifyConnected] = useState(false);
+  // Stale data detection
+  const [staleData, setStaleData] = useState(false);
+
+  // ── Shopify sync flow state ───
+  const [shopifySyncState, setShopifySyncState] = useState('idle'); // 'idle' | 'review' | 'syncing' | 'results'
+  const [shopifySyncItems, setShopifySyncItems] = useState([]); // items for review screen with 'selected' boolean
+  const [shopifySyncCsvItems, setShopifySyncCsvItems] = useState([]); // CSV items to export alongside Shopify sync
+  const [shopifySyncResults, setShopifySyncResults] = useState(null); // results from backend
+
+  // ── Invoice search, sort, pagination state ───
+  const [readySearch, setReadySearch] = useState('');
+  const [exportedSearch, setExportedSearch] = useState('');
+  const [readySortKey, setReadySortKey] = useState('date'); // 'date' | 'supplier' | 'amount'
+  const [readySortAsc, setReadySortAsc] = useState(false); // false = newest first
+  const [exportedSortKey, setExportedSortKey] = useState('date');
+  const [readyPage, setReadyPage] = useState(1);
+  const [exportedPage, setExportedPage] = useState(1);
+  const INVOICES_PER_PAGE = 10;
+
+  // Register export screen as sensitive for multi-tab polling
+  useEffect(() => {
+    tabSync.setSensitiveScreen('export', new Date().toISOString());
+    tabSync.onStaleData = () => setStaleData(true);
+    return () => {
+      tabSync.clearSensitiveScreen();
+      tabSync.onStaleData = null;
+    };
+  }, []);
 
   // ── Load Shopify integration status ───
   useEffect(() => {
@@ -353,19 +394,59 @@ export default function Export() {
   }, [priceEdits]);
 
   // ── Split invoices into Ready / Previously Exported ───
-  const { readyInvoices, exportedInvoices } = useMemo(() => {
+  const { readyInvoicesAll, exportedInvoicesAll } = useMemo(() => {
     const ready = [];
     const exported = [];
     for (const inv of invoices) {
       if (inv.lastExportedAt) exported.push(inv);
       else ready.push(inv);
     }
-    exported.sort((a, b) => {
-      const diff = new Date(a.lastExportedAt) - new Date(b.lastExportedAt);
-      return exportSortAsc ? diff : -diff;
+    return { readyInvoicesAll: ready, exportedInvoicesAll: exported };
+  }, [invoices]);
+
+  // ── Filter, sort, paginate invoice sections ───
+  function filterInvoices(list, query) {
+    if (!query.trim()) return list;
+    const q = query.trim().toLowerCase();
+    return list.filter((inv) =>
+      (inv.supplierName || '').toLowerCase().includes(q) ||
+      (inv.invoiceNumber || '').toLowerCase().includes(q)
+    );
+  }
+
+  function sortInvoices(list, key, asc) {
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      if (key === 'date') {
+        cmp = new Date(a.invoiceDate || 0) - new Date(b.invoiceDate || 0);
+      } else if (key === 'supplier') {
+        cmp = (a.supplierName || '').localeCompare(b.supplierName || '');
+      } else if (key === 'amount') {
+        cmp = (a.totalAmount || 0) - (b.totalAmount || 0);
+      } else if (key === 'lastExported') {
+        cmp = new Date(a.lastExportedAt || 0) - new Date(b.lastExportedAt || 0);
+      }
+      return asc ? cmp : -cmp;
     });
-    return { readyInvoices: ready, exportedInvoices: exported };
-  }, [invoices, exportSortAsc]);
+  }
+
+  const readyFiltered = useMemo(() =>
+    sortInvoices(filterInvoices(readyInvoicesAll, readySearch), readySortKey, readySortAsc),
+    [readyInvoicesAll, readySearch, readySortKey, readySortAsc]
+  );
+  const exportedFiltered = useMemo(() =>
+    sortInvoices(filterInvoices(exportedInvoicesAll, exportedSearch), exportedSortKey, exportSortAsc),
+    [exportedInvoicesAll, exportedSearch, exportedSortKey, exportSortAsc]
+  );
+
+  const readyTotalPages = Math.max(1, Math.ceil(readyFiltered.length / INVOICES_PER_PAGE));
+  const exportedTotalPages = Math.max(1, Math.ceil(exportedFiltered.length / INVOICES_PER_PAGE));
+  const readyInvoices = readyFiltered.slice((readyPage - 1) * INVOICES_PER_PAGE, readyPage * INVOICES_PER_PAGE);
+  const exportedInvoices = exportedFiltered.slice((exportedPage - 1) * INVOICES_PER_PAGE, exportedPage * INVOICES_PER_PAGE);
+
+  // Reset page when search changes
+  useEffect(() => { setReadyPage(1); }, [readySearch, readySortKey, readySortAsc]);
+  useEffect(() => { setExportedPage(1); }, [exportedSearch, exportedSortKey, exportSortAsc]);
 
   // ── CSV helper: quote a field if it contains commas, quotes, or newlines ───
   function csvField(val) {
@@ -444,90 +525,177 @@ export default function Export() {
     await doExport(selectedItems);
   }
 
+  // ── Generate CSV/XLSX files for non-sync platforms ───
+  function executeCsvExports(exportItems) {
+    const ts = exportTimestamp();
+    const bySource = {};
+    for (const item of exportItems) {
+      if (!item.source) continue;
+      (bySource[item.source] ??= []).push(item);
+    }
+
+    let fileCount = 0;
+    for (const [source, sourceItems] of Object.entries(bySource)) {
+      if (platformActions[source] !== 'file') continue;
+      let csv;
+      let label;
+      const sourceLower = source.toLowerCase();
+
+      if (sourceLower === 'shopify') {
+        csv = buildShopifyCsv(sourceItems);
+        label = 'Shopify';
+      } else {
+        csv = buildPosCsv(sourceItems);
+        label = source;
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const safeName = label.replace(/[^a-zA-Z0-9]/g, '_');
+      downloadBlob(blob, `${ts}_${safeName}_price_update.csv`);
+      fileCount++;
+    }
+
+    // Generate XLSX INSTORE_UPDATE for POS items set to 'file' action
+    if (platformActions['POS'] === 'file' && bySource['POS']?.length > 0) {
+      const instoreData = bySource['POS'].map((item) => ({
+        'Product Name': item.productName || '',
+        'New Price': item.newPrice ?? '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(instoreData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'INSTORE_UPDATE');
+      const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const xlsxBlob = new Blob([xlsxData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      downloadBlob(xlsxBlob, `${ts}_INSTORE_UPDATE.xlsx`);
+      fileCount++;
+    }
+
+    return { fileCount, timestamp: ts };
+  }
+
   // ── Core export logic (receives final, deduplicated item list) ───
   async function doExport(exportItems) {
     setExporting(true);
     setExportSuccess(null);
 
     try {
-      const ts = exportTimestamp();
-
-      // Group by source (skip items with no source)
-      const bySource = {};
-      for (const item of exportItems) {
-        if (!item.source) continue;
-        (bySource[item.source] ??= []).push(item);
-      }
-
       // Determine which platforms are set to 'sync' (push via API)
       const syncPlatforms = availablePlatforms.filter(
         (p) => platformActions[p] === 'sync'
       );
 
-      // Generate files for platforms set to 'file' action
-      let fileCount = 0;
-      for (const [source, sourceItems] of Object.entries(bySource)) {
-        if (platformActions[source] !== 'file') continue; // sync platforms skip file generation
-        let csv;
-        let label;
-        const sourceLower = source.toLowerCase();
+      // Check for Shopify sync items — show review screen before syncing
+      const hasShopifySync = syncPlatforms.some((p) => p.toLowerCase() === 'shopify');
+      const shopifyItems = hasShopifySync
+        ? exportItems.filter((i) => (i.source || '').toLowerCase() === 'shopify')
+        : [];
 
-        if (sourceLower === 'shopify') {
-          csv = buildShopifyCsv(sourceItems);
-          label = 'Shopify';
-        } else {
-          csv = buildPosCsv(sourceItems);
-          label = source;
-        }
-
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const safeName = label.replace(/[^a-zA-Z0-9]/g, '_');
-        downloadBlob(blob, `${ts}_${safeName}_price_update.csv`);
-        fileCount++;
+      if (shopifyItems.length > 0) {
+        // Show Shopify review screen — pause export until user confirms
+        setShopifySyncItems(shopifyItems.map((i) => ({ ...i, selected: true })));
+        setShopifySyncCsvItems(exportItems.filter((i) => (i.source || '').toLowerCase() !== 'shopify'));
+        setShopifySyncState('review');
+        setExporting(false);
+        return; // Export continues in handleConfirmShopifySync
       }
 
-      // Generate XLSX INSTORE_UPDATE for POS items set to 'file' action
-      if (platformActions['POS'] === 'file' && bySource['POS']?.length > 0) {
-        const instoreData = bySource['POS'].map((item) => ({
-          'Product Name': item.productName || '',
-          'New Price': item.newPrice ?? '',
-        }));
-        const ws = XLSX.utils.json_to_sheet(instoreData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'INSTORE_UPDATE');
-        const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const xlsxBlob = new Blob([xlsxData], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        downloadBlob(xlsxBlob, `${ts}_INSTORE_UPDATE.xlsx`);
-        fileCount++;
-      }
+      // No Shopify sync items — proceed with CSV/file exports only
+      const { fileCount, timestamp } = executeCsvExports(exportItems);
 
-      // Mark items as exported on server — pass syncPlatforms so backend knows what to push
+      // Mark items as exported on server
       const matchIds = exportItems.map((item) => item.matchId);
-      await api.markExported(matchIds, syncPlatforms.length > 0 ? syncPlatforms : []);
+      await api.markExported(matchIds, []);
 
       setExportSuccess({
         count: exportItems.length,
         fileCount,
-        syncCount: syncPlatforms.length,
-        timestamp: ts,
+        syncCount: 0,
+        timestamp,
       });
 
-      // Refresh items to show updated exportedAt
-      const data = await api.getExportItems([...selectedInvoiceIds], includeOtherExported);
-      setItems(data.items || []);
-      // Refresh invoices to update lastExportedAt
-      const invoiceData = await api.getExportableInvoices();
-      setInvoices(invoiceData);
-      // Clear selection and price edits after export
-      setSelectedMatchIds(new Set());
-      setPriceEdits({});
+      await refreshAfterExport();
     } catch (err) {
       console.error('Export failed:', err);
     } finally {
       setExporting(false);
     }
+  }
+
+  // ── Confirm Shopify sync from review screen ───
+  async function handleConfirmShopifySync() {
+    const selected = shopifySyncItems.filter((i) => i.selected);
+    if (selected.length === 0) return;
+
+    setShopifySyncState('syncing');
+
+    try {
+      // Execute CSV exports for non-Shopify items
+      const { fileCount, timestamp } = executeCsvExports(shopifySyncCsvItems);
+
+      // Mark all items as exported, push Shopify sync items
+      const allMatchIds = [
+        ...selected.map((i) => i.matchId),
+        ...shopifySyncCsvItems.map((i) => i.matchId),
+      ];
+      const result = await api.markExported(allMatchIds, ['shopify']);
+
+      setShopifySyncResults(result.shopifyResults || {
+        summary: { total: selected.length, succeeded: selected.length, failed: 0 },
+        results: selected.map((i) => ({ ...i, status: 'success' })),
+      });
+      setShopifySyncState('results');
+
+      setExportSuccess({
+        count: allMatchIds.length,
+        fileCount,
+        syncCount: 1,
+        timestamp,
+      });
+
+      await refreshAfterExport();
+    } catch (err) {
+      console.error('Shopify sync failed:', err);
+      setShopifySyncResults({
+        summary: { total: selected.length, succeeded: 0, failed: selected.length },
+        results: selected.map((i) => ({
+          ...i,
+          status: 'failed',
+          error: err.message || 'Sync failed',
+        })),
+      });
+      setShopifySyncState('results');
+    }
+  }
+
+  // ── Download failure report CSV ───
+  function downloadFailureReport(failures) {
+    const headers = ['Shopify Variant ID', 'SKU', 'Product Name', 'Variant', 'Cost Price', 'Selling Price', 'Error Reason'];
+    const rows = failures.map((f) => [
+      f.shopifyVariantId || '',
+      f.sku || '',
+      f.productName || '',
+      f.variantTitle || '',
+      f.newCost ?? '',
+      f.newPrice ?? '',
+      f.error || '',
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    downloadBlob(blob, `shopify_sync_failures_${new Date().toISOString().split('T')[0]}.csv`);
+  }
+
+  // ── Refresh data after any export ───
+  async function refreshAfterExport() {
+    const data = await api.getExportItems([...selectedInvoiceIds], includeOtherExported);
+    setItems(data.items || []);
+    const invoiceData = await api.getExportableInvoices();
+    setInvoices(invoiceData);
+    setSelectedMatchIds(new Set());
+    setPriceEdits({});
   }
 
   // ── Resolve duplicates and export ───
@@ -564,14 +732,14 @@ export default function Export() {
         <td className="px-3 py-3 text-gray-600">
           {inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
         </td>
-        <td className="px-3 py-3 text-center">
+        <td className="hidden sm:table-cell px-3 py-3 text-center">
           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
             inv.confirmedCount === inv.totalCount ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
           }`}>
             {inv.confirmedCount}/{inv.totalCount}
           </span>
         </td>
-        <td className="px-3 py-3">
+        <td className="hidden sm:table-cell px-3 py-3">
           <div className="flex flex-wrap gap-1 justify-center">
             {inv.costChangedCount > 0 && (
               <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-700"
@@ -619,20 +787,107 @@ export default function Export() {
     );
   }
 
+  // ── Sortable column header helper ───
+  function SortHeader({ label, sortKey, currentKey, asc, onToggle, className = '' }) {
+    const active = currentKey === sortKey;
+    return (
+      <th
+        className={`px-3 py-2.5 text-left cursor-pointer select-none hover:text-gray-700 transition ${className}`}
+        onClick={() => onToggle(sortKey, active ? !asc : false)}
+      >
+        <div className="flex items-center gap-1">
+          {label}
+          {active && <span className="text-[10px]">{asc ? '▲' : '▼'}</span>}
+        </div>
+      </th>
+    );
+  }
+
+  // ── Pagination component ───
+  function Pagination({ currentPage, totalPages, totalItems, perPage, onPageChange }) {
+    if (totalItems <= perPage) return null;
+    const start = (currentPage - 1) * perPage + 1;
+    const end = Math.min(currentPage * perPage, totalItems);
+    return (
+      <div className="px-5 py-2.5 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+        <span>Showing {start}-{end} of {totalItems} invoices</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className="px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+            .reduce((acc, p, i, arr) => {
+              if (i > 0 && p - arr[i - 1] > 1) acc.push('...');
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, i) =>
+              p === '...' ? (
+                <span key={`ellipsis-${i}`} className="px-1">...</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => onPageChange(p)}
+                  className={`w-7 h-7 rounded ${p === currentPage ? 'bg-teal-600 text-white' : 'border border-gray-200 hover:bg-gray-50'}`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className="px-2.5 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ══════════════════════════════════════════════════════════════
   // ── RENDER ─────────────────────────────────────────────────
   // ══════════════════════════════════════════════════════════════
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <WorkflowBreadcrumb step={3} />
+      <WorkflowBreadcrumb step={3} onStepClick={(s) => {
+        if (s === 1) navigate('/invoices');
+        else if (s === 2) {
+          const selIds = [...selectedInvoiceIds];
+          navigate(selIds.length === 1 ? `/review/${selIds[0]}` : '/invoices');
+        }
+      }} />
       {/* Header */}
-      <div>
-        <h2 className="text-lg font-semibold">Export Price Updates</h2>
-        <p className="text-sm text-gray-500">
-          Select invoices, review confirmed items, adjust prices if needed, and export CSV/XLSX files for your POS and shelf labels.
-        </p>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => {
+            const selIds = [...selectedInvoiceIds];
+            navigate(selIds.length === 1 ? `/review/${selIds[0]}` : '/invoices');
+          }}
+          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+          title="Back"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h2 className="text-lg font-semibold">Export Price Updates</h2>
+          <p className="text-sm text-gray-500">
+            Select invoices, review confirmed items, adjust prices if needed, and export CSV/XLSX files for your POS and shelf labels.
+          </p>
+        </div>
       </div>
+
+      {/* Stale data banner */}
+      {staleData && (
+        <StaleDataBanner onRefresh={() => { setStaleData(false); window.location.reload(); }} />
+      )}
 
       {/* Success banner */}
       {exportSuccess && (
@@ -663,20 +918,35 @@ export default function Export() {
       ) : (
         <>
           {/* Ready to Export */}
-          {readyInvoices.length > 0 && (
+          {readyInvoicesAll.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-700">Ready to Export</h3>
                 <span className="text-xs text-gray-400">
-                  {readyInvoices.filter((inv) => selectedInvoiceIds.has(inv.id)).length} of {readyInvoices.length} selected
+                  {readyInvoicesAll.filter((inv) => selectedInvoiceIds.has(inv.id)).length} of {readyInvoicesAll.length} selected
                 </span>
               </div>
+              {readyInvoicesAll.length > 5 && (
+                <div className="px-5 py-2 border-b border-gray-100">
+                  <div className="relative">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by supplier or invoice #..."
+                      value={readySearch}
+                      onChange={(e) => setReadySearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-400"
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <th className="pl-5 pr-2 py-2.5 text-left w-10">
                       <button
-                        onClick={() => toggleSectionInvoices(readyInvoices)}
+                        onClick={() => toggleSectionInvoices(readyFiltered)}
                         className="w-5 h-5 rounded flex items-center justify-center border-2 border-gray-300 hover:border-teal-500 transition"
                       >
                         {readyInvoices.length > 0 && readyInvoices.every((inv) => selectedInvoiceIds.has(inv.id)) && (
@@ -684,36 +954,55 @@ export default function Export() {
                         )}
                       </button>
                     </th>
-                    <th className="px-3 py-2.5 text-left">Supplier</th>
+                    <SortHeader label="Supplier" sortKey="supplier" currentKey={readySortKey} asc={readySortAsc} onToggle={(k, a) => { setReadySortKey(k); setReadySortAsc(a); }} />
                     <th className="px-3 py-2.5 text-left">Invoice #</th>
-                    <th className="px-3 py-2.5 text-left">Date</th>
-                    <th className="px-3 py-2.5 text-center">Confirmed</th>
-                    <th className="px-3 py-2.5 text-center">Changes</th>
+                    <SortHeader label="Date" sortKey="date" currentKey={readySortKey} asc={readySortAsc} onToggle={(k, a) => { setReadySortKey(k); setReadySortAsc(a); }} />
+                    <th className="hidden sm:table-cell px-3 py-2.5 text-center">Confirmed</th>
+                    <th className="hidden sm:table-cell px-3 py-2.5 text-center">Changes</th>
                     <th className="px-3 py-2.5 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {readyInvoices.map((inv) => renderInvoiceRow(inv, false))}
+                  {readyInvoices.length === 0 ? (
+                    <tr><td colSpan={7} className="px-5 py-4 text-center text-sm text-gray-400">No invoices match your search.</td></tr>
+                  ) : readyInvoices.map((inv) => renderInvoiceRow(inv, false))}
                 </tbody>
               </table>
+              </div>
+              <Pagination currentPage={readyPage} totalPages={readyTotalPages} totalItems={readyFiltered.length} perPage={INVOICES_PER_PAGE} onPageChange={setReadyPage} />
             </div>
           )}
 
           {/* Previously Exported */}
-          {exportedInvoices.length > 0 && (
+          {exportedInvoicesAll.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-700">Previously Exported</h3>
                 <span className="text-xs text-gray-400">
-                  {exportedInvoices.filter((inv) => selectedInvoiceIds.has(inv.id)).length} of {exportedInvoices.length} selected
+                  {exportedInvoicesAll.filter((inv) => selectedInvoiceIds.has(inv.id)).length} of {exportedInvoicesAll.length} selected
                 </span>
               </div>
+              {exportedInvoicesAll.length > 5 && (
+                <div className="px-5 py-2 border-b border-gray-100">
+                  <div className="relative">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by supplier or invoice #..."
+                      value={exportedSearch}
+                      onChange={(e) => setExportedSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-400"
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <th className="pl-5 pr-2 py-2.5 text-left w-10">
                       <button
-                        onClick={() => toggleSectionInvoices(exportedInvoices)}
+                        onClick={() => toggleSectionInvoices(exportedFiltered)}
                         className="w-5 h-5 rounded flex items-center justify-center border-2 border-gray-300 hover:border-teal-500 transition"
                       >
                         {exportedInvoices.length > 0 && exportedInvoices.every((inv) => selectedInvoiceIds.has(inv.id)) && (
@@ -721,27 +1010,23 @@ export default function Export() {
                         )}
                       </button>
                     </th>
-                    <th className="px-3 py-2.5 text-left">Supplier</th>
+                    <SortHeader label="Supplier" sortKey="supplier" currentKey={exportedSortKey} asc={exportSortAsc} onToggle={(k, a) => { setExportedSortKey(k); setExportSortAsc(a); }} />
                     <th className="px-3 py-2.5 text-left">Invoice #</th>
-                    <th className="px-3 py-2.5 text-left">Date</th>
-                    <th className="px-3 py-2.5 text-center">Confirmed</th>
-                    <th className="px-3 py-2.5 text-center">Changes</th>
+                    <SortHeader label="Date" sortKey="date" currentKey={exportedSortKey} asc={exportSortAsc} onToggle={(k, a) => { setExportedSortKey(k); setExportSortAsc(a); }} />
+                    <th className="hidden sm:table-cell px-3 py-2.5 text-center">Confirmed</th>
+                    <th className="hidden sm:table-cell px-3 py-2.5 text-center">Changes</th>
                     <th className="px-3 py-2.5 text-center">Status</th>
-                    <th
-                      className="px-3 py-2.5 text-left cursor-pointer select-none hover:text-gray-700 transition"
-                      onClick={() => setExportSortAsc((prev) => !prev)}
-                    >
-                      <div className="flex items-center gap-1">
-                        Last Exported
-                        <span className="text-[10px]">{exportSortAsc ? '▲' : '▼'}</span>
-                      </div>
-                    </th>
+                    <SortHeader label="Last Exported" sortKey="lastExported" currentKey={exportedSortKey} asc={exportSortAsc} onToggle={(k, a) => { setExportedSortKey(k); setExportSortAsc(a); }} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {exportedInvoices.map((inv) => renderInvoiceRow(inv, true))}
+                  {exportedInvoices.length === 0 ? (
+                    <tr><td colSpan={8} className="px-5 py-4 text-center text-sm text-gray-400">No invoices match your search.</td></tr>
+                  ) : exportedInvoices.map((inv) => renderInvoiceRow(inv, true))}
                 </tbody>
               </table>
+              </div>
+              <Pagination currentPage={exportedPage} totalPages={exportedTotalPages} totalItems={exportedFiltered.length} perPage={INVOICES_PER_PAGE} onPageChange={setExportedPage} />
             </div>
           )}
         </>
@@ -814,7 +1099,7 @@ export default function Export() {
           ) : items.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-gray-400">No confirmed items found for selected invoices.</div>
           ) : (
-            <div className="max-h-[480px] overflow-y-auto">
+            <div className="max-h-[480px] overflow-auto -mx-4 sm:mx-0">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -966,6 +1251,204 @@ export default function Export() {
               <Download className="w-4 h-4" />
               {exporting ? 'Processing...' : `Export ${selectedMatchIds.size} Item${selectedMatchIds.size !== 1 ? 's' : ''}`}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Shopify Sync Review Screen ─── */}
+      {shopifySyncState === 'review' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Shopify Sync Review</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Review and uncheck any items you don't want to sync to Shopify.
+                </p>
+              </div>
+              <button
+                onClick={() => { setShopifySyncState('idle'); setShopifySyncItems([]); }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={shopifySyncItems.length > 0 && shopifySyncItems.every((i) => i.selected)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setShopifySyncItems((prev) => prev.map((i) => ({ ...i, selected: checked })));
+                  }}
+                  className="rounded border-gray-300 text-teal-600"
+                />
+                Select All
+              </label>
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                    <th className="pb-2 w-8"></th>
+                    <th className="pb-2 px-2">Product</th>
+                    <th className="pb-2 px-2">Variant</th>
+                    <th className="pb-2 px-2 text-right">Old Sell</th>
+                    <th className="pb-2 px-2 text-right">New Sell</th>
+                    <th className="pb-2 px-2 text-right">Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {shopifySyncItems.map((item, idx) => (
+                    <tr key={item.matchId} className={item.selected ? '' : 'opacity-50'}>
+                      <td className="py-2">
+                        <input
+                          type="checkbox"
+                          checked={item.selected}
+                          onChange={() => {
+                            setShopifySyncItems((prev) => prev.map((it, i) =>
+                              i === idx ? { ...it, selected: !it.selected } : it
+                            ));
+                          }}
+                          className="rounded border-gray-300 text-teal-600"
+                        />
+                      </td>
+                      <td className="py-2 px-2 font-medium text-gray-900">{item.productName}</td>
+                      <td className="py-2 px-2 text-gray-600">{item.size || item.variantName || 'Default'}</td>
+                      <td className="py-2 px-2 text-right font-mono text-gray-500">{money(item.currentPrice)}</td>
+                      <td className="py-2 px-2 text-right font-mono font-medium text-gray-900">{money(item.newPrice)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-gray-500">{money(item.newCost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            </div>
+
+            <div className="px-6 py-3 border-t border-gray-100 text-xs text-gray-500 space-y-1">
+              <p>{shopifySyncItems.filter((i) => i.selected).length} of {shopifySyncItems.length} items selected for sync</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li>Only selling prices will be updated in Shopify</li>
+                <li>No new products will be created</li>
+                <li>No products will be deleted</li>
+                <li>You can revert by changing prices in Shopify directly</li>
+              </ul>
+              {shopifySyncCsvItems.length > 0 && (
+                <p className="text-teal-600 font-medium mt-1">
+                  POS items ({shopifySyncCsvItems.length} item{shopifySyncCsvItems.length !== 1 ? 's' : ''}) will be exported as CSV.
+                </p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => { setShopifySyncState('idle'); setShopifySyncItems([]); }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmShopifySync}
+                disabled={shopifySyncItems.filter((i) => i.selected).length === 0}
+                className="px-5 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Confirm sync
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Shopify Sync In Progress ─── */}
+      {shopifySyncState === 'syncing' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl px-8 py-6 flex items-center gap-4">
+            <svg className="animate-spin w-6 h-6 text-teal-600" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm font-medium text-gray-700">Syncing prices to Shopify...</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Shopify Sync Results Screen ─── */}
+      {shopifySyncState === 'results' && shopifySyncResults && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Shopify Sync Complete</h3>
+              <div className="flex items-center gap-4 mt-2 text-sm">
+                {shopifySyncResults.summary.succeeded > 0 && (
+                  <span className="text-emerald-700 font-medium">
+                    {shopifySyncResults.summary.succeeded} product{shopifySyncResults.summary.succeeded !== 1 ? 's' : ''} updated successfully
+                  </span>
+                )}
+                {shopifySyncResults.summary.failed > 0 && (
+                  <span className="text-red-600 font-medium">
+                    {shopifySyncResults.summary.failed} failed
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+              {/* Successful items */}
+              {shopifySyncResults.results.filter((r) => r.status === 'success').length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold uppercase text-gray-400 tracking-wider mb-2">Successful</h4>
+                  <div className="space-y-1.5">
+                    {shopifySyncResults.results.filter((r) => r.status === 'success').map((r) => (
+                      <div key={r.matchId || r.shopifyVariantId} className="flex items-center gap-3 text-sm py-1.5 px-3 bg-emerald-50 rounded-lg">
+                        <span className="text-emerald-600 font-medium">&#10003;</span>
+                        <span className="font-medium text-gray-900">{r.productName}</span>
+                        <span className="text-gray-500">{r.variantTitle}</span>
+                        <span className="ml-auto font-mono text-gray-500">{money(r.oldPrice)}</span>
+                        <span className="text-gray-400">&rarr;</span>
+                        <span className="font-mono font-medium text-gray-900">{money(r.newPrice)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Failed items */}
+              {shopifySyncResults.results.filter((r) => r.status !== 'success').length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold uppercase text-red-400 tracking-wider mb-2">Failed</h4>
+                  <div className="space-y-1.5">
+                    {shopifySyncResults.results.filter((r) => r.status !== 'success').map((r) => (
+                      <div key={r.matchId || r.shopifyVariantId} className="flex items-center gap-3 text-sm py-1.5 px-3 bg-red-50 rounded-lg">
+                        <span className="text-red-500 font-medium">&#10007;</span>
+                        <span className="font-medium text-gray-900">{r.productName}</span>
+                        <span className="text-gray-500">{r.variantTitle}</span>
+                        <span className="ml-auto text-red-600 text-xs">{r.error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-between">
+              {shopifySyncResults.results.filter((r) => r.status !== 'success').length > 0 ? (
+                <button
+                  onClick={() => downloadFailureReport(shopifySyncResults.results.filter((r) => r.status !== 'success'))}
+                  className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export failure report
+                </button>
+              ) : <div />}
+              <button
+                onClick={() => { setShopifySyncState('idle'); setShopifySyncItems([]); setShopifySyncResults(null); }}
+                className="px-5 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

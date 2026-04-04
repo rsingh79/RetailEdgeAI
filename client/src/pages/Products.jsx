@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import SmartImport from '../components/products/SmartImport';
+import PriceHistory from '../components/products/PriceHistory';
 
 const IMPORT_FIELDS = [
   { key: 'name', label: 'Product Name', required: true },
@@ -32,6 +33,7 @@ export default function Products() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [addProductForm, setAddProductForm] = useState({ name: '', source: '', category: '', baseUnit: '', barcode: '', costPrice: '', sellingPrice: '' });
   const [addProductSaving, setAddProductSaving] = useState(false);
+  const [priceHistoryProductId, setPriceHistoryProductId] = useState(null);
 
   const location = useLocation();
   const [showApprovalQueue, setShowApprovalQueue] = useState(false);
@@ -312,6 +314,7 @@ export default function Products() {
               : 'No products match your search.'}
           </div>
         ) : (
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
@@ -324,14 +327,14 @@ export default function Products() {
                   />
                 </th>
                 <th className="px-3 py-2.5">Name</th>
-                <th className="px-3 py-2.5">Category</th>
-                <th className="px-3 py-2.5">Barcode</th>
-                <th className="px-3 py-2.5">Base Unit</th>
+                <th className="hidden md:table-cell px-3 py-2.5">Category</th>
+                <th className="hidden lg:table-cell px-3 py-2.5">Barcode</th>
+                <th className="hidden lg:table-cell px-3 py-2.5">Base Unit</th>
                 <th className="px-3 py-2.5 text-right">Cost</th>
                 <th className="px-3 py-2.5 text-right">Sell</th>
-                <th className="px-3 py-2.5">Source</th>
-                <th className="px-3 py-2.5">Store</th>
-                <th className="px-3 py-2.5">Created</th>
+                <th className="hidden md:table-cell px-3 py-2.5">Source</th>
+                <th className="hidden lg:table-cell px-3 py-2.5">Store</th>
+                <th className="hidden md:table-cell px-3 py-2.5">Created</th>
                 <th className="px-3 py-2.5 w-16"></th>
               </tr>
             </thead>
@@ -349,6 +352,7 @@ export default function Products() {
                     onToggleExpand={() => setExpandedProduct(isExpanded ? null : p.id)}
                     onToggleSelect={() => toggleSelect(p.id)}
                     onDelete={() => setShowDeleteConfirm(p.id)}
+                    onShowPriceHistory={() => setPriceHistoryProductId(p.id)}
                     deleting={deleting === p.id}
                     formatDate={formatDate}
                   />
@@ -356,6 +360,7 @@ export default function Products() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -365,6 +370,22 @@ export default function Products() {
           onClose={() => setShowSmartImport(false)}
           onImportComplete={loadProducts}
         />
+      )}
+
+      {/* Price History Modal */}
+      {priceHistoryProductId && (
+        <>
+          <div
+            onClick={() => setPriceHistoryProductId(null)}
+            className="fixed inset-0 bg-black/30 z-[999]"
+          />
+          <div className="fixed inset-y-0 right-0 w-[700px] max-w-full z-[1000] overflow-y-auto bg-gray-50 shadow-2xl p-6">
+            <PriceHistory
+              productId={priceHistoryProductId}
+              onClose={() => setPriceHistoryProductId(null)}
+            />
+          </div>
+        </>
       )}
 
       {/* Approval Queue Backdrop */}
@@ -796,7 +817,7 @@ export default function Products() {
 
 // ── Product Row with expandable variants ─────────────────────
 
-function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleExpand, onToggleSelect, onDelete, deleting, formatDate }) {
+function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleExpand, onToggleSelect, onDelete, onShowPriceHistory, deleting, formatDate }) {
   // Group variants by store
   const variantsByStore = {};
   if (p.variants) {
@@ -844,16 +865,16 @@ function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleE
             )}
           </div>
         </td>
-        <td className="px-3 py-3 text-gray-600">{p.category || '—'}</td>
-        <td className="px-3 py-3 text-gray-600 font-mono text-xs">{p.barcode || '—'}</td>
-        <td className="px-3 py-3 text-gray-600">{p.baseUnit || '—'}</td>
+        <td className="hidden md:table-cell px-3 py-3 text-gray-600">{p.category || '—'}</td>
+        <td className="hidden lg:table-cell px-3 py-3 text-gray-600 font-mono text-xs">{p.barcode || '—'}</td>
+        <td className="hidden lg:table-cell px-3 py-3 text-gray-600">{p.baseUnit || '—'}</td>
         <td className="px-3 py-3 text-right text-gray-600">
           {displayCost != null ? `$${Number(displayCost).toFixed(2)}` : '—'}
         </td>
         <td className="px-3 py-3 text-right text-gray-600">
           {displayPrice != null ? `$${Number(displayPrice).toFixed(2)}` : '—'}
         </td>
-        <td className="px-3 py-3">
+        <td className="hidden md:table-cell px-3 py-3">
           {p.source ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
               {p.source}
@@ -862,7 +883,7 @@ function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleE
             <span className="text-gray-400 text-xs">Manual</span>
           )}
         </td>
-        <td className="px-3 py-3">
+        <td className="hidden lg:table-cell px-3 py-3">
           {Object.keys(variantsByStore).length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {Object.keys(variantsByStore).map((storeName) => (
@@ -875,8 +896,17 @@ function ProductRow({ product: p, isExpanded, hasVariants, isSelected, onToggleE
             <span className="text-gray-400 text-xs">—</span>
           )}
         </td>
-        <td className="px-3 py-3 text-gray-500 text-xs">{formatDate(p.createdAt)}</td>
+        <td className="hidden md:table-cell px-3 py-3 text-gray-500 text-xs">{formatDate(p.createdAt)}</td>
         <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={onShowPriceHistory}
+            className="p-1 text-gray-400 hover:text-teal-600 rounded hover:bg-teal-50 transition-colors mr-1"
+            title="Price history"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
           <button
             onClick={onDelete}
             disabled={deleting}

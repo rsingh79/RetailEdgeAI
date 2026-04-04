@@ -32,6 +32,7 @@ function InvoiceTable({ invoices, showCheckbox, selectedIds, onToggleSelect, onT
   const someSelected = showCheckbox && invoices.some((inv) => selectedIds.has(inv.id));
 
   return (
+    <div className="overflow-x-auto -mx-4 sm:mx-0">
     <table className="w-full text-sm">
       <thead>
         <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
@@ -47,13 +48,13 @@ function InvoiceTable({ invoices, showCheckbox, selectedIds, onToggleSelect, onT
             </th>
           )}
           <th className={`${showCheckbox ? 'pl-0' : 'pl-5'} pr-3 py-2.5`}>Status</th>
-          <th className="px-3 py-2.5">Source</th>
+          <th className="hidden md:table-cell px-3 py-2.5">Source</th>
           <th className="px-3 py-2.5">Supplier</th>
           <th className="px-3 py-2.5">Invoice #</th>
-          <th className="px-3 py-2.5">Date</th>
-          <th className="px-3 py-2.5 text-right">Lines</th>
+          <th className="hidden md:table-cell px-3 py-2.5">Date</th>
+          <th className="hidden sm:table-cell px-3 py-2.5 text-right">Lines</th>
           <th className="px-3 py-2.5 text-right">Total</th>
-          <th className="px-3 py-2.5 text-right">Confidence</th>
+          <th className="hidden lg:table-cell px-3 py-2.5 text-right">Confidence</th>
           <th className="w-10"></th>
         </tr>
       </thead>
@@ -81,7 +82,7 @@ function InvoiceTable({ invoices, showCheckbox, selectedIds, onToggleSelect, onT
                 {inv.status}
               </span>
             </td>
-            <td className="px-3 py-3">
+            <td className="hidden md:table-cell px-3 py-3">
               {inv.source === 'email' ? (
                 <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">Email</span>
               ) : inv.source === 'drive' ? (
@@ -92,12 +93,12 @@ function InvoiceTable({ invoices, showCheckbox, selectedIds, onToggleSelect, onT
                 <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">Upload</span>
               )}
             </td>
-            <td className="px-3 py-3 font-medium">{inv.supplierName || '—'}</td>
+            <td className="px-3 py-3 font-medium truncate max-w-[150px] sm:max-w-none">{inv.supplierName || '—'}</td>
             <td className="px-3 py-3 text-gray-600">{inv.invoiceNumber || '—'}</td>
-            <td className="px-3 py-3 text-gray-600">{formatDate(inv.invoiceDate)}</td>
-            <td className="px-3 py-3 text-right text-gray-600">{inv.lines?.length || 0}</td>
+            <td className="hidden md:table-cell px-3 py-3 text-gray-600">{formatDate(inv.invoiceDate)}</td>
+            <td className="hidden sm:table-cell px-3 py-3 text-right text-gray-600">{inv.lines?.length || 0}</td>
             <td className="px-3 py-3 text-right font-medium">{formatCurrency(inv.total)}</td>
-            <td className="px-3 py-3 text-right">
+            <td className="hidden lg:table-cell px-3 py-3 text-right">
               {inv.ocrConfidence != null ? (
                 <span className={`text-xs font-medium ${inv.ocrConfidence >= 0.9 ? 'text-emerald-600' : inv.ocrConfidence >= 0.7 ? 'text-amber-600' : 'text-red-600'}`}>
                   {Math.round(inv.ocrConfidence * 100)}%
@@ -119,6 +120,50 @@ function InvoiceTable({ invoices, showCheckbox, selectedIds, onToggleSelect, onT
         ))}
       </tbody>
     </table>
+    </div>
+  );
+}
+
+// ── Per-section search filter ────────────────────────────────
+function useInvoiceFilter(invoices) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    if (!query.trim()) return invoices;
+    const q = query.trim().toLowerCase();
+    return invoices.filter(
+      (inv) =>
+        (inv.supplierName || '').toLowerCase().includes(q) ||
+        (inv.invoiceNumber || '').toLowerCase().includes(q)
+    );
+  }, [invoices, query]);
+  return { query, setQuery, filtered };
+}
+
+function SectionSearchBar({ query, setQuery, total, placeholder }) {
+  if (total < 4) return null; // don't show search for tiny sections
+  return (
+    <div className="px-5 py-2 border-b border-gray-50">
+      <div className="relative max-w-xs">
+        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={placeholder || 'Filter by supplier or invoice #...'}
+          className="w-full pl-8 pr-7 py-1.5 text-xs border border-gray-200 rounded-md focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm leading-none"
+          >
+            &times;
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -157,6 +202,11 @@ export default function Invoices() {
     }
     return { readyInvoices: ready, inReviewInvoices: inReview, approvedInvoices: approved, otherInvoices: other };
   }, [invoices]);
+
+  // Per-section filters
+  const readyFilter = useInvoiceFilter(readyInvoices);
+  const reviewFilter = useInvoiceFilter(inReviewInvoices);
+  const approvedFilter = useInvoiceFilter(approvedInvoices);
 
   const loadInvoices = useCallback(async () => {
     try {
@@ -530,11 +580,12 @@ export default function Invoices() {
                 <span className="text-xs text-gray-400">Select invoices to batch review</span>
               )}
             </div>
-            {readyInvoices.length === 0 ? (
-              <EmptySection message="No invoices ready for review" />
+            <SectionSearchBar query={readyFilter.query} setQuery={readyFilter.setQuery} total={readyInvoices.length} />
+            {readyFilter.filtered.length === 0 ? (
+              <EmptySection message={readyFilter.query ? 'No matching invoices' : 'No invoices ready for review'} />
             ) : (
               <InvoiceTable
-                invoices={readyInvoices}
+                invoices={readyFilter.filtered}
                 showCheckbox
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
@@ -558,11 +609,12 @@ export default function Invoices() {
                 <span className="text-xs text-gray-400">Invoices currently being reviewed</span>
               )}
             </div>
-            {inReviewInvoices.length === 0 ? (
-              <EmptySection message="No invoices in review" />
+            <SectionSearchBar query={reviewFilter.query} setQuery={reviewFilter.setQuery} total={inReviewInvoices.length} />
+            {reviewFilter.filtered.length === 0 ? (
+              <EmptySection message={reviewFilter.query ? 'No matching invoices' : 'No invoices in review'} />
             ) : (
               <InvoiceTable
-                invoices={inReviewInvoices}
+                invoices={reviewFilter.filtered}
                 showCheckbox
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
@@ -583,11 +635,12 @@ export default function Invoices() {
                 </span>
               </div>
             </div>
-            {approvedInvoices.length === 0 ? (
-              <EmptySection message="No approved invoices" />
+            <SectionSearchBar query={approvedFilter.query} setQuery={approvedFilter.setQuery} total={approvedInvoices.length} />
+            {approvedFilter.filtered.length === 0 ? (
+              <EmptySection message={approvedFilter.query ? 'No matching invoices' : 'No approved invoices'} />
             ) : (
               <InvoiceTable
-                invoices={approvedInvoices}
+                invoices={approvedFilter.filtered}
                 showCheckbox
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}

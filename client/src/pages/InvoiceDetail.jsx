@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
@@ -22,18 +22,20 @@ export default function InvoiceDetail() {
   const [costBasis, setCostBasis] = useState({}); // lineId → 'inc' | 'exc'
   const [reOcrLoading, setReOcrLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await api.getInvoice(invoiceId);
-        setInvoice(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const loadInvoice = useCallback(async () => {
+    try {
+      const data = await api.getInvoiceDetails(invoiceId);
+      setInvoice(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [invoiceId]);
+
+  useEffect(() => {
+    loadInvoice();
+  }, [loadInvoice]);
 
   // Fetch file with auth token and create blob URL for iframe/img
   useEffect(() => {
@@ -152,6 +154,12 @@ export default function InvoiceDetail() {
   }
 
   if (!invoice) return null;
+
+  // Approved/exported invoices use the full Review flow
+  if (invoice.status === 'APPROVED' || invoice.status === 'EXPORTED') {
+    navigate(`/review/${invoiceId}`, { replace: true });
+    return null;
+  }
 
   const fileUrl = invoice.originalFileUrl;
   const isPdf = fileUrl?.toLowerCase().endsWith('.pdf');
@@ -375,6 +383,7 @@ export default function InvoiceDetail() {
               <h3 className="font-semibold text-sm">Extracted Line Items</h3>
               <span className="text-xs text-gray-400">{invoice.lines?.length || 0} items</span>
             </div>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
@@ -385,14 +394,14 @@ export default function InvoiceDetail() {
                     <div>Unit Price</div>
                     <div className="font-normal normal-case tracking-normal text-gray-400">(inc / ex GST)</div>
                   </th>
-                  <th className="px-3 py-2.5">
+                  <th className="hidden md:table-cell px-3 py-2.5">
                     <div>Total</div>
                     <div className="font-normal normal-case tracking-normal text-gray-400">(inc / ex GST)</div>
                   </th>
-                  <th className="px-3 py-2.5">Pack Size</th>
-                  <th className="px-3 py-2.5">Base Unit</th>
-                  <th className="px-3 py-2.5">Freight Alloc</th>
-                  <th className="px-2 py-2.5 w-14">
+                  <th className="hidden lg:table-cell px-3 py-2.5">Pack Size</th>
+                  <th className="hidden lg:table-cell px-3 py-2.5">Base Unit</th>
+                  <th className="hidden lg:table-cell px-3 py-2.5">Freight Alloc</th>
+                  <th className="hidden md:table-cell px-2 py-2.5 w-14">
                     <div>GST</div>
                   </th>
                   <th className="px-3 py-2.5">
@@ -436,7 +445,7 @@ export default function InvoiceDetail() {
                             onChange={(e) => setEditValues({ ...editValues, unitPrice: e.target.value })}
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="hidden md:table-cell px-3 py-2">
                           <input
                             type="number"
                             step="0.01"
@@ -445,24 +454,24 @@ export default function InvoiceDetail() {
                             onChange={(e) => setEditValues({ ...editValues, lineTotal: e.target.value })}
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="hidden lg:table-cell px-3 py-2">
                           <input
                             className="w-24 px-2 py-1 border rounded text-sm"
                             value={editValues.packSize}
                             onChange={(e) => setEditValues({ ...editValues, packSize: e.target.value })}
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="hidden lg:table-cell px-3 py-2">
                           <input
                             className="w-16 px-2 py-1 border rounded text-sm"
                             value={editValues.baseUnit}
                             onChange={(e) => setEditValues({ ...editValues, baseUnit: e.target.value })}
                           />
                         </td>
-                        <td className="px-3 py-2 text-right text-xs text-gray-400">
+                        <td className="hidden lg:table-cell px-3 py-2 text-right text-xs text-gray-400">
                           {line.freightAlloc ? `$${Number(line.freightAlloc).toFixed(2)}` : '—'}
                         </td>
-                        <td className="px-2 py-2 text-center">
+                        <td className="hidden md:table-cell px-2 py-2 text-center">
                           <input
                             type="checkbox"
                             checked={line.gstApplicable}
@@ -514,7 +523,7 @@ export default function InvoiceDetail() {
                             </>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-center">
+                        <td className="hidden md:table-cell px-3 py-3 text-center">
                           {!line.gstApplicable ? (
                             <div className="font-medium">${Number(line.lineTotal).toFixed(2)}</div>
                           ) : invoice.gstInclusive ? (
@@ -529,12 +538,12 @@ export default function InvoiceDetail() {
                             </>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-center text-gray-500">{line.packSize || '—'}</td>
-                        <td className="px-3 py-3 text-center text-gray-500">{line.baseUnit || '—'}</td>
-                        <td className="px-3 py-3 text-center text-gray-500">
+                        <td className="hidden lg:table-cell px-3 py-3 text-center text-gray-500">{line.packSize || '—'}</td>
+                        <td className="hidden lg:table-cell px-3 py-3 text-center text-gray-500">{line.baseUnit || '—'}</td>
+                        <td className="hidden lg:table-cell px-3 py-3 text-center text-gray-500">
                           {line.freightAlloc ? `$${Number(line.freightAlloc).toFixed(2)}` : '—'}
                         </td>
-                        <td className="px-2 py-3 text-center">
+                        <td className="hidden md:table-cell px-2 py-3 text-center">
                           <input
                             type="checkbox"
                             checked={line.gstApplicable}
@@ -583,9 +592,11 @@ export default function InvoiceDetail() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
+
     </div>
   );
 }

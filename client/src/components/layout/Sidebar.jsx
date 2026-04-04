@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useTenantPlan, clearPlanCache } from '../../hooks/useTenantPlan';
 import { api } from '../../services/api';
 
@@ -80,7 +80,7 @@ const icons = {
 
 const POLL_INTERVAL = 15_000; // refresh counts every 15 seconds
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const { hasFeature, loading } = useTenantPlan();
   const location = useLocation();
   const [counts, setCounts] = useState({ totalInvoices: 0, reviewInvoices: 0 });
@@ -111,6 +111,11 @@ export default function Sidebar() {
     const interval = setInterval(fetchCounts, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchCounts]);
+
+  // Close sidebar on navigation (mobile)
+  useEffect(() => {
+    onClose?.();
+  }, [location.pathname]);
 
   // Workflow children (nested under Invoice Workflow)
   const workflowChildren = [
@@ -174,7 +179,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-sidebar-bg text-white flex flex-col fixed h-full z-30">
+    <aside className={`w-64 bg-sidebar-bg text-white flex flex-col fixed top-0 left-0 h-full z-40 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
       <div className="p-5 flex items-center gap-3 border-b border-slate-700/50">
         <div className="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

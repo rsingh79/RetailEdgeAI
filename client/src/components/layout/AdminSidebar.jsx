@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 
 const navItems = [
   { to: '/admin/overview', label: 'Overview', icon: 'grid' },
@@ -36,14 +37,21 @@ const icons = {
   ),
 };
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ isOpen, onClose }) {
+  const location = useLocation();
+
+  // Close sidebar on navigation (mobile)
+  useEffect(() => {
+    onClose?.();
+  }, [location.pathname]);
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     window.location.href = '/login';
   };
 
   return (
-    <aside className="w-64 bg-slate-900 text-white flex flex-col fixed h-full z-30">
+    <aside className={`w-64 bg-slate-900 text-white flex flex-col fixed top-0 left-0 h-full z-40 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
       <div className="p-5 flex items-center gap-3 border-b border-slate-700/50">
         <div className="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

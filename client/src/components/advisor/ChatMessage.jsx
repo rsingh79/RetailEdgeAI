@@ -13,7 +13,7 @@ export default function ChatMessage({ message, onFeedback }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[75%] rounded-2xl px-4 py-3 ${
+        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 ${
           isUser
             ? 'bg-teal-600 text-white'
             : 'bg-white border border-gray-200 text-gray-800 shadow-sm'
@@ -22,7 +22,7 @@ export default function ChatMessage({ message, onFeedback }) {
         {isUser ? (
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         ) : (
-          <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-gray-900 prose-code:text-teal-700 prose-code:bg-teal-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-table:text-sm prose-th:text-left prose-th:px-3 prose-th:py-1.5 prose-th:bg-gray-50 prose-td:px-3 prose-td:py-1.5 prose-td:border-t prose-a:text-teal-600">
+          <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-gray-900 prose-code:text-teal-700 prose-code:bg-teal-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:overflow-x-auto prose-table:text-sm prose-th:text-left prose-th:px-3 prose-th:py-1.5 prose-th:bg-gray-50 prose-td:px-3 prose-td:py-1.5 prose-td:border-t prose-a:text-teal-600">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {message.content}
             </ReactMarkdown>

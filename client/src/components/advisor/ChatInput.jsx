@@ -41,7 +41,7 @@ export default function ChatInput({ onSend, disabled }) {
   }
 
   return (
-    <div className="border-t border-gray-200 bg-white px-6 py-3">
+    <div className="border-t border-gray-200 bg-white px-4 sm:px-6 py-3">
       <div className="max-w-3xl mx-auto flex items-end gap-3">
         <textarea
           ref={textareaRef}
@@ -55,12 +55,12 @@ export default function ChatInput({ onSend, disabled }) {
               : 'Ask about your business data...'
           }
           rows={1}
-          className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+          className="flex-1 min-h-[44px] resize-none rounded-xl border border-gray-300 px-4 py-2.5 text-base sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !text.trim()}
-          className="flex-shrink-0 p-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex-shrink-0 min-h-[44px] min-w-[44px] p-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />

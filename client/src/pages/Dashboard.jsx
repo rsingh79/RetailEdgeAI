@@ -120,7 +120,7 @@ export default function Dashboard() {
       {/* ── Invoice Pipeline ── */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-lg font-semibold mb-5">Invoice Pipeline</h2>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0">
           {/* Stage 1: Upload */}
           <div
             onClick={() => navigate('/invoices')}
@@ -141,9 +141,15 @@ export default function Dashboard() {
           </div>
 
           {/* Arrow */}
-          <div className="flex-shrink-0 px-3">
+          <div className="hidden sm:block flex-shrink-0 px-3">
             <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </div>
+          {/* Down arrow (mobile) */}
+          <div className="sm:hidden flex justify-center">
+            <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3" />
             </svg>
           </div>
 
@@ -167,9 +173,15 @@ export default function Dashboard() {
           </div>
 
           {/* Arrow */}
-          <div className="flex-shrink-0 px-3">
+          <div className="hidden sm:block flex-shrink-0 px-3">
             <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </div>
+          {/* Down arrow (mobile) */}
+          <div className="sm:hidden flex justify-center">
+            <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3" />
             </svg>
           </div>
 
@@ -195,7 +207,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Stats Row ── */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((stat) => (
           <div
             key={stat.label}
